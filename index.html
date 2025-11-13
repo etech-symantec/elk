@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Dongle&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ELK logstash.conf 생성기</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#f5f7fa; --fg:#222; --muted:#6b7280; --card:#ffffff; --pri:#1e3a8a; --pri2:#0ea5e9; --ok:#10b981; --warn:#f59e0b; --bad:#ef4444;
+      --radius:16px; --pad:14px; --shadow:0 6px 22px rgba(0,0,0,.08);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    *{box-sizing:border-box}
+    
+    .dongle-regular {
+        font-family: "Dongle", sans-serif;
+        font-weight: 400;
+        font-style: normal;
+      }
+    
+      /* 🔹 상단 네비게이션 버튼 */
+      .top-nav {
+        display: flex; justify-content: flex-end; gap: 5px; margin-bottom: -10px;
+      }
+      .nav-btn {
+        background: #1e3a5f; color: white; border: none; border-radius: 8px;
+        padding: 4px 10px; height: 26px; line-height: 18px;
+        cursor: pointer; font-weight: 600; font-size: 0.75rem;
+        text-decoration: none; transition: background 0.2s;
+      }
+      .nav-btn:hover { background: #294b7a; }
+    
+    body {
+        font-family: "Segoe UI", Arial, sans-serif;
+        background: #f3f4f6;
+        margin: 0;
+        padding: 20px 40px 40px 40px;
+        color:#333;
+      }
+    header{display:flex; align-items:center; justify-content:space-between; padding:24px 28px; position:sticky; top:0; backdrop-filter:saturate(1.2) blur(8px); background:linear-gradient(180deg, rgba(245,247,250,.9), rgba(245,247,250,.65)); border-bottom:1px solid #e5e7eb; z-index:5}
+    h1 {
+        font-size: 1.5em;
+        background: #1e3a5f;
+        color: white;
+        padding: 12px 18px;
+        border-radius: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-bottom: 10pt;
+      }
+    .header-wrap {
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        background: #f3f4f6;
+        transition: all 0.25s ease;
+        padding-bottom: 0px;
+      }
+      
+      .title-left {
+        font-size: 1.6em;
+        line-height: 0.7;
+        margin-bottom: 0;
+      }
+    
+      .subtitle {
+        font-size: 0.7em;
+        font-weight: normal;
+        color: #bcd0f7;
+        opacity: 0.9;
+        margin-top: 2px;
+        display: block;
+      }
+    
+      .date-container {
+        text-align: right;
+        line-height: 1.2;
+      }
+    
+      .version {
+        font-size: 20px;
+        color: #bcd0f7;
+        opacity: 0.9;
+      }
+    
+      .container {
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+        margin: 20px 0 0 0;
+        padding: 18px 24px 24px 24px;
+      }
+    .row{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+    .btn{border:none; border-radius:12px; padding:8px 14px; background:var(--pri); color:#fff; cursor:pointer; box-shadow:var(--shadow); font-weight:600; font-size:13px}
+    .btn:hover {
+      background: #1e293b;       /* 🔹 hover 색상 강조 */
+      box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+      transform: translateY(-1px);
+    }
+    
+    .btn:active {
+      background: #0f172a;
+      transform: translateY(0);
+      box-shadow: 0 1px 5px rgba(0,0,0,0.15);
+    }
+    .btn.sec {
+      background: #ff;
+      color: #ffffff;
+      border: 1px solid #1e293b;
+      padding: 4px 10px;        /* 🔹 더 작은 버튼 */
+      font-size: 12px;          /* 🔹 글씨도 약간 줄임 */
+      border-radius: 8px;       /* 🔹 각진 대신 조금 더 귀여운 라운드 */
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);  /* 🔹 살짝 입체감 */
+      transition: 0.15s ease;   /* 🔹 hover 시 부드럽게 */
+    }
+    
+    .btn.sec:hover {
+      background: #1e293b;       /* 🔹 hover 색상 강조 */
+      box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+      transform: translateY(-1px);
+    }
+    
+    .btn.sec:active {
+      background: #0f172a;
+      transform: translateY(0);
+      box-shadow: 0 1px 5px rgba(0,0,0,0.15);
+    }
+
+    .btn.ghost{background:transparent; color:var(--pri); border:1px solid #bfdbfe; box-shadow:none}
+    main{padding:24px; display:flex; flex-direction:column; gap:18px; max-width:1200px; margin:0 auto 32px auto;}
+    .card{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:var(--pad)}
+    .title{font-weight:700; margin:0 0 8px 0}
+    .help{color:var(--muted); font-size:12px}
+    label{display:block; font-weight:600; margin:10px 0 6px 0}
+    input[type="text"], input[type="number"], textarea, select{
+      width:100%; border:1px solid #e5e7eb; background:#fff; border-radius:12px; padding:8px 10px; outline:none; font-family:inherit; font-size:13px;
+    }
+    textarea{font-family:var(--mono); min-height:40px; resize:vertical;}
+    .muted{color:var(--muted)}
+    .small{font-size:12px}
+    .mono{font-family:var(--mono)}
+    .list{display:flex; flex-direction:column; gap:10px}
+    .idx{border:1px solid #e5e7eb; border-radius:14px; padding:10px; background:#f9fafb;}
+    .idx h4{margin:0 0 8px 0; font-size:14px}
+    .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:10px}
+    .grid4{
+      display:grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap:10px;
+    }
+    .grid5{
+      display:grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap:4px;
+    }
+    .divider{height:1px; background:#e5e7eb; margin:12px 0}
+    .table{border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; margin-top:6px}
+    .table table{width:100%; border-collapse:collapse; font-size:12px}
+    .table thead{background:#f8fafc}
+    .table th, .table td{padding:6px 8px; border-bottom:1px solid #eef2f7; text-align:left}
+    .codebox{
+      background:#0b1020;
+      color:#e2e8f0;
+      border-radius:14px;
+      padding:14px;
+      min-height:260px;
+      font-family:var(--mono);
+      
+      /* 기존 value */
+      white-space: pre-wrap;   /* ← 자동 줄바꿈 */
+      word-break: break-all;   /* ← 너무 긴 단어는 강제로 줄바꿈 */
+      overflow-x: hidden;      /* ← 가로 스크롤 제거 */
+    }
+    .chip{display:inline-flex; align-items:center; gap:6px; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:999px; padding:4px 10px; font-size:12px}
+    .flex{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    
+    /* type 카드 접기/펴기용 */
+    .type-card-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      cursor:pointer;
+      margin-bottom:6px;
+    }
+    .type-card-header h4{
+      margin:0;
+      font-size:14px;
+    }
+    .type-card-body{
+      margin-top:4px;
+    }
+    .type-card.collapsed .type-card-body{
+      display:none;
+    }
+    
+    /* 권장 매핑 모달 */
+    .modal-backdrop{
+      position:fixed;
+      inset:0;
+      background:rgba(15,23,42,.45);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:50;
+    }
+    .modal {
+      background:#fff;
+      border-radius:16px;
+      padding:16px 18px;
+      max-width:640px;
+      width:90%;
+      max-height:80vh;     /* 추가 */
+      overflow-y:auto;     /* 추가 */
+      box-shadow:0 18px 45px rgba(15,23,42,.5);
+      font-size:13px;
+    }
+
+    .modal h3{
+      margin:0 0 8px 0;
+      font-size:15px;
+    }
+    .modal table{
+      width:100%;
+      border-collapse:collapse;
+      margin-top:6px;
+    }
+    .modal th, .modal td{
+      border:1px solid #e5e7eb;
+      padding:4px 6px;
+      text-align:left;
+      font-size:12px;
+    }
+    .modal-footer{
+      margin-top:10px;
+      display:flex;
+      justify-content:flex-end;
+    }
+    .grok-toggle-btn {
+      font-size: 11px;
+      padding: 3px 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #f1f5f9;
+      color: #334155;
+      cursor: pointer;
+      margin: 6px 0;
+    }
+    
+    .grok-toggle-btn:hover {
+      background: #e2e8f0;
+    }
+    
+    /* 색상 하이라이트 */
+    .c-block {
+      color: #60a5fa; /* 파란색 */
+      font-weight: 700;
+    }
+    .c-key {
+      color: #fbbf24; /* 주황 */
+      font-weight: 600;
+    }
+    .c-string {
+      color: #34d399; /* 초록 */
+    }
+    .c-number {
+      color: #f472b6; /* 핑크 */
+    }
+    .c-comment {
+      color: #9ca3af; /* 회색 */
+      font-style: italic;
+    }
+    .c-grok {
+      color: #8CE4FF; /* 하늘색 */
+    }
+    .c-gtype {
+      color: #fbbf24; /* 노랑 */
+    }
+    .c-gvar {
+      color: #FE6244; /* 버건디디 */
+    }
+    .c-gextra {
+      color: #F7A5A5; /* 핑크 */
+    }
+  </style>
+</head>
+<body>
+    
+<div class="header-wrap">
+  <div class="top-nav">
+    <a href="https://etech-symantec.github.io/sysinfo" class="nav-btn">🧩 Sysinfo 분석</a>
+    <a href="https://etech-symantec.github.io/isg" class="nav-btn">🔎 ISG 분석</a>
+    <a href="https://etech-symantec.github.io/trace" class="nav-btn">📄 Trace 분석</a>
+    <a href="https://etech-symantec.github.io/sizing-sg" class="nav-btn">📊 Sizing-SG 보기</a>
+    <a href="https://etech-symantec.github.io/elk" class="nav-btn">🧬 ELK 로그 설정</a>
+  </div>
+
+  <h1 class="dongle-regular">
+    <div class="title-left">
+      ELK logstash.conf 생성기<br>
+      <span class="subtitle">by 이테크시스템</span>
+    </div>
+    <div class="date-container">
+      <div class="version">ver.2025.11.13.01</div>
+    </div>
+  </h1>
+</div>    
+<main>
+    <!-- 공통 변수 박스 -->
+  <section class="card" id="common-box">
+    <h3 class="title">Log 공통 설정</h3><div class="row">
+    <button class="btn" onclick="buildConf()">conf 생성/갱신</button>
+  </div>
+    <p class="help">모든 Type에 공통적으로 적용되는 기본 설정입니다.</p>
+    <div class="divider"></div>
+    <div class="grid4">
+      <div>
+        <label>Input path prefix</label>
+        <input type="text" id="common-path-prefix" value="/home/elk_ftp/" />
+      </div>
+      <div>
+        <label>Sincedb path prefix</label>
+        <input type="text" id="common-since-prefix" value="/var/lib/logstash/plugins/inputs/file/" />
+      </div>
+      <div>
+        <label>Max open files</label>
+        <input type="number" id="common-max-open" value="1000" min="1" />
+      </div>
+      <div>
+        <label>Output hosts</label>
+        <input type="text" id="common-output-hosts" value="http://localhost:9200" />
+      </div>
+    </div>
+  </section>
+    
+  <!-- 상단: 타입 / 인덱스 관리 -->
+  <section class="card" id="panel">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+  <h3 class="title" style="margin:0;">Log Type 설정</h3>
+  <button class="btn sec" onclick="addType()">+ Type 추가</button>
+</div>
+
+  <div class="divider"></div>
+
+  <div id="type-list" class="list"></div>
+</section>
+
+  <!-- 하단: logstash.conf 미리보기 -->
+    <section class="card">
+    
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 class="title" style="margin:0;">
+          생성된 <span class="mono">logstash.conf</span> 미리보기
+        </h3>
+    
+        <button class="btn sec" style="padding:6px 10px; font-size:11px;"
+                onclick="copyPreview()">
+          복사하기
+        </button>
+      </div>
+    
+      <div class="codebox" id="preview"></div>
+    
+    </section>
+
+</main>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// 1. 공통 템플릿 (type 개수 제한 없음)
+// ─────────────────────────────────────────────────────────────
+const TEMPLATE = `input {
+PLACEHOLDER_INPUT
+}
+filter {
+PLACEHOLDER_FILTER
+}
+output {
+PLACEHOLDER_OUTPUT
+}`;
+
+// input 블록
+function tplInput(path, start, since, type, discover, maxOpen){
+  return `file {
+    path => "${path}"
+    start_position => "${start}"
+     sincedb_path => "${since}"
+     type => "${type}"
+     discover_interval => ${discover}
+     max_open_files => ${maxOpen}
+  }`;
+}
+
+// filter 블록 (type별 if [type] == "X")
+function tplFilter(type, grokArray, convertBlock){
+  // cloud / edge 구분 없이, type 이름에 따라 date 포맷 힌트만 변경
+  const isCloudLike = type.toLowerCase().includes('cloud');
+
+  const dateAdd = isCloudLike
+    ? `add_field => { "date" => "%{year}-%{month}-%{day}" }
+      add_field => { "date-time" => "%{date} %{time}" }`
+    : `add_field => { "date" => "%{day}/%{month}/%{year}" }
+      add_field => { "date-time" => "%{day}/%{month}/%{year}:%{time_zone}" }`;
+
+  const dateMatch = isCloudLike
+    ? `match => ["date-time", "yyyy-MM-dd HH:mm:ss"]`
+    : `match => ["date-time", "dd/MMM/yyyy:HH:mm:ss Z"]`;
+
+  return `if [type] == "${type}" {
+    if [message] =~ /^\\#.*/ {
+      drop {}
+    }
+    grok {
+      match => { "message" => ${grokArray} }
+    }
+    mutate {
+      add_field => { "log_type" => "${type}" }
+      ${dateAdd}
+      remove_field => ["@timestamp", "message", "host", "path", "auth", "extra1", "tags", "@version", "_id", "_index", "_score", "_type", "year", "month", "day"]
+    }${convertBlock}
+    date {
+      ${dateMatch}
+      target => "@timestamp_log"
+      timezone => "Asia/Seoul"
+    }
+  }`;
+}
+
+// output 블록 (type == index)
+function tplOutput(type, hosts){
+  return `if [type] == "${type}" {
+    elasticsearch {
+      hosts => [${hosts}]
+      index => "${type}"
+    }
+  }`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 2. Type 카드 추가/삭제 (상단 패널용)
+// ─────────────────────────────────────────────────────────────
+let typeSeq = 0;
+
+// 공통 input 설정 (원하면 HTML에 입력창 추가해서 읽어오면 됨)
+const DEFAULT_PATH_PREFIX  = "/home/elk_ftp/";
+const DEFAULT_SINCE_PREFIX = "/var/lib/logstash/plugins/inputs/file/";
+const DEFAULT_MAX_OPEN     = 1000;
+const DEFAULT_HOSTS        = ["http://localhost:9200"];
+
+function addType(){
+  const host = document.getElementById('type-list');
+  const id = `type-${++typeSeq}`;
+  const div = document.createElement('div');
+  div.className = 'idx type-card collapsed';
+  div.dataset.id = id;
+
+    
+    div.innerHTML = `
+      <div class="type-card-header">
+          <div onclick="toggleTypeBody('${id}')" style="flex:1; cursor:pointer;">
+            <h4 style="display: flex; align-items: center; justify-content: space-between;">
+              <span><span class="mono">type</span> <span id="${id}-num"></span> : <span id="${id}-title">(미지정)</span></span>
+              <span class="small muted">접기/펼치기 ▾　</span>
+            </h4>
+          </div>
+          
+          <button class="btn ghost"
+                  style="padding:4px 6px; font-size:8px;"
+                  onclick="removeType('${id}')"
+                  title="삭제">
+              ✕
+          </button>
+        </div>
+
+      
+      <div class="type-card-body">
+        <div class="grid5">
+          <div>
+            <label>type 이름</label>
+            <input type="text"
+                   id="${id}-name"
+                   placeholder="예: cloud, edge, proxy01 ..."
+                   oninput="updateTypeTitle('${id}', this.value)" />
+          </div>
+          <div>
+            <label>start_position</label>
+            <select id="${id}-start">
+              <option value="beginning" selected>beginning</option>
+              <option value="end">end</option>
+            </select>
+          </div>
+          <div>
+            <label>path suffix</label>
+            <input type="text" id="${id}-path" value="*.log" />
+          </div>
+          <div>
+            <label>sincedb suffix</label>
+            <input type="text" id="${id}-since" value=".sincedb_cloud" />
+          </div>
+          <div>
+            <label>discover_interval</label>
+            <input type="number" id="${id}-discover" value="5" min="1" />
+          </div>
+        </div>
+    
+        <label>ELFF 포맷 입력</label>
+        <textarea id="${id}-elff" placeholder="date time time-taken c-ip ..." oninput="autoElffToGrok('${id}')"></textarea>
+        <label>생성된 Grok 패턴</label>
+        <textarea id="${id}-grok-view" readonly></textarea>
+        
+        <button class="grok-toggle-btn" type="button" onclick="toggleGrokTable('${id}')">
+          패턴 상세 보기 <span id="${id}-grok-toggle">▾</span>
+        </button>
+
+        <div class="table" id="${id}-table" style="display:none">
+        
+          <table>
+            <thead>
+              <tr>
+                <th>순서</th>
+                <th>ELFF 토큰</th>
+                <th>적용 Grok 표현식</th>
+              </tr>
+            </thead>
+
+            <tbody id="${id}-rows"></tbody>
+          </table>
+        </div>
+        <input type="hidden" id="${id}-grok" />
+      </div>
+    `;
+  host.appendChild(div);
+  renumberTypes();
+}
+function renumberTypes(){
+  const cards = [...document.querySelectorAll('#type-list .type-card')];
+  cards.forEach((card, idx)=>{
+    const id = card.dataset.id;
+    const span = document.getElementById(id + '-num');
+    if(span) span.textContent = idx + 1;
+  });
+}
+
+
+
+
+function removeType(id){
+  const el = document.querySelector(`.type-card[data-id="${id}"]`);
+  if(el) el.remove();
+  renumberTypes();
+}
+
+    
+    
+// ─────────────────────────────────────────────────────────────
+// ELFF → Grok 기본 매핑 / 타입 추정
+// ─────────────────────────────────────────────────────────────
+const MAP = {
+  'date': '%{YEAR:year}-%{MONTHNUM:month}-%{MONTHDAY:day}',
+  'time': '%{TIME:time}',
+  'time-taken': '%{NUMBER:time_taken:int}',
+  'c-ip': '%{IP:c_ip}',
+  'cs-username': '%{NOTSPACE:cs_username}',
+  'cs-auth-group': '%{NOTSPACE:cs_auth_group}',
+  's-supplier-name': '%{NOTSPACE:s_supplier_name}',
+  's-supplier-ip': '(%{IP:s_supplier_ip}|-)',
+  's-supplier-country': '%{QUOTEDSTRING:s_supplier_country}',
+  's-supplier-failures': '%{NOTSPACE:s_supplier_failures}',
+  'x-exception-id': '%{NOTSPACE:x_exception_id}',
+  'sc-filter-result': '%{NOTSPACE:sc_filter_result}',
+  'cs-categories': '%{QUOTEDSTRING:cs_categories}',
+  'sc-status': '%{NOTSPACE:sc_status}',
+  's-action': '%{NOTSPACE:s_action}',
+  'cs-method': '%{WORD:cs_method}',
+  'rs(Content-Type)': '%{NOTSPACE:rs_Content_Type}',
+  'cs-uri-scheme': '%{NOTSPACE:cs_uri_scheme}',
+  'cs-host': '%{NOTSPACE:cs_host}',
+  'cs-uri-port': '%{NUMBER:cs_uri_port}',
+  'cs-uri-extension': '%{NOTSPACE:cs_uri_extension}',
+  'cs(User-Agent)': '(%{QUOTEDSTRING:cs_User_Agent}|-)',
+  's-ip': '%{IP:s_ip}',
+  'sc-bytes': '%{NUMBER:sc_bytes:int}',
+  'cs-bytes': '%{NUMBER:cs_bytes:int}',
+  'x-virus-id': '%{NOTSPACE:x_virus_id}',
+  'cs-threat-source': '%{NOTSPACE:cs_threat_source}',
+  'cs-threat-id': '%{NOTSPACE:cs_threat_id}',
+  'rs-threat-source': '%{NOTSPACE:rs_threat_source}',
+  'rs-threat-id': '%{NOTSPACE:rs_threat_id}',
+  'x-rs-certificate-observed-errors': '%{NOTSPACE:x_rs_certificate_observed_errors}',
+  'x-cs-ocsp-error': '%{NOTSPACE:x_cs_ocsp_error}',
+  'x-rs-ocsp-error': '%{NOTSPACE:x_rs_ocsp_error}',
+  'x-rs-connection-negotiated-cipher-strength': '%{NOTSPACE:x_rs_connection_negotiated_cipher_strength}',
+  'x-rs-certificate-hostname': '%{NOTSPACE:x_rs_certificate_hostname}',
+  'x-rs-certificate-hostname-category': '"%{DATA:x_rs_certificate_hostname_category}"',
+  'cs-threat-risk': '%{NOTSPACE:cs_threat_risk}',
+  'x-rs-certificate-hostname-threat-risk': '%{NOTSPACE:x_rs_certificate_hostname_threat_risk}',
+  'x-bluecoat-access-security-policy-action': '%{NOTSPACE:x_bluecoat_access_security_policy_action}',
+  'x-bluecoat-access-security-policy-reason': '%{NOTSPACE:x_bluecoat_access_security_policy_reason}'
+};
+
+
+function buildConf(){
+    
+    // 공통 prefix 유효성 검사
+    function markInvalid(id, condition){
+        const el = document.getElementById(id);
+        if(!el) return;
+        if(condition){
+            el.style.border = "2px solid #ef4444";   // 빨간색 강조
+        }else{
+            el.style.border = "";                    // 원상복구
+        }
+    }
+    
+    const cp = document.getElementById('common-path-prefix').value.trim();
+    const cs = document.getElementById('common-since-prefix').value.trim();
+    
+    markInvalid('common-path-prefix',  cp === "");
+    markInvalid('common-since-prefix', cs === "");
+    
+    if(cp === "" || cs === ""){
+        alert("공통 prefix는 비워둘 수 없습니다.");
+        return;
+    }
+
+    
+  const typeCards = [...document.querySelectorAll('#type-list .type-card')];
+  if(typeCards.length === 0){
+    alert('최소 1개의 type을 추가하세요.');
+    return;
+  }
+  
+  // 🔥 공통 박스 변수 읽어오기
+  let DEFAULT_PATH_PREFIX  = document.getElementById('common-path-prefix').value.trim();
+    let DEFAULT_SINCE_PREFIX = document.getElementById('common-since-prefix').value.trim();
+    
+    // 공통 prefix 자동 / 추가
+    if(DEFAULT_PATH_PREFIX && !DEFAULT_PATH_PREFIX.endsWith('/')) {
+        DEFAULT_PATH_PREFIX += '/';
+    }
+    if(DEFAULT_SINCE_PREFIX && !DEFAULT_SINCE_PREFIX.endsWith('/')) {
+        DEFAULT_SINCE_PREFIX += '/';
+    }
+
+  const DEFAULT_MAX_OPEN     = parseInt(document.getElementById('common-max-open').value.trim() || "1000", 10);
+
+
+  // output hosts 배열
+  const hosts = DEFAULT_HOSTS;
+  const maxOpen = DEFAULT_MAX_OPEN;
+
+  const mkGrokArray = (parts) => {
+    if(!parts || parts.length === 0) return '["%{GREEDYDATA:message}"]';
+    // 한 type당 1줄 패턴으로 합치는 방식
+    return '["' + escapeQuotes(parts.join(' ')) + '"]';
+  };
+
+  const mkConvert = (typesMap) => {
+    const conv = [];
+    Object.entries(typesMap || {}).forEach(([token, type]) => {
+      const fieldName = guessFieldName(token);
+      if(!fieldName) return;
+      if(type === 'int' || type === 'float' || type === 'boolean'){
+        conv.push(`"${fieldName}" => "${type}"`);
+      }
+    });
+    if(conv.length === 0) return '';
+    return `\n    mutate {\n      convert => { ${conv.join(' ')} }\n    }`;
+  };
+
+  let inputs = [], filters = [], outputs = [];
+
+  typeCards.forEach(card => {
+    const id   = card.dataset.id;
+    const type = document.getElementById(id+'-name').value.trim();
+    const start = document.getElementById(id+'-start').value;
+    const pathS = document.getElementById(id+'-path').value.trim();
+    const sinceS = document.getElementById(id+'-since').value.trim();
+    const disc  = document.getElementById(id+'-discover').value.trim() || '5';
+
+    if(!type) return;
+
+    // input
+    const fullPath  = DEFAULT_PATH_PREFIX  + pathS;
+    const fullSince = DEFAULT_SINCE_PREFIX + sinceS;
+    inputs.push(
+      tplInput(fullPath, start, fullSince, type, disc, maxOpen)
+    );
+
+    // grok/convert
+    let data = {parts:[], types:{}};
+    try{
+      data = JSON.parse(document.getElementById(id+'-grok').value || '{}');
+    }catch(e){}
+    const grokArray    = mkGrokArray(data.parts);
+    const convertBlock = mkConvert(data.types);
+
+    filters.push(
+      tplFilter(type, grokArray, convertBlock)
+    );
+
+    // output (index = type)
+    outputs.push(
+      tplOutput(type, hosts)
+    );
+  });
+
+  if(inputs.length === 0){
+    alert('type 이름을 하나 이상 입력하세요.');
+    return;
+  }
+
+  const conf = TEMPLATE
+    .replace('PLACEHOLDER_INPUT',  inputs.join('\n'))
+    .replace('PLACEHOLDER_FILTER', filters.join('\nelse {\n  }  # dummy\n') ) // else 사이에 구분용
+    .replace('PLACEHOLDER_OUTPUT', outputs.join('\n  else {\n  }  # dummy\n'));
+
+  document.getElementById('preview').innerHTML = highlightLogstash(conf);
+
+}
+
+
+function defaultType(token){
+  const m = { 'time-taken':'int','cs-uri-port':'int','sc-bytes':'int','cs-bytes':'int' };
+  if(m[token]) return m[token];
+  if(token.endsWith('-ip')) return 'ip';
+  return 'string';
+}
+
+
+// 공통: ELFF → Grok 변환 및 테이블 렌더링
+function elffToGrok(id){
+  const raw = document.getElementById(id+'-elff').value.trim();
+  if(!raw){ alert('ELFF 포맷을 입력하세요.'); return; }
+  const tokens = raw.split(/\s+/);
+  renderGrokTable(id, tokens, null);
+}
+
+function renderGrokTable(id, tokens, existing){
+  const rows = document.getElementById(id+'-rows');
+  if(!rows) return;
+  rows.innerHTML='';
+  
+  let parts = [];
+  let types = existing?.types || {};
+  
+  tokens.forEach((t, i)=>{
+    // 🔹 권장값
+    const recommended = MAP[t] || `%{NOTSPACE:${t.replace(/[^a-zA-Z0-9_]/g,'_')}}`;
+
+    // 🔹 적용값(수정 가능)
+    const applied = existing?.parts?.[i] || recommended;
+
+    parts.push(applied);
+    
+    const isSame = (applied.trim() === recommended.trim());
+    const bg = isSame ? "background:#e6ffed;" : "";   // 연한 초록 배경
+  
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="small muted">${i + 1}</td>
+      <td class="mono">${t}</td>
+      <td>
+        <input type="text"
+               value="${applied.replace(/"/g, '&quot;')}"
+               style="width:100%; ${bg}"
+               oninput="onGrokCell('${id}', ${i}, this.value)" />
+      </td>
+    `;
+
+    rows.appendChild(tr);
+    
+  });
+  document.getElementById(id+'-grok').value = JSON.stringify({parts, types:collectTypes(id)});
+}
+
+
+
+function onGrokCell(id, idx, value){
+  const hidden = document.getElementById(id+'-grok');
+  if(!hidden) return;
+
+  let data={parts:[],types:{}};
+  try{ data = JSON.parse(hidden.value||'{}'); }catch(e){}
+
+  if(!data.parts) data.parts=[];
+  data.parts[idx] = value;
+  saveGrokState(id, data);
+// 🔥 textarea에 즉시 반영
+  document.getElementById(id+'-grok-view').value = data.parts.join(' ');
+
+  // 🔥 권장값과 비교해서 input 색 실시간 갱신
+  const token = document.getElementById(id+'-rows')
+                  .children[idx]
+                  .children[1]
+                  .textContent;
+
+  const recommended = MAP[token] || `%{NOTSPACE:${token.replace(/[^a-zA-Z0-9_]/g,'_')}}`;
+
+  const inputEl = document.getElementById(id+'-rows')
+                  .children[idx]
+                  .children[2]
+                  .querySelector('input');
+
+  if(inputEl){
+    if(value.trim() === recommended.trim()){
+      inputEl.style.background = "#e6ffed";   // 연한 초록
+    } else {
+      inputEl.style.background = "";          // 기본
+    }
+  }
+}
+
+function onTypeCell(id, token, type){
+  const hidden = document.getElementById(id+'-grok');
+  if(!hidden) return;
+  let data={parts:[],types:{}};
+  try{ data = JSON.parse(hidden.value||'{}'); }catch(e){}
+  if(!data.types) data.types={};
+  data.types[token]=type;
+  saveGrokState(id, data);
+}
+function collectTypes(id){
+  const tbody = document.getElementById(id+'-rows');
+  const types={};
+  if(!tbody) return types;
+  [...tbody.querySelectorAll('tr')].forEach(tr=>{
+    const token = tr.children[1].textContent;
+    const type  = tr.querySelector('select').value;
+    types[token]=type;
+  });
+  return types;
+}
+function saveGrokState(id, data){
+  const hidden = document.getElementById(id+'-grok');
+  if(hidden) hidden.value = JSON.stringify(data);
+}
+
+function escapeQuotes(s){
+  return s.replace(/\\/g,'\\\\').replace(/"/g,'\\"');
+}
+
+function guessFieldName(token){
+  if(MAP[token]){
+    const m = MAP[token].match(/%\{[^:]+:([^}]+)\}/);
+    if(m) return m[1];
+  }
+  return token.replace(/[^a-zA-Z0-9_]/g,'_');
+}
+
+function toggleTypeBody(id){
+  const card = document.querySelector(`.type-card[data-id="${id}"]`);
+  if(!card) return;
+  card.classList.toggle('collapsed');
+}
+
+function updateTypeTitle(id, value){
+  const span = document.getElementById(id + '-title');
+  if(!span) return;
+  span.textContent = value && value.trim() ? value.trim() : '(미지정)';
+}
+
+function openMappingModal(){
+  const m = document.getElementById('mapping-modal');
+  if(!m) return;
+
+  const body = document.getElementById('mapping-body');
+  body.innerHTML = "";  // 기존 내용 삭제
+
+  // MAP 객체의 모든 key/value를 테이블로 출력
+  Object.entries(MAP).forEach(([token, pattern]) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><code>${token}</code></td>
+      <td><code>${pattern}</code></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  m.style.display = 'flex';
+}
+
+
+function closeMappingModal(e){
+  const m = document.getElementById('mapping-modal');
+  if(m) m.style.display = 'none';
+}
+
+function autoElffToGrok(id){
+  const raw = document.getElementById(id+'-elff').value.trim();
+  if(!raw){
+    document.getElementById(id+'-grok-view').value = "";
+    document.getElementById(id+'-table').style.display = "none";
+    return;
+  }
+
+  const tokens = raw.split(/\s+/);
+
+  // 🔥 MAP 기반 권장값으로 패턴 생성
+  const parts = tokens.map(t =>
+    MAP[t] || `%{NOTSPACE:${t.replace(/[^a-zA-Z0-9_]/g,'_')}}`
+  );
+
+  // Grok 패턴 textarea 반영
+  document.getElementById(id+'-grok-view').value = parts.join(' ');
+
+  // type 카드 숨은 값 저장
+  const data = { parts, types:{} };
+  document.getElementById(id+'-grok').value = JSON.stringify(data);
+
+  // 🔥 MAP 기반 권장 패턴 테이블도 즉시 생성
+  renderGrokTable(id, tokens, data);
+}
+
+function toggleGrokTable(id){
+  const tbl = document.getElementById(id+'-table');
+  const icon = document.getElementById(id+'-grok-toggle');
+  if(!tbl || !icon) return;
+
+  const isCollapsed = tbl.style.display === "none" || tbl.style.display === "";
+
+  if(isCollapsed){
+    tbl.style.display = "block";
+    icon.textContent = "▴";   // 펼쳐졌을 때 아이콘
+  } else {
+    tbl.style.display = "none";
+    icon.textContent = "▾";   // 접혔을 때 아이콘
+  }
+}
+function copyPreview() {
+  const txt = document.getElementById("preview").textContent;
+  if (!txt.trim()) {
+    alert("복사할 내용이 없습니다.");
+    return;
+  }
+
+  navigator.clipboard.writeText(txt)
+    .then(() => alert("logstash.conf 내용이 복사되었습니다!"))
+    .catch(() => alert("복사 중 오류가 발생했습니다."));
+}
+
+function highlightLogstash(conf) {
+  // 원본 텍스트를 먼저 HTML 이스케이프
+  let html = escapeHTML(conf);
+
+  // 1) 문자열
+  html = html.replace(/"([^"]*)"/g,
+    match => `<span class="c-string">${match}</span>`
+  );
+  // 2) 숫자
+  html = html.replace(/\b\d+\b/g,
+    match => `<span class="c-number">${match}</span>`
+  );
+  // 3) 키워드
+  html = html.replace(
+    /\b(path|type|sincedb_path|start_position|discover_interval|max_open_files|hosts|index)\b/g,
+    match => `<span class="c-key">${match}</span>`
+  );
+  // 4) 블록명
+  html = html.replace(/\b(input|filter|output)\b/g,
+    match => `<span class="c-block">${match}</span>`
+  );
+  // 5) Grok 패턴: %{TYPE:FIELD[:EXTRA]}
+  html = html.replace(
+    /%\{([A-Za-z0-9_]+):([A-Za-z0-9_]+)(?::([A-Za-z0-9_]+))?\}/g,
+    (match, gtype, gvar, gextra) => {
+      return `<span class="c-grok">%{` +
+             `<span class="c-gtype">${gtype}</span>:` +
+             `<span class="c-gvar">${gvar}</span>` +
+             (gextra ? `:<span class="c-gextra">${gextra}</span>` : "") +
+             `}</span>`;
+    }
+  );
+
+  return html;
+}
+
+function escapeHTML(str){
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+
+// 초기 상태: type 1개 샘플 + 라이브러리 로드
+addType();
+
+</script>
+</body>
+</html>
