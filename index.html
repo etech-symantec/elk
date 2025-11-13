@@ -315,7 +315,6 @@
     <!-- 공통 변수 박스 -->
   <section class="card" id="common-box">
     <h3 class="title">Log 공통 설정</h3><div class="row">
-    <button class="btn" onclick="buildConf()">conf 생성/갱신</button>
   </div>
     <p class="help">모든 Type에 공통적으로 적용되는 기본 설정입니다.</p>
     <div class="divider"></div>
@@ -358,11 +357,13 @@
         <h3 class="title" style="margin:0;">
           생성된 <span class="mono">logstash.conf</span> 미리보기
         </h3>
-    
-        <button class="btn sec" style="padding:6px 10px; font-size:11px;"
+        <div>
+        <button class="btn sec" style="padding:2px 8px; font-size:14px;" onclick="buildConf()"><b>conf 생성/갱신</b></button>
+        <button class="btn sec" style="padding:4px 8px; font-size:10px;"
                 onclick="copyPreview()">
           복사하기
         </button>
+        </div>
       </div>
     
       <div class="codebox" id="preview"></div>
