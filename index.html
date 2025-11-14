@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600&display=swap" rel="stylesheet">
   <style>
     :root{
-      --bg:#f5f7fa; --fg:#222; --muted:#6b7280; --card:#ffffff; --pri:#1e3a8a; --pri2:#0ea5e9; --ok:#10b981; --warn:#f59e0b; --bad:#ef4444;
+      --bg:#f5f7fa; --fg:#222; --muted:#7D8D86; --card:#ffffff; --pri:#1e3a8a; --pri2:#0ea5e9; --ok:#10b981; --warn:#f59e0b; --bad:#ef4444;
       --radius:16px; --pad:14px; --shadow:0 6px 22px rgba(0,0,0,.08);
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     }
@@ -40,7 +40,7 @@
         font-family: "Segoe UI", Arial, sans-serif;
         background: #f3f4f6;
         margin: 0;
-        padding: 20px 40px 40px 40px;
+        padding: 20px 40px 10px 40px;
         color:#333;
       }
     header{display:flex; align-items:center; justify-content:space-between; padding:24px 28px; position:sticky; top:0; backdrop-filter:saturate(1.2) blur(8px); background:linear-gradient(180deg, rgba(245,247,250,.9), rgba(245,247,250,.65)); border-bottom:1px solid #e5e7eb; z-index:5}
@@ -137,7 +137,7 @@
     main{padding:24px; display:flex; flex-direction:column; gap:18px; max-width:1200px; margin:0 auto 32px auto;}
     .card{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:var(--pad)}
     .title{font-weight:700; margin:0 0 8px 0}
-    .help{color:var(--muted); font-size:12px}
+    .help{color:var(--muted); font-size:12px; padding:12px; font-weight: normal;}
     label{display:block; font-weight:600; margin:10px 0 6px 0}
     input[type="text"], input[type="number"], textarea, select{
       width:100%; border:1px solid #e5e7eb; background:#fff; border-radius:12px; padding:8px 10px; outline:none; font-family:inherit; font-size:13px;
@@ -200,48 +200,6 @@
       display:none;
     }
     
-    /* 권장 매핑 모달 */
-    .modal-backdrop{
-      position:fixed;
-      inset:0;
-      background:rgba(15,23,42,.45);
-      display:none;
-      align-items:center;
-      justify-content:center;
-      z-index:50;
-    }
-    .modal {
-      background:#fff;
-      border-radius:16px;
-      padding:16px 18px;
-      max-width:640px;
-      width:90%;
-      max-height:80vh;     /* 추가 */
-      overflow-y:auto;     /* 추가 */
-      box-shadow:0 18px 45px rgba(15,23,42,.5);
-      font-size:13px;
-    }
-
-    .modal h3{
-      margin:0 0 8px 0;
-      font-size:15px;
-    }
-    .modal table{
-      width:100%;
-      border-collapse:collapse;
-      margin-top:6px;
-    }
-    .modal th, .modal td{
-      border:1px solid #e5e7eb;
-      padding:4px 6px;
-      text-align:left;
-      font-size:12px;
-    }
-    .modal-footer{
-      margin-top:10px;
-      display:flex;
-      justify-content:flex-end;
-    }
     .grok-toggle-btn {
       font-size: 11px;
       padding: 3px 8px;
@@ -288,6 +246,83 @@
     .c-gextra {
       color: #F7A5A5; /* 핑크 */
     }
+
+    /* conf 생성/갱신 버튼 스타일 */
+    .btn-generate {
+      background: linear-gradient(135deg, #B9375D, #3b82f6);
+      color: white;
+      padding: 5px 20px;
+      font-size: 12px;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.22s ease;
+      display: inline-flex;
+      align-items: center;
+    }
+    
+    .btn-generate:hover {
+      background: linear-gradient(135deg, #D92C54, #2563eb);
+      transform: translateY(-1px);
+    }
+    
+    .btn-generate:active {
+      background: linear-gradient(135deg, #932F67, #1e40af);
+      transform: translateY(0);
+    }
+    
+    /* ───────────────────────────────
+       Type 카드 제목 라벨 디자인
+       ─────────────────────────────── */
+    .type-chip {
+      padding: 4px 12px;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: 0.2s ease;
+      border: 1px dashed #9ca3af;     /* 기본: 회색 점선(미지정 상태) */
+      background: #f3f4f6;            /* 연한 회색 */
+      color: #6b7280;                 /* 중간 회색 텍스트 */
+    }
+    
+    .type-chip .type-index {
+      font-weight: 700;
+      color: #6b7280;                 /* 미지정 상태에서 회색 유지 */
+    }
+    
+    .type-chip .type-name {
+      font-weight: 600;
+      font-style: italic;
+      color: #9ca3af;                 /* 연회색 (미지정 표시) */
+    }
+    
+    /* ───────────────────────────────
+       이름 입력된 경우: 활성화 스타일
+       ─────────────────────────────── */
+    .type-chip.name-active {
+      background: #eef2ff;            /* 연보라 */
+      border: 1px solid #c7d2fe;       /* 보라색 실선 */
+      color: #3730a3;                 /* 진한 인디고 */
+    }
+    
+    .type-chip.name-active .type-index {
+      font-size: 12px;
+      color: #1e3a8a;                 /* 네이비 */
+    }
+    
+    .type-chip.name-active .type-name {
+      font-size: 12px;
+      color: #1e3a8a;                 /* 네이비 */
+      font-style: normal;
+      font-weight: 700;
+    }
+
+
+    
   </style>
 </head>
 <body>
@@ -314,9 +349,7 @@
 <main>
     <!-- 공통 변수 박스 -->
   <section class="card" id="common-box">
-    <h3 class="title">Log 공통 설정</h3><div class="row">
-  </div>
-    <p class="help">모든 Type에 공통적으로 적용되는 기본 설정입니다.</p>
+    <h4 class="title">Log 공통 설정<span class="help">모든 Type에 공통적으로 적용되는 기본 설정입니다.</span></h4>
     <div class="divider"></div>
     <div class="grid4">
       <div>
@@ -341,7 +374,7 @@
   <!-- 상단: 타입 / 인덱스 관리 -->
   <section class="card" id="panel">
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-  <h3 class="title" style="margin:0;">Log Type 설정</h3>
+  <h4 class="title" style="margin:0;">Log Type 설정<span class="help">수집하는 로그별로 Type이 필요합니다.</span></h4>
   <button class="btn sec" onclick="addType()">+ Type 추가</button>
 </div>
 
@@ -354,11 +387,13 @@
     <section class="card">
     
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <h3 class="title" style="margin:0;">
+        <h4 class="title" style="margin:0;">
           생성된 <span class="mono">logstash.conf</span> 미리보기
-        </h3>
+        </h4>
         <div>
-        <button class="btn sec" style="padding:2px 8px; font-size:14px;" onclick="buildConf()"><b>conf 생성/갱신</b></button>
+        <button class="btn-generate" onclick="buildConf()">
+          ⚙️ conf 생성/갱신
+        </button>
         <button class="btn sec" style="padding:4px 8px; font-size:10px;"
                 onclick="copyPreview()">
           복사하기
@@ -466,7 +501,13 @@ function addType(){
       <div class="type-card-header">
           <div onclick="toggleTypeBody('${id}')" style="flex:1; cursor:pointer;">
             <h4 style="display: flex; align-items: center; justify-content: space-between;">
-              <span><span class="mono">type</span> <span id="${id}-num"></span> : <span id="${id}-title">(미지정)</span></span>
+              <span class="type-chip" id="${id}-chip">
+                  <span class="type-index">Type <span id="${id}-num"></span></span>
+                  ·
+                  <span class="type-name" id="${id}-title">( - )</span>
+                </span>
+
+
               <span class="small muted">접기/펼치기 ▾　</span>
             </h4>
           </div>
@@ -512,6 +553,7 @@ function addType(){
     
         <label>ELFF 포맷 입력</label>
         <textarea id="${id}-elff" placeholder="date time time-taken c-ip ..." oninput="autoElffToGrok('${id}')"></textarea>
+        <div class="grok-container" id="${id}-grok-container" style="display:none;">
         <label>생성된 Grok 패턴</label>
         <textarea id="${id}-grok-view" readonly></textarea>
         
@@ -532,6 +574,7 @@ function addType(){
 
             <tbody id="${id}-rows"></tbody>
           </table>
+        </div>
         </div>
         <input type="hidden" id="${id}-grok" />
       </div>
@@ -633,7 +676,7 @@ function buildConf(){
     
   const typeCards = [...document.querySelectorAll('#type-list .type-card')];
   if(typeCards.length === 0){
-    alert('최소 1개의 type을 추가하세요.');
+    alert('최소 1개의 Type을 추가하세요.');
     return;
   }
   
@@ -713,7 +756,7 @@ function buildConf(){
   });
 
   if(inputs.length === 0){
-    alert('type 이름을 하나 이상 입력하세요.');
+    alert('Type 이름을 하나 이상 입력하세요.');
     return;
   }
 
@@ -861,11 +904,6 @@ function toggleTypeBody(id){
   card.classList.toggle('collapsed');
 }
 
-function updateTypeTitle(id, value){
-  const span = document.getElementById(id + '-title');
-  if(!span) return;
-  span.textContent = value && value.trim() ? value.trim() : '(미지정)';
-}
 
 function openMappingModal(){
   const m = document.getElementById('mapping-modal');
@@ -895,6 +933,17 @@ function closeMappingModal(e){
 
 function autoElffToGrok(id){
   const raw = document.getElementById(id+'-elff').value.trim();
+  // 🔥 ELFF 입력칸이 비었으면 grok 영역 숨김
+  const box = document.getElementById(id+"-grok-container");
+  if (raw === "") {
+      if (box) box.style.display = "none";
+      return;
+  }
+
+  // 🔥 입력이 생기면 grok 영역 표시
+  if (box) box.style.display = "block";
+
+  
   if(!raw){
     document.getElementById(id+'-grok-view').value = "";
     document.getElementById(id+'-table').style.display = "none";
@@ -988,6 +1037,22 @@ function escapeHTML(str){
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 }
+function updateTypeTitle(id, value){
+  const span = document.getElementById(id + '-title');
+  const chip = document.getElementById(id + '-chip');
+
+  if(!span || !chip) return;
+
+  const trimmed = value.trim();
+  span.textContent = trimmed ? trimmed : '( - )';
+  
+  if(trimmed){
+    chip.classList.add("name-active");
+  } else {
+    chip.classList.remove("name-active");
+  }
+}
+
 
 
 // 초기 상태: type 1개 샘플 + 라이브러리 로드
