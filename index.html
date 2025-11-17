@@ -30,8 +30,14 @@
       }
       .nav-btn {
         background: #1e3a5f; color: white; border: none; border-radius: 8px;
-        padding: 4px 10px; height: 26px; line-height: 18px;
-        cursor: pointer; font-weight: 600; font-size: 0.75rem;
+        padding: 4px 8px; height: 26px; line-height: 18px;
+        cursor: pointer; font-weight: 400; font-size: 0.75rem;
+        text-decoration: none; transition: background 0.2s;
+      }
+      .nav-btn-soon {
+        background: #98A1BC; color: #555879; border: none; border-radius: 8px;
+        padding: 4px 8px; height: 26px; line-height: 18px;
+        cursor: pointer; font-weight: 400; font-size: 0.75rem;
         text-decoration: none; transition: background 0.2s;
       }
       .nav-btn:hover { background: linear-gradient(135deg, #FF0066, #0046FF); }
@@ -40,7 +46,7 @@
         font-family: "Segoe UI", Arial, sans-serif;
         background: #f3f4f6;
         margin: 0;
-        padding: 20px 40px 10px 40px;
+        padding: 6px 40px 10px 40px;
         color:#333;
       }
     header{display:flex; align-items:center; justify-content:space-between; padding:24px 28px; position:sticky; top:0; backdrop-filter:saturate(1.2) blur(8px); background:linear-gradient(180deg, rgba(245,247,250,.9), rgba(245,247,250,.65)); border-bottom:1px solid #e5e7eb; z-index:5}
@@ -347,6 +353,7 @@
     <a href="https://etech-symantec.github.io/trace" class="nav-btn">📄 Trace 분석</a>
     <a href="https://etech-symantec.github.io/sizing-sg" class="nav-btn">📊 Sizing-SG 보기</a>
     <a href="https://etech-symantec.github.io/elk" class="nav-btn">🧬 ELK 로그 설정</a>
+    <a href="https://etech-symantec.github.io/elk" class="nav-btn-soon">🚦 PAC</a>
   </div>
 
   <h1 class="dongle-regular">
