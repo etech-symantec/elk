@@ -322,6 +322,17 @@
       font-style: normal;
       font-weight: 700;
     }
+    
+    .unmapped-label {
+      background: #fee2e2;
+      color: #b91c1c;
+      border: 1px solid #fca5a5;
+      padding: 2px 6px;
+      font-size: 10px;
+      border-radius: 6px;
+      margin-left: 6px;
+    }
+
 
 
     
@@ -344,7 +355,7 @@
       <span class="subtitle">by 이테크시스템</span>
     </div>
     <div class="date-container">
-      <div class="version">ver.2025.11.13.01</div>
+      <div class="version">ver.2025.11.17.01</div>
     </div>
   </h1>
 </div>    
@@ -378,6 +389,10 @@
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
   <h4 class="title" style="margin:0;">Log Type 설정<span class="help">수집하는 로그별로 Type이 필요합니다.</span></h4>
   <button class="btn sec" onclick="addType()">+ Type 추가</button>
+  <button class="btn sec" onclick="addDefaultType('Edge-Main')">Edge-Main 추가</button>
+<button class="btn sec" onclick="addDefaultType('Edge-SSL')">Edge-SSL 추가</button>
+<button class="btn sec" onclick="addDefaultType('Cloud')">Cloud 추가</button>
+
 </div>
 
   <div class="divider"></div>
@@ -647,7 +662,62 @@ const MAP = {
   'cs-threat-risk': '%{NOTSPACE:cs_threat_risk}',
   'x-rs-certificate-hostname-threat-risk': '%{NOTSPACE:x_rs_certificate_hostname_threat_risk}',
   'x-bluecoat-access-security-policy-action': '%{NOTSPACE:x_bluecoat_access_security_policy_action}',
-  'x-bluecoat-access-security-policy-reason': '%{NOTSPACE:x_bluecoat_access_security_policy_reason}'
+  'x-bluecoat-access-security-policy-reason': '%{NOTSPACE:x_bluecoat_access_security_policy_reason}',
+  'cs-auth-groups': '%{NOTSPACE:cs_auth_groups}',
+  'cs-icap-error-details': '%{NOTSPACE:cs_icap_error_details}',
+  'cs-icap-status': '%{NOTSPACE:cs_icap_status}',
+  'cs-referer': '%{NOTSPACE:cs_Referer}',
+  'cs-uri-path': '%{NOTSPACE:cs_uri_path}',
+  'cs-uri-query': '%{NOTSPACE:cs_uri_query}',
+  'cs-user-agent': '(%{QUOTEDSTRING:cs_User_Agent}|-)',
+  'cs-userdn': '%{NOTSPACE:cs_userdn}',
+  'cs-x-requested-with': '%{NOTSPACE:cs_X_Requested_With}',
+  'r-supplier-country': '%{QUOTEDSTRING:r_supplier_country}',
+  'rs-content-type': '%{NOTSPACE:rs_Content_Type}',
+  'rs-icap-error-details': '%{NOTSPACE:rs_icap_error_details}',
+  'rs-icap-status': '%{NOTSPACE:rs_icap_status}',
+  's-source-ip': '(%{IP:s_supplier_ip}|-)',
+  's-supplier-ip': '%{IP:s_supplier_ip}',
+  'x-action-result': '%{NOTSPACE:x_action_result}',
+  'x-bluecoat-access-type': '%{NOTSPACE:x_bluecoat_access_type}',
+  'x-bluecoat-application-name': '\"%{DATA:x_bluecoat_application_name}\"',
+  'x-bluecoat-application-operation': '\"%{DATA:x_bluecoat_application_operation}\"',
+  'x-bluecoat-location-id': '%{NOTSPACE:x_bluecoat_location_id}',
+  'x-bluecoat-location-name': '%{QUOTEDSTRING:x_bluecoat_location_name}',  
+  'x-bluecoat-placeholder': '%{NOTSPACE:x_bluecoat_placeholder}',
+  'x-bluecoat-reference-id': '%{NOTSPACE:x_bluecoat_reference_id}',
+  'x-bluecoat-request-tenant-id': '%{NOTSPACE:x_bluecoat_request_tenant_id}',
+  'x-bluecoat-transaction-uuid': '(?<x_bluecoat_transaction_uuid>[0-9a-fA-F]{16}-[0-9a-fA-F]{16}-[0-9a-fA-F]{16})',
+  'x-client-agent-ip': '%{IP:x_client_agent_ip}',
+  'x-client-agent-sw': '(?<x_client_agent_sw>\d+\.\d+\.\d+\.\d+)',
+  'x-client-agent-type': '%{NOTSPACE:x_client_agent_type}',
+  'x-client-device-id': '(?<x_client_device_id>[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12})',
+  'x-client-device-name': '%{NOTSPACE:x_client_device_name}',
+  'x-client-device-type': '%{NOTSPACE:x_client_device_type}',
+  'x-client-os': '%{QUOTEDSTRING:x_client_os}',
+  'x-client-security-posture-details': '%{NOTSPACE:x_client_security_posture_details}',
+  'x-client-security-posture-risk-score': '%{NOTSPACE:x_client_security_posture_risk_score}',
+  'x-cloud-rs': '%{NOTSPACE:x_cloud_rs}',
+  'x-cs-certificate-subject': '%{NOTSPACE:x_cs_certificate_subject}',
+  'x-cs-client-ip-country': '%{QUOTEDSTRING:x_cs_client_ip_country}',
+  'x-cs-connection-negotiated-cipher': '%{NOTSPACE:x_cs_connection_negotiated_cipher}',
+  'x-cs-connection-negotiated-cipher-size': '%{NUMBER:x_cs_connection_negotiated_cipher_size}',
+  'x-cs-connection-negotiated-ssl-version': '%{NOTSPACE:x_cs_connection_negotiated_ssl_version}',
+  'x-cs-public-ip': '%{IP:x_cs_public_ip}',
+  'x-data-leak-detected': '%{NOTSPACE:x_data_leak_detected}',
+  'x-data-types': '%{NOTSPACE:x_data_types}',
+  'x-icap-reqmod-header(X-ICAP-Metadata)': '%{NOTSPACE:x_icap_reqmod_header_X_ICAP_Metadata}',
+  'x-icap-respmod-header(X-ICAP-Metadata)': '%{NOTSPACE:x_icap_respmod_header_X_ICAP_Metadata}',
+  'x-random-ipv6': '(%{IPV6:x_random_ipv6}|-)',
+  'x-rs-certificate-hostname-categories': '%{NOTSPACE:x_rs_certificate_hostname_categories}',
+  'x-rs-certificate-validate-status': '%{NOTSPACE:x_rs_certificate_validate_status}',
+  'x-rs-connection-negotiated-cipher': '%{NOTSPACE:x_rs_connection_negotiated_cipher}',
+  'x-rs-connection-negotiated-cipher-size': '%{NUMBER:x_rs_connection_negotiated_cipher_size}',
+  'x-rs-connection-negotiated-ssl-version': '%{NOTSPACE:x_rs_connection_negotiated_ssl_version}',
+  'x-sc-connection-issuer-keyring': '%{NOTSPACE:x_sc_connection_issuer_keyring}',
+  'x-sc-connection-issuer-keyring-alias': '%{NOTSPACE:x_sc_connection_issuer_keyring_alias}',
+  'x-virus-id': '%{NOTSPACE:x_virus_id}'
+
 };
 
 
@@ -792,26 +862,36 @@ function renderGrokTable(id, tokens, existing){
   const rows = document.getElementById(id+'-rows');
   if(!rows) return;
   rows.innerHTML='';
-  
+
   let parts = [];
   let types = existing?.types || {};
-  
+
   tokens.forEach((t, i)=>{
-    // 🔹 권장값
+
+    // 추천값
     const recommended = MAP[t] || `%{NOTSPACE:${t.replace(/[^a-zA-Z0-9_]/g,'_')}}`;
 
-    // 🔹 적용값(수정 가능)
+    // 적용값
     const applied = existing?.parts?.[i] || recommended;
-
     parts.push(applied);
-    
+
+    // MAP에 존재하는지 확인
+    const isMapped = MAP.hasOwnProperty(t);
     const isSame = (applied.trim() === recommended.trim());
-    const bg = isSame ? "background:#e6ffed;" : "";   // 연한 초록 배경
-  
+    const bg = (isMapped && isSame) ? "background:#e6ffed;" : "";
+
+    // 🔥 미등록 라벨 생성
+    const warnLabel = !isMapped
+      ? `<span class="unmapped-label">미등록</span>`
+      : "";
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="small muted">${i + 1}</td>
-      <td class="mono">${t}</td>
+
+      <!-- 🔥 토큰 표시 + 미등록 라벨 -->
+      <td class="mono">${t} ${warnLabel}</td>
+
       <td>
         <input type="text"
                value="${applied.replace(/"/g, '&quot;')}"
@@ -821,10 +901,12 @@ function renderGrokTable(id, tokens, existing){
     `;
 
     rows.appendChild(tr);
-    
   });
-  document.getElementById(id+'-grok').value = JSON.stringify({parts, types:collectTypes(id)});
+
+  document.getElementById(id+'-grok').value =
+    JSON.stringify({parts, types:collectTypes(id)});
 }
+
 
 
 
@@ -838,30 +920,38 @@ function onGrokCell(id, idx, value){
   if(!data.parts) data.parts=[];
   data.parts[idx] = value;
   saveGrokState(id, data);
-// 🔥 textarea에 즉시 반영
+
+  // textarea 반영
   document.getElementById(id+'-grok-view').value = data.parts.join(' ');
 
-  // 🔥 권장값과 비교해서 input 색 실시간 갱신
+  // 테이블에서 token 읽기
   const token = document.getElementById(id+'-rows')
-                  .children[idx]
-                  .children[1]
-                  .textContent;
+                .children[idx]
+                .children[1]
+                .textContent;
 
+  // 추천값 (MAP 기반)
   const recommended = MAP[token] || `%{NOTSPACE:${token.replace(/[^a-zA-Z0-9_]/g,'_')}}`;
 
+  // 🔥 MAP에 등록된 토큰인지 체크
+  const isMapped = MAP.hasOwnProperty(token);
+
+  // input element 찾기
   const inputEl = document.getElementById(id+'-rows')
-                  .children[idx]
-                  .children[2]
-                  .querySelector('input');
+                .children[idx]
+                .children[2]
+                .querySelector('input');
 
   if(inputEl){
-    if(value.trim() === recommended.trim()){
-      inputEl.style.background = "#e6ffed";   // 연한 초록
+    // 🔥 MAP에 존재하고 + 추천값과 정확히 일치해야 초록색
+    if (isMapped && value.trim() === recommended.trim()) {
+      inputEl.style.background = "#e6ffed";
     } else {
-      inputEl.style.background = "";          // 기본
+      inputEl.style.background = "";
     }
   }
 }
+
 
 function onTypeCell(id, token, type){
   const hidden = document.getElementById(id+'-grok');
@@ -1059,6 +1149,49 @@ function updateTypeTitle(id, value){
 
 // 초기 상태: type 1개 샘플 + 라이브러리 로드
 addType();
+
+
+// ─────────────────────────────────────────────
+// 기본 Type ELFF 템플릿
+// ─────────────────────────────────────────────
+const DEFAULT_ELFF = {
+  "Edge-Main": `
+localtime time-taken c-ip sc-status s-action sc-bytes cs-bytes r-ip cs-method cs-uri-scheme cs-host cs-uri-port cs-uri-path cs-uri-query cs-username cs-auth-group s-hierarchy s-supplier-name rs(Content-Type) cs(User-Agent) sc-filter-result cs-categories x-virus-id s-ip cs(Referer)
+  `.trim(),
+
+  "Edge-SSL": `
+date time time-taken c-ip cs-username cs-auth-group s-supplier-name s-supplier-ip s-supplier-country s-supplier-failures x-exception-id sc-filter-result cs-categories sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-virus-id cs-threat-source cs-threat-id rs-threat-source rs-threat-id x-rs-certificate-observed-errors x-cs-ocsp-error x-rs-ocsp-error x-rs-connection-negotiated-cipher-strength x-rs-certificate-hostname x-rs-certificate-hostname-category cs-threat-risk x-rs-certificate-hostname-threat-risk x-bluecoat-access-security-policy-action x-bluecoat-access-security-policy-reason
+  `.trim(),
+
+  "Cloud": `
+c-ip c-ip-version c-port cs-auth-groups cs-bytes cs-categories cs-host cs-icap-error-details cs-icap-service cs-icap-status cs-method cs-referer cs-threat-risk cs-uri-extension cs-uri-path cs-uri-port cs-uri-query cs-uri-scheme cs-user-agent cs-user-domain cs-userdn cs-x-requested-with date r-ip r-ip-version r-supplier-country rs-content-type rs-icap-error-details rs-icap-service rs-icap-status s-action s-ip s-source-ip s-supplier-country s-supplier-failures s-supplier-ip sc-bytes sc-filter-result sc-status time time-taken x-action-result x-bluecoat-access-type x-bluecoat-application-name x-bluecoat-application-operation x-bluecoat-location-id x-bluecoat-location-name x-bluecoat-placeholder x-bluecoat-reference-id x-bluecoat-reference-ids x-bluecoat-request-tenant-id x-bluecoat-transaction-uuid x-client-agent-ip x-client-agent-sw x-client-agent-type x-client-device-id x-client-device-name x-client-device-type x-client-os x-client-security-posture-details x-client-security-posture-risk-score x-cloud-rs x-cs-certificate-subject x-cs-client-ip-country x-cs-connection-negotiated-cipher x-cs-connection-negotiated-cipher-size x-cs-connection-negotiated-ssl-version x-cs-ocsp-error x-cs-public-ip x-data-leak-detected x-data-types x-exception-id x-file-details x-icap-reqmod-header(X-ICAP-Metadata) x-icap-respmod-header(X-ICAP-Metadata) x-random-ipv6 x-request-origin x-rs-certificate-hostname x-rs-certificate-hostname-categories x-rs-certificate-hostname-threat-risk x-rs-certificate-observed-errors x-rs-certificate-validate-status x-rs-connection-negotiated-cipher x-rs-connection-negotiated-cipher-size x-rs-connection-negotiated-ssl-version x-rs-ocsp-error x-sc-connection-issuer-keyring x-sc-connection-issuer-keyring-alias x-symc-inspected x-symc-page-views x-symc-upload-source x-virus-id
+  `.trim()
+};
+
+
+// ─────────────────────────────────────────────
+// 기본 Type 자동 추가 함수
+// ─────────────────────────────────────────────
+function addDefaultType(typeName) {
+  addType();  // 새로운 type 카드 1개 생성
+
+  const id = `type-${typeSeq}`;  
+
+  // type 이름 자동 입력
+  document.getElementById(`${id}-name`).value = typeName;
+  updateTypeTitle(id, typeName);
+
+  // ELFF 자동 입력
+  document.getElementById(`${id}-elff`).value = DEFAULT_ELFF[typeName];
+
+  // 자동 GROK 변환 실행
+  autoElffToGrok(id);
+
+  // 카드 펼치기
+  const card = document.querySelector(`.type-card[data-id="${id}"]`);
+  if(card) card.classList.remove('collapsed');
+}
+
 
 </script>
 </body>
