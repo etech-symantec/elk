@@ -121,7 +121,7 @@
       color: #ffffff;
       border: 1px solid #1e293b;
       padding: 4px 10px;        /* 🔹 더 작은 버튼 */
-      font-size: 12px;          /* 🔹 글씨도 약간 줄임 */
+      font-size: 10px;          /* 🔹 글씨도 약간 줄임 */
       border-radius: 8px;       /* 🔹 각진 대신 조금 더 귀여운 라운드 */
       box-shadow: 0 2px 6px rgba(0,0,0,0.15);  /* 🔹 살짝 입체감 */
       transition: 0.15s ease;   /* 🔹 hover 시 부드럽게 */
@@ -338,7 +338,30 @@
       border-radius: 6px;
       margin-left: 6px;
     }
-
+    
+    .type-toolbar {
+      display: flex;
+      justify-content: flex-end;  /* 전체 묶음을 우측 정렬 */
+      align-items: center;
+      gap: 12px; /* +Type 버튼과 템플릿 그룹 사이 간격 */
+    }
+    
+    .template-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #f8fafc;
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+    }
+    
+    .template-label {
+      font-size: 12px;
+      color: #475569;
+      font-weight: 600;
+      margin-right: 2px;
+    }
 
 
     
@@ -348,7 +371,8 @@
     
 <div class="header-wrap">
   <div class="top-nav">
-    <a href="https://etech-symantec.github.io/sysinfo" class="nav-btn">🧩 Sysinfo 분석</a>
+    <a href="https://etech-symantec.github.io/sysinfo" class="nav-btn">⏳ EoS 확인</a>
+    <a href="https://etech-symantec.github.io/sysinfo" class="nav-btn">🧩 Sysinfo 분석 </a>
     <a href="https://etech-symantec.github.io/isg" class="nav-btn">🔎 ISG 분석</a>
     <a href="https://etech-symantec.github.io/trace" class="nav-btn">📄 Trace 분석</a>
     <a href="https://etech-symantec.github.io/sizing-sg" class="nav-btn">📊 Sizing-SG 보기</a>
@@ -395,10 +419,16 @@
   <section class="card" id="panel">
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
   <h4 class="title" style="margin:0;">Log Type 설정<span class="help">수집하는 로그별로 Type이 필요합니다.</span></h4>
-  <button class="btn sec" onclick="addType()">+ Type 추가</button>
-  <button class="btn sec" onclick="addDefaultType('Edge-Main')">Edge-Main 추가</button>
-<button class="btn sec" onclick="addDefaultType('Edge-SSL')">Edge-SSL 추가</button>
-<button class="btn sec" onclick="addDefaultType('Cloud')">Cloud 추가</button>
+  <div class="type-toolbar">
+      <button class="btn sec" onclick="addType()">+ Type 추가</button>
+    
+      <div class="template-group">
+        <span class="template-label">템플릿:</span>
+        <button class="btn sec" onclick="addDefaultType('Edge-Main')">Edge-Main</button>
+        <button class="btn sec" onclick="addDefaultType('Edge-SSL')">Edge-SSL</button>
+        <button class="btn sec" onclick="addDefaultType('Cloud')">Cloud</button>
+      </div>
+    </div>
 
 </div>
 
