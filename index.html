@@ -115,6 +115,40 @@
     #sizing-box .table th, #sizing-box .table td{border-bottom:1px solid #334155}
     #sizing-box .chip{background:#1e3a5f; color:#93c5fd; border:1px solid #3b82f6}
     #sizing-box details summary{color:#93c5fd}
+
+    #sizing-box .sz-toggle-btn{
+      display:inline-flex; align-items:center; gap:8px;
+      background: linear-gradient(135deg, #1e3a5f, #1e293b);
+      color:#93c5fd;
+      border:1px solid #3b82f6;
+      border-radius:10px;
+      padding:9px 16px;
+      font-size:12px;
+      font-weight:700;
+      cursor:pointer;
+      margin-top:12px;
+      transition: all 0.2s ease;
+    }
+    #sizing-box .sz-toggle-btn:hover{
+      background: linear-gradient(135deg, #2563eb, #1e3a5f);
+      color:#fff;
+    }
+    #sizing-box .sz-toggle-btn.active{
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      color:#fff;
+      border-color:#93c5fd;
+    }
+    #sizing-box .sz-toggle-arrow{
+      font-size:11px;
+      transition: transform 0.2s ease;
+    }
+    #sizing-box .sz-panel{
+      margin-top:10px;
+      padding:14px;
+      background:#0b1324;
+      border:1px solid #334155;
+      border-radius:12px;
+    }
     .table{border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; margin-top:6px}
     .table table{width:100%; border-collapse:collapse; font-size:12px}
     .table thead{background:#f8fafc}
@@ -324,7 +358,7 @@
 <main>
     <!-- ELK 리소스(CPU/MEM/Disk) 산정기 -->
   <section class="card" id="sizing-box">
-    <h4 class="title">ELK 리소스 산정기 (CPU / MEM / Disk)
+    <h4 class="title">ELK 리소스 계산기 (CPU / MEM / Disk)
       <span class="help">일일 로그 크기와 보관 기간을 입력하면 ODIN-I BASIC 사이즈 가이드를 기반으로 필요한 CPU·메모리·디스크를 추정합니다.</span>
     </h4>
     <div class="divider"></div>
@@ -350,9 +384,11 @@
       ※ 일일 로그 크기는 <b>gz로 압축된 상태</b>의 파일 크기를 기준으로 입력합니다. ES 색인에 필요한 원본(비압축) 로그량은 아래 "gz 압축률" 옵션으로 역산합니다.
     </div>
 
-    <details style="margin-top:10px;">
-      <summary class="small muted" style="cursor:pointer;">▾ 고급 옵션 (오버헤드 / 레플리카 / 압축률 / 여유율)</summary>
-      <div class="grid5" style="margin-top:10px;">
+    <button type="button" class="sz-toggle-btn" id="sz-adv-toggle" onclick="toggleSzPanel('sz-advanced','sz-adv-toggle')">
+      ⚙️ 고급 옵션 (오버헤드 / 레플리카 / 압축률 / 여유율) <span class="sz-toggle-arrow">▾</span>
+    </button>
+    <div class="sz-panel" id="sz-advanced" style="display:none;">
+      <div class="grid5">
         <div>
           <label>ES 인덱스 오버헤드 배수</label>
           <input type="number" id="sz-overhead" value="1.38" step="0.01" min="1" />
@@ -383,15 +419,17 @@
           <input type="number" id="sz-margin" value="15" min="0" max="90" />
         </div>
       </div>
-    </details>
+    </div>
 
     <div class="divider"></div>
 
     <div id="sz-result" style="display:none;"></div>
 
-    <details style="margin-top:6px;">
-      <summary class="small muted" style="cursor:pointer;">▾ 참고: ODIN-I BASIC 사이즈 가이드</summary>
-      <div class="table" style="margin-top:8px;">
+    <button type="button" class="sz-toggle-btn" id="sz-guide-toggle" onclick="toggleSzPanel('sz-guide','sz-guide-toggle')">
+      📋 참고: ODIN-I BASIC 사이즈 가이드 <span class="sz-toggle-arrow">▾</span>
+    </button>
+    <div class="sz-panel" id="sz-guide" style="display:none;">
+      <div class="table">
         <table>
           <thead>
             <tr><th>모델</th><th>90일 보관 시</th><th>120일 보관 시</th><th>365일 보관 시</th><th>CPU</th><th>MEM</th><th>Disk</th></tr>
@@ -399,7 +437,7 @@
           <tbody id="sz-guide-rows"></tbody>
         </table>
       </div>
-    </details>
+    </div>
   </section>
 
     <!-- 공통 변수 박스 -->
@@ -828,6 +866,19 @@ function renderSizingGuideTable(){
       <td>${g.diskTB}TB</td>
     </tr>
   `).join('');
+}
+
+function toggleSzPanel(panelId, btnId){
+  const panel = document.getElementById(panelId);
+  const btn = document.getElementById(btnId);
+  if(!panel) return;
+  const isHidden = (panel.style.display === 'none' || panel.style.display === '');
+  panel.style.display = isHidden ? 'block' : 'none';
+  if(btn){
+    btn.classList.toggle('active', isHidden);
+    const arrow = btn.querySelector('.sz-toggle-arrow');
+    if(arrow) arrow.textContent = isHidden ? '▴' : '▾';
+  }
 }
 
 function calcResourceSizing(){
