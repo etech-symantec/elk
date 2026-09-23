@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap" rel="stylesheet">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ELK</title>
+  <title>ELK<title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600&display=swap" rel="stylesheet">
@@ -316,8 +316,8 @@
     
 <!-- 공통 헤더 + 제목 + 버전 -->
 <script>
-  window.pageTitle = "ELK logstash.conf 생성기";
-  window.pageVersion = "ver.2025.11.20.01";
+  window.pageTitle = "ELK";
+  window.pageVersion = "ver.2026.09.23";
 </script> 
 <script src="https://etech-symantec.github.io/header.js"></script>
   
@@ -332,11 +332,11 @@
     <div class="grid4">
       <div>
         <label>일일 로그 크기 (gz 압축 기준, MB/day)</label>
-        <input type="number" id="sz-daily-mb" value="20000" min="0" />
+        <input type="number" id="sz-daily-mb" value="2000" min="0" />
       </div>
       <div>
         <label>DB(Elasticsearch) 보관 기간 (일)</label>
-        <input type="number" id="sz-db-days" value="90" min="1" />
+        <input type="number" id="sz-db-days" value="365" min="1" />
       </div>
       <div>
         <label>압축 로그(아카이브) 보관 기간 (일)</label>
@@ -380,7 +380,7 @@
         </div>
         <div>
           <label>디스크 여유율 (%)</label>
-          <input type="number" id="sz-margin" value="20" min="0" max="90" />
+          <input type="number" id="sz-margin" value="15" min="0" max="90" />
         </div>
       </div>
     </details>
