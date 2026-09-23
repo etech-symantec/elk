@@ -84,6 +84,11 @@
       gap:4px;
     }
     .divider{height:1px; background:#e5e7eb; margin:12px 0}
+    .stat{background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px 12px 12px}
+    .stat .small{margin-bottom:4px}
+    .stat .val{font-size:18px; font-weight:700; color:#0f172a}
+    details > summary{list-style:none}
+    details > summary::-webkit-details-marker{display:none}
     .table{border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; margin-top:6px}
     .table table{width:100%; border-collapse:collapse; font-size:12px}
     .table thead{background:#f8fafc}
@@ -291,6 +296,70 @@
 <script src="https://etech-symantec.github.io/header.js"></script>
   
 <main>
+    <!-- ELK 리소스(CPU/MEM/Disk) 산정기 -->
+  <section class="card" id="sizing-box">
+    <h4 class="title">ELK 리소스 산정기 (CPU / MEM / Disk)
+      <span class="help">일일 로그 크기와 보관 기간을 입력하면 ODIN-I BASIC 사이즈 가이드를 기반으로 필요한 CPU·메모리·디스크를 추정합니다.</span>
+    </h4>
+    <div class="divider"></div>
+
+    <div class="grid4">
+      <div>
+        <label>일일 로그 크기 (MB/day)</label>
+        <input type="number" id="sz-daily-mb" value="20000" min="0" />
+      </div>
+      <div>
+        <label>DB(Elasticsearch) 보관 기간 (일)</label>
+        <input type="number" id="sz-db-days" value="90" min="1" />
+      </div>
+      <div>
+        <label>압축 로그(아카이브) 보관 기간 (일)</label>
+        <input type="number" id="sz-archive-days" value="365" min="0" />
+      </div>
+      <div style="display:flex; align-items:flex-end;">
+        <button class="btn-generate" style="width:100%; justify-content:center;" onclick="calcResourceSizing()">📐 리소스 계산하기</button>
+      </div>
+    </div>
+
+    <details style="margin-top:10px;">
+      <summary class="small muted" style="cursor:pointer;">▾ 고급 옵션 (오버헤드 / 레플리카 / 압축률 / 여유율)</summary>
+      <div class="grid4" style="margin-top:10px;">
+        <div>
+          <label>ES 인덱스 오버헤드 배수</label>
+          <input type="number" id="sz-overhead" value="1.38" step="0.01" min="1" />
+        </div>
+        <div>
+          <label>레플리카 수</label>
+          <input type="number" id="sz-replica" value="0" min="0" />
+        </div>
+        <div>
+          <label>아카이브 압축률 (%)</label>
+          <input type="number" id="sz-compress" value="10" min="1" max="100" />
+        </div>
+        <div>
+          <label>디스크 여유율 (%)</label>
+          <input type="number" id="sz-margin" value="20" min="0" max="90" />
+        </div>
+      </div>
+    </details>
+
+    <div class="divider"></div>
+
+    <div id="sz-result" style="display:none;"></div>
+
+    <details style="margin-top:6px;">
+      <summary class="small muted" style="cursor:pointer;">▾ 참고: ODIN-I BASIC 사이즈 가이드</summary>
+      <div class="table" style="margin-top:8px;">
+        <table>
+          <thead>
+            <tr><th>모델</th><th>90일 보관 시</th><th>120일 보관 시</th><th>365일 보관 시</th><th>CPU</th><th>MEM</th><th>Disk</th></tr>
+          </thead>
+          <tbody id="sz-guide-rows"></tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+
     <!-- 공통 변수 박스 -->
   <section class="card" id="common-box">
     <h4 class="title">Log 공통 설정<span class="help">모든 Type에 공통적으로 적용되는 기본 설정입니다.</span></h4>
@@ -657,6 +726,141 @@ const MAP = {
 
 };
 
+
+// ─────────────────────────────────────────────────────────────
+// ELK 리소스(CPU/MEM/Disk) 산정기
+// 참고: ODIN-I BASIC-V20 / V50 / V100 / V200 사이즈 가이드
+// ─────────────────────────────────────────────────────────────
+const SIZING_GUIDE = [
+  { label:'ODIN-I BASIC-V20',  days90:16,  days120:12, days365:4,  cpu:12, mem:72,  diskTB:2  },
+  { label:'ODIN-I BASIC-V50',  days90:41,  days120:31, days365:10, cpu:12, mem:72,  diskTB:5  },
+  { label:'ODIN-I BASIC-V100', days90:84,  days120:63, days365:20, cpu:16, mem:84,  diskTB:10 },
+  { label:'ODIN-I BASIC-V200', days90:125, days120:94, days365:30, cpu:24, mem:118, diskTB:15 },
+];
+
+// 각 모델이 실제로 DB(ES)에 보유하게 되는 데이터량(GB)을
+// 90/120/365일 시나리오 평균으로 역산 → 보간용 앵커 포인트
+const SIZING_ANCHORS = SIZING_GUIDE.map(g=>{
+  const dataGB = ((g.days90*90) + (g.days120*120) + (g.days365*365)) / 3;
+  return { label:g.label, dataGB, cpu:g.cpu, mem:g.mem, diskGB:g.diskTB*1024 };
+});
+
+function szInterp(dataGB, key){
+  const A = SIZING_ANCHORS;
+  if(dataGB <= A[0].dataGB) return A[0][key];
+  for(let i=0; i<A.length-1; i++){
+    if(dataGB >= A[i].dataGB && dataGB <= A[i+1].dataGB){
+      const t = (dataGB - A[i].dataGB) / (A[i+1].dataGB - A[i].dataGB);
+      return A[i][key] + t * (A[i+1][key] - A[i][key]);
+    }
+  }
+  const a = A[A.length-2], b = A[A.length-1];
+  const slope = (b[key] - a[key]) / (b.dataGB - a.dataGB);
+  return b[key] + slope * (dataGB - b.dataGB);
+}
+
+function szNearestTier(dataGB){
+  let best = SIZING_ANCHORS[0], bestDiff = Infinity;
+  SIZING_ANCHORS.forEach(a=>{
+    const diff = Math.abs(a.dataGB - dataGB);
+    if(diff < bestDiff){ bestDiff = diff; best = a; }
+  });
+  return best.label;
+}
+
+function szFmt(n, digits=1){
+  return Number(n).toLocaleString('ko-KR', { maximumFractionDigits: digits, minimumFractionDigits:0 });
+}
+
+function renderSizingGuideTable(){
+  const tbody = document.getElementById('sz-guide-rows');
+  if(!tbody) return;
+  tbody.innerHTML = SIZING_GUIDE.map(g => `
+    <tr>
+      <td>${g.label}</td>
+      <td>${g.days90}GB/일</td>
+      <td>${g.days120}GB/일</td>
+      <td>${g.days365}GB/일</td>
+      <td>${g.cpu}코어</td>
+      <td>${g.mem}GB</td>
+      <td>${g.diskTB}TB</td>
+    </tr>
+  `).join('');
+}
+
+function calcResourceSizing(){
+  const dailyMB     = parseFloat(document.getElementById('sz-daily-mb').value);
+  const dbDays      = parseFloat(document.getElementById('sz-db-days').value);
+  const archiveDays = parseFloat(document.getElementById('sz-archive-days').value) || 0;
+  const overhead    = parseFloat(document.getElementById('sz-overhead').value) || 1.38;
+  const replica     = parseFloat(document.getElementById('sz-replica').value) || 0;
+  const compressPct = parseFloat(document.getElementById('sz-compress').value);
+  const marginPct   = parseFloat(document.getElementById('sz-margin').value);
+
+  if(!dailyMB || dailyMB <= 0 || !dbDays || dbDays <= 0){
+    alert('일일 로그 크기(MB)와 DB 보관 기간(일)을 올바르게 입력하세요.');
+    return;
+  }
+
+  const compressRatio = (isNaN(compressPct) ? 10 : compressPct) / 100;
+  const margin = (isNaN(marginPct) ? 20 : marginPct) / 100;
+
+  const dailyGB       = dailyMB / 1024;
+  const indexedDataGB = dailyGB * dbDays;                          // ES에 실제 적재되는 원본 데이터량
+  const dbDiskGB      = indexedDataGB * overhead * (1 + replica);  // 색인 오버헤드 + 레플리카 반영
+  const archiveDiskGB = dailyGB * archiveDays * compressRatio;     // 압축 아카이브 보관 용량
+  const rawTotalGB    = dbDiskGB + archiveDiskGB;
+  const totalDiskGB   = rawTotalGB / (1 - margin);                 // 디스크 여유율 반영
+
+  const cpuRaw = szInterp(indexedDataGB, 'cpu');
+  const memRaw = szInterp(indexedDataGB, 'mem');
+  const cpu = Math.max(4, Math.ceil(cpuRaw/2)*2);
+  const mem = Math.max(8, Math.ceil(memRaw/4)*4);
+  const nearest = szNearestTier(indexedDataGB);
+
+  const box = document.getElementById('sz-result');
+  box.style.display = 'block';
+  box.innerHTML = `
+    <div class="divider"></div>
+    <h4 style="margin-top:0;">📊 산정 결과 <span class="chip">근접 참고 사양: ${nearest}</span></h4>
+    <div class="grid4">
+      <div class="stat">
+        <div class="small muted">일일 원본 로그</div>
+        <div class="val">${szFmt(dailyGB,2)} GB/일</div>
+      </div>
+      <div class="stat">
+        <div class="small muted">권장 CPU</div>
+        <div class="val">${cpu} vCPU</div>
+      </div>
+      <div class="stat">
+        <div class="small muted">권장 메모리</div>
+        <div class="val">${mem} GB</div>
+      </div>
+      <div class="stat">
+        <div class="small muted">필요 디스크 (여유율 포함)</div>
+        <div class="val">${szFmt(totalDiskGB/1024,2)} TB</div>
+      </div>
+    </div>
+
+    <div class="table" style="margin-top:12px;">
+      <table>
+        <thead>
+          <tr><th>항목</th><th>계산 값</th><th>비고</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>DB(ES) 보관 데이터량</td><td>${szFmt(indexedDataGB)} GB</td><td>일일 ${szFmt(dailyGB,2)}GB × ${dbDays}일</td></tr>
+          <tr><td>DB 디스크 소요</td><td>${szFmt(dbDiskGB)} GB</td><td>오버헤드 ${overhead}배 × (1 + 레플리카 ${replica}개)</td></tr>
+          <tr><td>압축 아카이브 보관</td><td>${szFmt(archiveDiskGB)} GB</td><td>${archiveDays}일 × 압축률 ${(compressRatio*100).toFixed(0)}%</td></tr>
+          <tr><td>디스크 합계 (여유율 반영 전)</td><td>${szFmt(rawTotalGB)} GB</td><td>DB 디스크 + 아카이브</td></tr>
+          <tr><td><b>최종 필요 디스크</b></td><td><b>${szFmt(totalDiskGB)} GB (${szFmt(totalDiskGB/1024,2)} TB)</b></td><td>여유율 ${isNaN(marginPct)?20:marginPct}% 반영</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="small muted" style="margin-top:8px;">
+      ※ ODIN-I BASIC 사이즈 가이드(V20/V50/V100/V200)를 기반으로 한 추정치입니다. 실제 인덱싱/검색 부하, 필드 수, 매핑 구조, 노드 구성에 따라 달라질 수 있습니다.
+    </div>
+  `;
+}
 
 function buildConf(){
     
@@ -1086,6 +1290,7 @@ function updateTypeTitle(id, value){
 
 // 초기 상태: type 1개 샘플 + 라이브러리 로드
 addType();
+renderSizingGuideTable();
 
 
 // ─────────────────────────────────────────────
