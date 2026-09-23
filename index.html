@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap" rel="stylesheet">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ELK logstash.conf 생성기</title>
+  <title>ELK</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600&display=swap" rel="stylesheet">
@@ -89,6 +89,32 @@
     .stat .val{font-size:18px; font-weight:700; color:#0f172a}
     details > summary{list-style:none}
     details > summary::-webkit-details-marker{display:none}
+
+    /* ELK 리소스 산정기: 다른 카드와 구분되는 다크 테마 */
+    #sizing-box{
+      background: linear-gradient(180deg,#0f172a,#111827);
+      color:#e2e8f0;
+      border:1px solid #1e293b;
+    }
+    #sizing-box .title{color:#f8fafc}
+    #sizing-box .help{color:#94a3b8}
+    #sizing-box .muted{color:#94a3b8}
+    #sizing-box label{color:#cbd5e1}
+    #sizing-box .divider{background:#334155}
+    #sizing-box input[type="text"],
+    #sizing-box input[type="number"],
+    #sizing-box select{
+      background:#1e293b; border:1px solid #334155; color:#e2e8f0;
+    }
+    #sizing-box input::placeholder{color:#64748b}
+    #sizing-box .stat{background:#1e293b; border:1px solid #334155}
+    #sizing-box .stat .val{color:#f8fafc}
+    #sizing-box .table{border-color:#334155}
+    #sizing-box .table table{color:#e2e8f0}
+    #sizing-box .table thead{background:#1e293b}
+    #sizing-box .table th, #sizing-box .table td{border-bottom:1px solid #334155}
+    #sizing-box .chip{background:#1e3a5f; color:#93c5fd; border:1px solid #3b82f6}
+    #sizing-box details summary{color:#93c5fd}
     .table{border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; margin-top:6px}
     .table table{width:100%; border-collapse:collapse; font-size:12px}
     .table thead{background:#f8fafc}
@@ -305,7 +331,7 @@
 
     <div class="grid4">
       <div>
-        <label>일일 로그 크기 (MB/day)</label>
+        <label>일일 로그 크기 (gz 압축 기준, MB/day)</label>
         <input type="number" id="sz-daily-mb" value="20000" min="0" />
       </div>
       <div>
@@ -320,21 +346,37 @@
         <button class="btn-generate" style="width:100%; justify-content:center;" onclick="calcResourceSizing()">📐 리소스 계산하기</button>
       </div>
     </div>
+    <div class="small muted" style="margin-top:2px;">
+      ※ 일일 로그 크기는 <b>gz로 압축된 상태</b>의 파일 크기를 기준으로 입력합니다. ES 색인에 필요한 원본(비압축) 로그량은 아래 "gz 압축률" 옵션으로 역산합니다.
+    </div>
 
     <details style="margin-top:10px;">
       <summary class="small muted" style="cursor:pointer;">▾ 고급 옵션 (오버헤드 / 레플리카 / 압축률 / 여유율)</summary>
-      <div class="grid4" style="margin-top:10px;">
+      <div class="grid5" style="margin-top:10px;">
         <div>
           <label>ES 인덱스 오버헤드 배수</label>
           <input type="number" id="sz-overhead" value="1.38" step="0.01" min="1" />
+          <div class="small muted" style="margin-top:4px; line-height:1.4;">
+            ES가 원본 로그를 색인할 때 역색인(inverted index), doc values, 저장 필드, 세그먼트 병합 여유공간, 메타데이터 등이 추가되면서 원본 로그 대비 커지는 비율입니다. 통상 <b>1.3~1.5배</b>를 기준으로 산정합니다.
+          </div>
         </div>
         <div>
           <label>레플리카 수</label>
           <input type="number" id="sz-replica" value="0" min="0" />
         </div>
         <div>
-          <label>아카이브 압축률 (%)</label>
-          <input type="number" id="sz-compress" value="10" min="1" max="100" />
+          <label>gz 압축률 (원본 대비 %)</label>
+          <input type="number" id="sz-gzratio" value="10" min="1" max="100" />
+          <div class="small muted" style="margin-top:4px; line-height:1.4;">
+            gz 압축 후 크기가 원본(비압축) 로그의 몇 %인지입니다. 기본 10%(=10:1 압축)는 일반 텍스트 로그 기준값이며, ES 색인 대상 원본 크기 추정에 사용됩니다.
+          </div>
+        </div>
+        <div>
+          <label>아카이브 압축 방식</label>
+          <select id="sz-archive-method">
+            <option value="gz" selected>gz (그대로)</option>
+            <option value="zstxz">zst / xz (gz 대비 30% 감소)</option>
+          </select>
         </div>
         <div>
           <label>디스크 여유율 (%)</label>
@@ -789,34 +831,42 @@ function renderSizingGuideTable(){
 }
 
 function calcResourceSizing(){
-  const dailyMB     = parseFloat(document.getElementById('sz-daily-mb').value);
-  const dbDays      = parseFloat(document.getElementById('sz-db-days').value);
-  const archiveDays = parseFloat(document.getElementById('sz-archive-days').value) || 0;
-  const overhead    = parseFloat(document.getElementById('sz-overhead').value) || 1.38;
-  const replica     = parseFloat(document.getElementById('sz-replica').value) || 0;
-  const compressPct = parseFloat(document.getElementById('sz-compress').value);
-  const marginPct   = parseFloat(document.getElementById('sz-margin').value);
+  const dailyMB       = parseFloat(document.getElementById('sz-daily-mb').value);
+  const dbDays        = parseFloat(document.getElementById('sz-db-days').value);
+  const archiveDays   = parseFloat(document.getElementById('sz-archive-days').value) || 0;
+  const overhead      = parseFloat(document.getElementById('sz-overhead').value) || 1.38;
+  const replica       = parseFloat(document.getElementById('sz-replica').value) || 0;
+  const gzRatioPct    = parseFloat(document.getElementById('sz-gzratio').value);
+  const archiveMethod = document.getElementById('sz-archive-method').value;
+  const marginPct     = parseFloat(document.getElementById('sz-margin').value);
 
   if(!dailyMB || dailyMB <= 0 || !dbDays || dbDays <= 0){
     alert('일일 로그 크기(MB)와 DB 보관 기간(일)을 올바르게 입력하세요.');
     return;
   }
 
-  const compressRatio = (isNaN(compressPct) ? 10 : compressPct) / 100;
-  const margin = (isNaN(marginPct) ? 20 : marginPct) / 100;
+  const gzRatio = (isNaN(gzRatioPct) ? 10 : gzRatioPct) / 100;   // gz 크기 / 원본 크기
+  const margin  = (isNaN(marginPct) ? 20 : marginPct) / 100;
 
-  const dailyGB       = dailyMB / 1024;
-  const indexedDataGB = dailyGB * dbDays;                          // ES에 실제 적재되는 원본 데이터량
-  const dbDiskGB      = indexedDataGB * overhead * (1 + replica);  // 색인 오버헤드 + 레플리카 반영
-  const archiveDiskGB = dailyGB * archiveDays * compressRatio;     // 압축 아카이브 보관 용량
-  const rawTotalGB    = dbDiskGB + archiveDiskGB;
-  const totalDiskGB   = rawTotalGB / (1 - margin);                 // 디스크 여유율 반영
+  const dailyGzGB     = dailyMB / 1024;                              // 입력값: gz 압축 상태의 일일 로그량
+  const rawDailyGB    = dailyGzGB / gzRatio;                         // ES 색인 대상, 원본(비압축) 로그량으로 환산
+  const indexedDataGB = rawDailyGB * dbDays;                         // ES에 실제 적재되는 원본 데이터 총량
+  const dbDiskGB      = indexedDataGB * overhead * (1 + replica);    // 색인 오버헤드 + 레플리카 반영
+
+  const archiveFactor  = (archiveMethod === 'zstxz') ? 0.7 : 1.0;    // zst/xz는 gz 대비 30% 감소
+  const archiveDailyGB = dailyGzGB * archiveFactor;
+  const archiveDiskGB  = archiveDailyGB * archiveDays;               // 압축 아카이브 보관 용량
+
+  const rawTotalGB  = dbDiskGB + archiveDiskGB;
+  const totalDiskGB = rawTotalGB / (1 - margin);                     // 디스크 여유율 반영
 
   const cpuRaw = szInterp(indexedDataGB, 'cpu');
   const memRaw = szInterp(indexedDataGB, 'mem');
   const cpu = Math.max(4, Math.ceil(cpuRaw/2)*2);
   const mem = Math.max(8, Math.ceil(memRaw/4)*4);
   const nearest = szNearestTier(indexedDataGB);
+
+  const archiveMethodLabel = (archiveMethod === 'zstxz') ? 'zst/xz (gz 대비 30%↓)' : 'gz (그대로)';
 
   const box = document.getElementById('sz-result');
   box.style.display = 'block';
@@ -825,8 +875,8 @@ function calcResourceSizing(){
     <h4 style="margin-top:0;">📊 산정 결과 <span class="chip">근접 참고 사양: ${nearest}</span></h4>
     <div class="grid4">
       <div class="stat">
-        <div class="small muted">일일 원본 로그</div>
-        <div class="val">${szFmt(dailyGB,2)} GB/일</div>
+        <div class="small muted">일일 로그 (gz 압축)</div>
+        <div class="val">${szFmt(dailyGzGB,2)} GB/일</div>
       </div>
       <div class="stat">
         <div class="small muted">권장 CPU</div>
@@ -848,9 +898,10 @@ function calcResourceSizing(){
           <tr><th>항목</th><th>계산 값</th><th>비고</th></tr>
         </thead>
         <tbody>
-          <tr><td>DB(ES) 보관 데이터량</td><td>${szFmt(indexedDataGB)} GB</td><td>일일 ${szFmt(dailyGB,2)}GB × ${dbDays}일</td></tr>
+          <tr><td>원본(비압축) 환산 로그량</td><td>${szFmt(rawDailyGB,2)} GB/일</td><td>gz ${szFmt(dailyGzGB,2)}GB ÷ 압축률 ${(gzRatio*100).toFixed(0)}%</td></tr>
+          <tr><td>DB(ES) 보관 데이터량</td><td>${szFmt(indexedDataGB)} GB</td><td>원본 ${szFmt(rawDailyGB,2)}GB × ${dbDays}일</td></tr>
           <tr><td>DB 디스크 소요</td><td>${szFmt(dbDiskGB)} GB</td><td>오버헤드 ${overhead}배 × (1 + 레플리카 ${replica}개)</td></tr>
-          <tr><td>압축 아카이브 보관</td><td>${szFmt(archiveDiskGB)} GB</td><td>${archiveDays}일 × 압축률 ${(compressRatio*100).toFixed(0)}%</td></tr>
+          <tr><td>압축 아카이브 보관</td><td>${szFmt(archiveDiskGB)} GB</td><td>${archiveDays}일 × ${archiveMethodLabel}</td></tr>
           <tr><td>디스크 합계 (여유율 반영 전)</td><td>${szFmt(rawTotalGB)} GB</td><td>DB 디스크 + 아카이브</td></tr>
           <tr><td><b>최종 필요 디스크</b></td><td><b>${szFmt(totalDiskGB)} GB (${szFmt(totalDiskGB/1024,2)} TB)</b></td><td>여유율 ${isNaN(marginPct)?20:marginPct}% 반영</td></tr>
         </tbody>
