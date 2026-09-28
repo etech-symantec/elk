@@ -459,10 +459,6 @@
         <label>Max open files</label>
         <input type="number" id="common-max-open" value="1000" min="1" />
       </div>
-      <div>
-        <label>discover_interval (초)</label>
-        <input type="number" id="common-discover" value="5" min="1" />
-      </div>
     </div>
     <div class="grid4">
       <div>
@@ -486,6 +482,43 @@
       </div>
       <div></div>
     </div>
+    <div class="divider"></div>
+    <div class="small muted">Filter</div>
+    <div class="grid4">
+      <div>
+        <label>파싱 방식</label>
+        <select id="common-parse-mode" onchange="onCommonFilterChange()">
+          <option value="grok">Grok 패턴 생성</option>
+          <option value="csv" selected>ELFF 그대로 (csv 필터)</option>
+        </select>
+      </div>
+      <div>
+        <label>start_position (tail 모드에서만 적용)</label>
+        <select id="common-start">
+          <option value="beginning" selected>beginning</option>
+          <option value="end">end</option>
+        </select>
+      </div>
+      <div>
+        <label>discover_interval (초)</label>
+        <input type="number" id="common-discover" value="5" min="1" />
+      </div>
+      <div>
+        <label>시간대 (date timezone)</label>
+        <select id="common-tz" onchange="onCommonTzChange()">
+          <option value="Asia/Seoul" selected>KST (Asia/Seoul)</option>
+          <option value="UTC">UTC</option>
+          <option value="Asia/Tokyo">JST (Asia/Tokyo)</option>
+          <option value="Asia/Shanghai">CST (Asia/Shanghai)</option>
+          <option value="Europe/London">GMT/BST (Europe/London)</option>
+          <option value="America/New_York">EST/EDT (America/New_York)</option>
+          <option value="America/Los_Angeles">PST/PDT (America/Los_Angeles)</option>
+          <option value="__custom__">직접 입력...</option>
+        </select>
+        <input type="text" id="common-tz-custom" placeholder="예: Asia/Singapore" style="display:none; margin-top:6px;" />
+      </div>
+    </div>
+    <div class="small muted" style="margin-top:6px;">Type 카드에서 값을 따로 지정하면 해당 Type만 공통값 대신 적용됩니다.</div>
     <div class="divider"></div>
     <div class="small muted">Output (elasticsearch)</div>
     <div class="grid4">
@@ -551,7 +584,7 @@
 </main>
 
 <datalist id="tz-list">
-  <option value="UTC"></option><option value="Asia/Seoul"></option><option value="Asia/Tokyo"></option>
+  <option value="UTC"></option><option value="Asia/Seoul">KST</option><option value="Asia/Tokyo"></option>
   <option value="Asia/Shanghai"></option><option value="Asia/Singapore"></option><option value="Europe/London"></option>
   <option value="America/New_York"></option><option value="America/Los_Angeles"></option>
 </datalist>
@@ -738,7 +771,8 @@ function addType(){
           <div>
             <label>start_position</label>
             <select id="${id}-start">
-              <option value="beginning" selected>beginning</option>
+              <option value="" selected>공통값 사용</option>
+              <option value="beginning">beginning</option>
               <option value="end">end</option>
             </select>
           </div>
@@ -760,13 +794,14 @@ function addType(){
           <div>
             <label>파싱 방식</label>
             <select id="${id}-mode" onchange="syncParseView('${id}')">
-              <option value="grok" selected>Grok 패턴 생성</option>
+              <option value="" selected>공통값 사용</option>
+              <option value="grok">Grok 패턴 생성</option>
               <option value="csv">ELFF 그대로 (csv 필터)</option>
             </select>
           </div>
           <div>
             <label>시간대 (date timezone)</label>
-            <input type="text" id="${id}-tz" value="UTC" list="tz-list" placeholder="예: UTC, Asia/Seoul" />
+            <input type="text" id="${id}-tz" value="" list="tz-list" placeholder="공통값 사용 (예: UTC, Asia/Seoul)" />
           </div>
           <div></div>
         </div>
@@ -1136,7 +1171,7 @@ function buildConf(){
   typeCards.forEach(card => {
     const id = card.dataset.id;
     const bad = document.getElementById(id+'-name').value.trim() &&
-                document.getElementById(id+'-mode').value === 'csv' &&
+                effParseMode(id) === 'csv' &&
                 !document.getElementById(id+'-elff').value.trim();
     markInvalid(id+'-elff', bad);
     if(bad) csvMissing = true;
@@ -1165,6 +1200,8 @@ function buildConf(){
   const maxOpen = DEFAULT_MAX_OPEN;
   const commonDisc   = document.getElementById('common-discover').value.trim() || '5';
   const commonMode   = document.getElementById('common-mode').value;
+  const commonStart  = document.getElementById('common-start').value;
+  const commonTz     = getCommonTz();
   const commonAction = document.getElementById('common-completed-action').value;
   const commonLogPath = escapeQuotes(document.getElementById('common-completed-log').value.trim());
   const hostList = document.getElementById('common-output-hosts').value
@@ -1197,7 +1234,7 @@ function buildConf(){
   typeCards.forEach(card => {
     const id   = card.dataset.id;
     const type = document.getElementById(id+'-name').value.trim();
-    const start = document.getElementById(id+'-start').value;
+    const start = document.getElementById(id+'-start').value || commonStart;
     const pathS = document.getElementById(id+'-path').value.trim();
     const sinceS = document.getElementById(id+'-since').value.trim();
     const disc  = document.getElementById(id+'-discover').value.trim() || commonDisc;
@@ -1220,8 +1257,8 @@ function buildConf(){
     const grokArray    = mkGrokArray(data.parts);
     const convertBlock = mkConvert(data.types);
 
-    const parseMode = document.getElementById(id+'-mode').value;
-    const tz = escapeQuotes(document.getElementById(id+'-tz').value.trim() || 'UTC');
+    const parseMode = effParseMode(id);
+    const tz = escapeQuotes(document.getElementById(id+'-tz').value.trim() || commonTz);
     if(parseMode === 'csv'){
       const tokens = document.getElementById(id+'-elff').value.trim().split(/\s+/);
       filters.push(tplFilterCsv(escapeQuotes(type), tokens, tz));
@@ -1477,7 +1514,7 @@ function autoElffToGrok(id){
 // 파싱 방식에 따라 Grok/csv 영역 표시 전환
 function syncParseView(id){
   const raw  = document.getElementById(id+'-elff').value.trim();
-  const mode = document.getElementById(id+'-mode').value;
+  const mode = effParseMode(id);
   const g = document.getElementById(id+'-grok-container');
   const c = document.getElementById(id+'-csv-container');
   if(g) g.style.display = (raw && mode === 'grok') ? 'block' : 'none';
@@ -1485,6 +1522,30 @@ function syncParseView(id){
   if(raw && mode === 'csv'){
     document.getElementById(id+'-csv-view').value = raw.split(/\s+/).map(elffToField).join(' ');
   }
+}
+
+// 유효 파싱 방식 (Type 값 → 없으면 공통값)
+function effParseMode(id){
+  return document.getElementById(id+'-mode').value ||
+         document.getElementById('common-parse-mode').value;
+}
+
+// 공통 시간대 값 (직접 입력 지원)
+function getCommonTz(){
+  const sel = document.getElementById('common-tz').value;
+  if(sel === '__custom__'){
+    return document.getElementById('common-tz-custom').value.trim() || 'UTC';
+  }
+  return sel;
+}
+function onCommonTzChange(){
+  const custom = document.getElementById('common-tz').value === '__custom__';
+  document.getElementById('common-tz-custom').style.display = custom ? 'block' : 'none';
+}
+
+// 공통 파싱 방식 변경 → 모든 Type 카드 표시 갱신
+function onCommonFilterChange(){
+  document.querySelectorAll('#type-list .type-card').forEach(c => syncParseView(c.dataset.id));
 }
 
 // 공통 input: mode / file_completed_action 연동
