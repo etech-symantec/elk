@@ -161,7 +161,7 @@ function addType(){
           </div>
           
           <button class="btn ghost"
-                  style="padding:4px 6px; font-size:6px;"
+                  style="padding:4px 6px; font-size:6.6px;"
                   onclick="removeType('${id}')"
                   title="삭제">
               ✕
@@ -1127,3 +1127,19 @@ function addDefaultType(typeName) {
   const card = document.querySelector(`.type-card[data-id="${id}"]`);
   if(card) card.classList.remove('collapsed');
 }
+
+
+
+
+// ─────────────────────────────────────────────
+// 화면 전환 (첫 화면 / 리소스 계산기 / Logstash 설정)
+// ─────────────────────────────────────────────
+function showView(v){
+  document.getElementById('view-home').style.display = (v === 'home') ? 'flex' : 'none';
+  document.getElementById('view-calc').style.display = (v === 'calc') ? 'block' : 'none';
+  document.getElementById('view-conf').style.display = (v === 'conf') ? 'flex'  : 'none';
+  document.getElementById('nav-calc').classList.toggle('active', v === 'calc');
+  document.getElementById('nav-conf').classList.toggle('active', v === 'conf');
+  window.scrollTo({top:0});
+}
+showView('home');
