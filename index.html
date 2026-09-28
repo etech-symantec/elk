@@ -534,7 +534,38 @@
           <option value="certificate">certificate</option>
         </select>
       </div>
+      <div>
+        <label>인덱스 생성 방식</label>
+        <select id="common-index-mode" onchange="onCommonIndexModeChange()">
+          <option value="daily" selected>일일 인덱스 (이름-날짜)</option>
+          <option value="fixed">고정 인덱스 (이름 그대로)</option>
+        </select>
+      </div>
+      <div>
+        <label>날짜 포맷 (일일 인덱스)</label>
+        <input type="text" id="common-index-datefmt" value="yyyy.MM.dd" />
+      </div>
     </div>
+    <div class="grid4">
+      <div>
+        <label>ilm_enabled</label>
+        <select id="common-ilm">
+          <option value="false" selected>false</option>
+          <option value="true">true</option>
+          <option value="auto">auto (기본 동작)</option>
+        </select>
+      </div>
+      <div>
+        <label>manage_template</label>
+        <select id="common-manage-template">
+          <option value="false" selected>false</option>
+          <option value="true">true</option>
+        </select>
+      </div>
+      <div></div>
+      <div></div>
+    </div>
+    <div class="small muted" style="margin-top:6px;">일일 인덱스는 <span class="mono">index => "이름-%{+yyyy.MM.dd}"</span> 형태로 출력됩니다. Type 카드의 Output index에는 날짜를 뺀 이름만 입력하세요.</div>
   </section>
     
   <!-- 상단: 타입 / 인덱스 관리 -->
@@ -709,6 +740,8 @@ function tplOutput(type, o){
   if(o.ssl) l.push(`ssl_enabled => true`, `ssl_verification_mode => "${o.sslVerify}"`);
   if(o.user){ l.push(`user => "${o.user}"`, `password => "${o.pass}"`); }
   l.push(`index => "${o.index}"`);
+  if(o.ilm !== 'auto') l.push(`ilm_enabled => ${o.ilm}`);
+  l.push(`manage_template => ${o.manageTemplate}`);
   return `if [type] == "${type}" {
     elasticsearch {
       ` + l.join('\n      ') + `
@@ -848,7 +881,7 @@ function addType(){
           </div>
           <div>
             <label>Output index</label>
-            <input type="text" id="${id}-es-index" value="" placeholder="비우면 type 이름(소문자)" />
+            <input type="text" id="${id}-es-index" value="" placeholder="이름만 (날짜 제외), 비우면 type 이름" />
           </div>
         </div>
       </div>
@@ -1209,6 +1242,10 @@ function buildConf(){
   const hosts = hostList.map(h => '"' + escapeQuotes(h) + '"').join(', ');
   const useSsl = hostList.some(h => /^https:/i.test(h));
   const sslVerify = document.getElementById('common-ssl-verify').value;
+  const indexMode = document.getElementById('common-index-mode').value;
+  const dateFmt   = document.getElementById('common-index-datefmt').value.trim() || 'yyyy.MM.dd';
+  const ilm       = document.getElementById('common-ilm').value;
+  const manageTemplate = document.getElementById('common-manage-template').value;
 
   const mkGrokArray = (parts) => {
     if(!parts || parts.length === 0) return '["%{GREEDYDATA:message}"]';
@@ -1269,9 +1306,10 @@ function buildConf(){
     // output (index = type)
     const esUser  = document.getElementById(id+'-es-user').value.trim();
     const esPass  = document.getElementById(id+'-es-pass').value;
-    const esIndex = document.getElementById(id+'-es-index').value.trim() || type.toLowerCase();
+    let esIndex = document.getElementById(id+'-es-index').value.trim() || type.toLowerCase();
+    if(indexMode === 'daily') esIndex += '-%{+' + dateFmt + '}';
     outputs.push(tplOutput(escapeQuotes(type), {
-      hosts, ssl: useSsl, sslVerify,
+      hosts, ssl: useSsl, sslVerify, ilm, manageTemplate,
       user: escapeQuotes(esUser),
       pass: esPass ? escapeQuotes(esPass) : '${ES_PASSWORD}',
       index: escapeQuotes(esIndex)
@@ -1419,8 +1457,9 @@ function collectTypes(id){
   if(!tbody) return types;
   [...tbody.querySelectorAll('tr')].forEach(tr=>{
     const token = tr.children[1].textContent;
-    const type  = tr.querySelector('select').value;
-    types[token]=type;
+    const sel = tr.querySelector('select');
+    if(!sel) return;
+    types[token]=sel.value;
   });
   return types;
 }
@@ -1548,6 +1587,12 @@ function onCommonFilterChange(){
   document.querySelectorAll('#type-list .type-card').forEach(c => syncParseView(c.dataset.id));
 }
 
+// 인덱스 방식에 따라 날짜 포맷 입력 활성/비활성
+function onCommonIndexModeChange(){
+  document.getElementById('common-index-datefmt').disabled =
+    document.getElementById('common-index-mode').value !== 'daily';
+}
+
 // 공통 input: mode / file_completed_action 연동
 function onCommonInputChange(){
   const mode = document.getElementById('common-mode').value;
@@ -1598,7 +1643,7 @@ function highlightLogstash(conf) {
   );
   // 3) 키워드
   html = html.replace(
-    /\b(path|type|mode|file_completed_action|file_completed_log_path|sincedb_path|start_position|discover_interval|max_open_files|hosts|ssl_enabled|ssl_verification_mode|user|password|index|separator|quote_char|columns|timezone|target)\b/g,
+    /\b(path|type|mode|file_completed_action|file_completed_log_path|sincedb_path|start_position|discover_interval|max_open_files|hosts|ssl_enabled|ssl_verification_mode|user|password|index|separator|quote_char|columns|timezone|target|ilm_enabled|manage_template)\b/g,
     match => `<span class="c-key">${match}</span>`
   );
   // 4) 블록명
@@ -1648,6 +1693,7 @@ function updateTypeTitle(id, value){
 addType();
 renderSizingGuideTable();
 onCommonInputChange();
+onCommonIndexModeChange();
 
 
 // ─────────────────────────────────────────────
