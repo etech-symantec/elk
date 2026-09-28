@@ -21,7 +21,7 @@
         padding: 18px 24px 24px 24px;
       }
     .row{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
-    .btn{border:none; border-radius:12px; padding:8px 14px; background:var(--pri); color:#fff; cursor:pointer; box-shadow:var(--shadow); font-weight:600; font-size:13px}
+    .btn{border:none; border-radius:12px; padding:8px 14px; background:var(--pri); color:#fff; cursor:pointer; box-shadow:var(--shadow); font-weight:600; font-size:9.1px}
     .btn:hover {
       background: #1e293b;       /* 🔹 hover 색상 강조 */
       box-shadow: 0 3px 8px rgba(0,0,0,0.2);
@@ -38,7 +38,7 @@
       color: #ffffff;
       border: 1px solid #1e293b;
       padding: 4px 10px;        /* 🔹 더 작은 버튼 */
-      font-size: 10px;          /* 🔹 글씨도 약간 줄임 */
+      font-size: 7px;          /* 🔹 글씨도 약간 줄임 */
       border-radius: 8px;       /* 🔹 각진 대신 조금 더 귀여운 라운드 */
       box-shadow: 0 2px 6px rgba(0,0,0,0.15);  /* 🔹 살짝 입체감 */
       transition: 0.15s ease;   /* 🔹 hover 시 부드럽게 */
@@ -57,21 +57,21 @@
     }
 
     .btn.ghost{background:transparent; color:var(--pri); border:1px solid #bfdbfe; box-shadow:none}
-    main{padding:24px; display:flex; flex-direction:column; gap:18px; max-width:1200px; margin:0 auto 32px auto;}
+    main{font-size:11.2px; padding:24px; display:flex; flex-direction:column; gap:18px; max-width:1200px; margin:0 auto 32px auto;}
     .card{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:var(--pad)}
     .title{font-weight:700; margin:0 0 8px 0}
-    .help{color:var(--muted); font-size:12px; padding:12px; font-weight: normal;}
+    .help{color:var(--muted); font-size:8.4px; padding:12px; font-weight: normal;}
     label{display:block; font-weight:600; margin:10px 0 6px 0}
     input[type="text"], input[type="number"], input[type="password"], textarea, select{
-      width:100%; border:1px solid #e5e7eb; background:#fff; border-radius:12px; padding:8px 10px; outline:none; font-family:inherit; font-size:13px;
+      width:100%; border:1px solid #e5e7eb; background:#fff; border-radius:12px; padding:8px 10px; outline:none; font-family:inherit; font-size:9.1px;
     }
     textarea{font-family:var(--mono); min-height:40px; resize:vertical;}
     .muted{color:var(--muted)}
-    .small{font-size:12px}
+    .small{font-size:8.4px}
     .mono{font-family:var(--mono)}
     .list{display:flex; flex-direction:column; gap:10px}
     .idx{border:1px solid #e5e7eb; border-radius:14px; padding:10px; background:#f9fafb;}
-    .idx h4{margin:0 0 8px 0; font-size:14px}
+    .idx h4{margin:0 0 8px 0; font-size:9.8px}
     .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:10px}
     .grid4{
       display:grid;
@@ -87,7 +87,7 @@
     .divider{height:1px; background:#e5e7eb; margin:12px 0}
     .stat{background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px 12px 12px}
     .stat .small{margin-bottom:4px}
-    .stat .val{font-size:18px; font-weight:700; color:#0f172a}
+    .stat .val{font-size:12.6px; font-weight:700; color:#0f172a}
     details > summary{list-style:none}
     details > summary::-webkit-details-marker{display:none}
 
@@ -124,7 +124,7 @@
       border:1px solid #3b82f6;
       border-radius:10px;
       padding:9px 16px;
-      font-size:12px;
+      font-size:8.4px;
       font-weight:700;
       cursor:pointer;
       margin-top:12px;
@@ -140,7 +140,7 @@
       border-color:#93c5fd;
     }
     #sizing-box .sz-toggle-arrow{
-      font-size:11px;
+      font-size:7.7px;
       transition: transform 0.2s ease;
     }
     #sizing-box .sz-panel{
@@ -151,7 +151,7 @@
       border-radius:12px;
     }
     .table{border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; margin-top:6px}
-    .table table{width:100%; border-collapse:collapse; font-size:12px}
+    .table table{width:100%; border-collapse:collapse; font-size:8.4px}
     .table thead{background:#f8fafc}
     .table th, .table td{padding:6px 8px; border-bottom:1px solid #eef2f7; text-align:left}
     .codebox{
@@ -169,7 +169,7 @@
       word-break: break-all;   /* ← 너무 긴 단어는 강제로 줄바꿈 */
       overflow-x: hidden;      /* ← 가로 스크롤 제거 */
     }
-    .chip{display:inline-flex; align-items:center; gap:6px; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:999px; padding:4px 10px; font-size:12px}
+    .chip{display:inline-flex; align-items:center; gap:6px; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:999px; padding:4px 10px; font-size:8.4px}
     .flex{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
     
     /* type 카드 접기/펴기용 */
@@ -182,7 +182,7 @@
     }
     .type-card-header h4{
       margin:0;
-      font-size:14px;
+      font-size:9.8px;
     }
     .type-card-body{
       margin-top:4px;
@@ -192,7 +192,7 @@
     }
     
     .grok-toggle-btn {
-      font-size: 11px;
+      font-size: 7.7px;
       padding: 3px 8px;
       border: 1px solid #cbd5e1;
       border-radius: 6px;
@@ -243,7 +243,7 @@
       background: linear-gradient(135deg, #B9375D, #3b82f6);
       color: white;
       padding: 5px 20px;
-      font-size: 12px;
+      font-size: 8.4px;
       font-weight: 600;
       border: none;
       border-radius: 10px;
@@ -268,7 +268,7 @@
        ─────────────────────────────── */
     .type-chip {
       padding: 4px 12px;
-      font-size: 10px;
+      font-size: 7px;
       font-weight: 700;
       border-radius: 10px;
       display: inline-flex;
@@ -301,12 +301,12 @@
     }
     
     .type-chip.name-active .type-index {
-      font-size: 12px;
+      font-size: 8.4px;
       color: #1e3a8a;                 /* 네이비 */
     }
     
     .type-chip.name-active .type-name {
-      font-size: 12px;
+      font-size: 8.4px;
       color: #1e3a8a;                 /* 네이비 */
       font-style: normal;
       font-weight: 700;
@@ -317,7 +317,7 @@
       color: #b91c1c;
       border: 1px solid #fca5a5;
       padding: 2px 6px;
-      font-size: 10px;
+      font-size: 7px;
       border-radius: 6px;
       margin-left: 6px;
     }
@@ -340,7 +340,7 @@
     }
     
     .template-label {
-      font-size: 12px;
+      font-size: 8.4px;
       color: #475569;
       font-weight: 600;
       margin-right: 2px;
@@ -601,7 +601,7 @@
         <button class="btn-generate" onclick="buildConf()">
           ⚙️ conf 생성/갱신
         </button>
-        <button class="btn sec" style="padding:4px 8px; font-size:10px;"
+        <button class="btn sec" style="padding:4px 8px; font-size:7px;"
                 onclick="copyPreview()">
           복사하기
         </button>
@@ -784,7 +784,7 @@ function addType(){
           </div>
           
           <button class="btn ghost"
-                  style="padding:4px 6px; font-size:8px;"
+                  style="padding:4px 6px; font-size:6px;"
                   onclick="removeType('${id}')"
                   title="삭제">
               ✕
