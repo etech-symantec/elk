@@ -62,7 +62,7 @@
     .title{font-weight:700; margin:0 0 8px 0}
     .help{color:var(--muted); font-size:12px; padding:12px; font-weight: normal;}
     label{display:block; font-weight:600; margin:10px 0 6px 0}
-    input[type="text"], input[type="number"], textarea, select{
+    input[type="text"], input[type="number"], input[type="password"], textarea, select{
       width:100%; border:1px solid #e5e7eb; background:#fff; border-radius:12px; padding:8px 10px; outline:none; font-family:inherit; font-size:13px;
     }
     textarea{font-family:var(--mono); min-height:40px; resize:vertical;}
@@ -83,6 +83,7 @@
       grid-template-columns: repeat(5, 1fr);
       gap:4px;
     }
+    .grid3{display:grid; grid-template-columns: repeat(3, 1fr); gap:10px}
     .divider{height:1px; background:#e5e7eb; margin:12px 0}
     .stat{background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px 12px 12px}
     .stat .small{margin-bottom:4px}
@@ -444,22 +445,61 @@
   <section class="card" id="common-box">
     <h4 class="title">Log 공통 설정<span class="help">모든 Type에 공통적으로 적용되는 기본 설정입니다.</span></h4>
     <div class="divider"></div>
+    <div class="small muted">Input (file 플러그인)</div>
     <div class="grid4">
       <div>
         <label>Input path prefix</label>
-        <input type="text" id="common-path-prefix" value="/home/elk_ftp/" />
+        <input type="text" id="common-path-prefix" value="/home/" />
       </div>
       <div>
         <label>Sincedb path prefix</label>
-        <input type="text" id="common-since-prefix" value="/var/lib/logstash/plugins/inputs/file/" />
+        <input type="text" id="common-since-prefix" value="/var/lib/logstash/" />
       </div>
       <div>
         <label>Max open files</label>
         <input type="number" id="common-max-open" value="1000" min="1" />
       </div>
       <div>
-        <label>Output hosts</label>
-        <input type="text" id="common-output-hosts" value="http://localhost:9200" />
+        <label>discover_interval (초)</label>
+        <input type="number" id="common-discover" value="5" min="1" />
+      </div>
+    </div>
+    <div class="grid4">
+      <div>
+        <label>mode</label>
+        <select id="common-mode" onchange="onCommonInputChange()">
+          <option value="read" selected>read (완료 파일 1회 처리, .gz 지원)</option>
+          <option value="tail">tail (실시간 추적)</option>
+        </select>
+      </div>
+      <div>
+        <label>file_completed_action</label>
+        <select id="common-completed-action" onchange="onCommonInputChange()">
+          <option value="delete" selected>delete (처리 후 파일 삭제)</option>
+          <option value="log">log</option>
+          <option value="log_and_delete">log_and_delete</option>
+        </select>
+      </div>
+      <div>
+        <label>file_completed_log_path</label>
+        <input type="text" id="common-completed-log" value="/var/log/logstash/file_completed.log" />
+      </div>
+      <div></div>
+    </div>
+    <div class="divider"></div>
+    <div class="small muted">Output (elasticsearch)</div>
+    <div class="grid4">
+      <div>
+        <label>Output hosts (쉼표로 구분)</label>
+        <input type="text" id="common-output-hosts" value="https://localhost:9200" />
+      </div>
+      <div>
+        <label>ssl_verification_mode (https일 때)</label>
+        <select id="common-ssl-verify">
+          <option value="none" selected>none</option>
+          <option value="full">full</option>
+          <option value="certificate">certificate</option>
+        </select>
       </div>
     </div>
   </section>
@@ -510,6 +550,12 @@
 
 </main>
 
+<datalist id="tz-list">
+  <option value="UTC"></option><option value="Asia/Seoul"></option><option value="Asia/Tokyo"></option>
+  <option value="Asia/Shanghai"></option><option value="Asia/Singapore"></option><option value="Europe/London"></option>
+  <option value="America/New_York"></option><option value="America/Los_Angeles"></option>
+</datalist>
+
 <script>
 // ─────────────────────────────────────────────────────────────
 // 1. 공통 템플릿 (type 개수 제한 없음)
@@ -525,19 +571,21 @@ PLACEHOLDER_OUTPUT
 }`;
 
 // input 블록
-function tplInput(path, start, since, type, discover, maxOpen){
-  return `file {
-    path => "${path}"
-    start_position => "${start}"
-     sincedb_path => "${since}"
-     type => "${type}"
-     discover_interval => ${discover}
-     max_open_files => ${maxOpen}
-  }`;
+function tplInput(o){
+  const lines = [`path => "${o.path}"`, `mode => "${o.mode}"`];
+  if(o.mode === 'read'){
+    lines.push(`file_completed_action => "${o.action}"`);
+    if(o.action !== 'delete') lines.push(`file_completed_log_path => "${o.logPath}"`);
+  } else {
+    lines.push(`start_position => "${o.start}"`);
+  }
+  lines.push(`sincedb_path => "${o.since}"`, `type => "${o.type}"`,
+             `discover_interval => ${o.discover}`, `max_open_files => ${o.maxOpen}`);
+  return `file {\n    ` + lines.join('\n    ') + `\n  }`;
 }
 
 // filter 블록 (type별 if [type] == "X")
-function tplFilter(type, grokArray, convertBlock){
+function tplFilter(type, grokArray, convertBlock, tz){
   // cloud / edge 구분 없이, type 이름에 따라 date 포맷 힌트만 변경
   const isCloudLike = type.toLowerCase().includes('cloud');
 
@@ -566,17 +614,71 @@ function tplFilter(type, grokArray, convertBlock){
     date {
       ${dateMatch}
       target => "@timestamp_log"
-      timezone => "Asia/Seoul"
+      timezone => "${tz}"
     }
   }`;
 }
 
-// output 블록 (type == index)
-function tplOutput(type, hosts){
+// ELFF 토큰 → 필드명 (date/time은 log_date/log_time)
+function elffToField(t){
+  let f = t.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+  if(f === 'date') f = 'log_date';
+  if(f === 'time') f = 'log_time';
+  return f;
+}
+
+// filter 블록: ELFF 그대로 (csv 필터)
+function tplFilterCsv(type, tokens, tz){
+  const cols = tokens.map(elffToField);
+  const has = f => cols.includes(f);
+  const hasTs = has('log_date') && has('log_time');
+  const conv = ['time_taken','sc_bytes','cs_bytes'].filter(has).map(f => `      "${f}" => "integer"`);
+  const rm = (hasTs ? ['log_date','log_time','full_timestamp'] : [])
+             .concat(['message','host','path','event','@version','log']).map(f => `"${f}"`).join(', ');
+  const tsBlock = hasTs
+    ? `mutate {
+      add_field => { "full_timestamp" => "%{log_date} %{log_time}" }
+    }
+    date {
+      match => ["full_timestamp", "yyyy-MM-dd HH:mm:ss"]
+      timezone => "${tz}"
+      target => "@timestamp"
+    }`
+    : `# date/time 컬럼이 없어 @timestamp 변환은 생략됩니다`;
+  return `if [type] == "${type}" {
+    if [message] =~ /^\\s*#/ or [message] == "" {
+      drop {}
+    }
+    mutate {
+      gsub => [
+        "message", "\\s+$", "",
+        "message", "\\s+", " "
+      ]
+    }
+    csv {
+      separator => " "
+      quote_char => '"'
+      autogenerate_column_names => false
+      columns => [
+${cols.map(c => `        "${c}"`).join(',\n')}
+      ]
+    }
+    ${tsBlock}
+    mutate {${conv.length ? `\n      convert => {\n${conv.join('\n')}\n      }` : ''}
+      remove_field => [${rm}]
+    }
+  }`;
+}
+
+// output 블록
+function tplOutput(type, o){
+  const l = [`hosts => [${o.hosts}]`];
+  if(o.ssl) l.push(`ssl_enabled => true`, `ssl_verification_mode => "${o.sslVerify}"`);
+  if(o.user){ l.push(`user => "${o.user}"`, `password => "${o.pass}"`); }
+  l.push(`index => "${o.index}"`);
   return `if [type] == "${type}" {
     elasticsearch {
-      hosts => [${hosts}]
-      index => "${type}"
+      ` + l.join('\n      ') + `
     }
   }`;
 }
@@ -587,10 +689,10 @@ function tplOutput(type, hosts){
 let typeSeq = 0;
 
 // 공통 input 설정 (원하면 HTML에 입력창 추가해서 읽어오면 됨)
-const DEFAULT_PATH_PREFIX  = "/home/elk_ftp/";
-const DEFAULT_SINCE_PREFIX = "/var/lib/logstash/plugins/inputs/file/";
+const DEFAULT_PATH_PREFIX  = "/home/";
+const DEFAULT_SINCE_PREFIX = "/var/lib/logstash/";
 const DEFAULT_MAX_OPEN     = 1000;
-const DEFAULT_HOSTS        = ["http://localhost:9200"];
+const DEFAULT_HOSTS        = ["https://localhost:9200"];
 
 function addType(){
   const host = document.getElementById('type-list');
@@ -642,18 +744,33 @@ function addType(){
           </div>
           <div>
             <label>path suffix</label>
-            <input type="text" id="${id}-path" value="*.log" />
+            <input type="text" id="${id}-path" value="*.log.gz" />
           </div>
           <div>
             <label>sincedb suffix</label>
-            <input type="text" id="${id}-since" value=".sincedb_cloud" />
+            <input type="text" id="${id}-since" value="sincedb-main" />
           </div>
           <div>
             <label>discover_interval</label>
-            <input type="number" id="${id}-discover" value="5" min="1" />
+            <input type="number" id="${id}-discover" value="" placeholder="공통값" min="1" />
           </div>
         </div>
     
+        <div class="grid3">
+          <div>
+            <label>파싱 방식</label>
+            <select id="${id}-mode" onchange="syncParseView('${id}')">
+              <option value="grok" selected>Grok 패턴 생성</option>
+              <option value="csv">ELFF 그대로 (csv 필터)</option>
+            </select>
+          </div>
+          <div>
+            <label>시간대 (date timezone)</label>
+            <input type="text" id="${id}-tz" value="UTC" list="tz-list" placeholder="예: UTC, Asia/Seoul" />
+          </div>
+          <div></div>
+        </div>
+
         <label>ELFF 포맷 입력</label>
         <textarea id="${id}-elff" placeholder="date time time-taken c-ip ..." oninput="autoElffToGrok('${id}')"></textarea>
         <div class="grok-container" id="${id}-grok-container" style="display:none;">
@@ -679,7 +796,26 @@ function addType(){
           </table>
         </div>
         </div>
+        <div class="grok-container" id="${id}-csv-container" style="display:none;">
+          <label>csv 필터 columns (ELFF 순서 그대로)</label>
+          <textarea id="${id}-csv-view" readonly></textarea>
+        </div>
         <input type="hidden" id="${id}-grok" />
+
+        <div class="grid3">
+          <div>
+            <label>Output user</label>
+            <input type="text" id="${id}-es-user" value="elastic" />
+          </div>
+          <div>
+            <label>Output password</label>
+            <input type="password" id="${id}-es-pass" value="" placeholder="비우면 \${ES_PASSWORD} 참조" autocomplete="new-password" />
+          </div>
+          <div>
+            <label>Output index</label>
+            <input type="text" id="${id}-es-index" value="" placeholder="비우면 type 이름(소문자)" />
+          </div>
+        </div>
       </div>
     `;
   host.appendChild(div);
@@ -994,6 +1130,21 @@ function buildConf(){
     alert('최소 1개의 Type을 추가하세요.');
     return;
   }
+
+  // csv 모드는 ELFF 입력 필수
+  let csvMissing = false;
+  typeCards.forEach(card => {
+    const id = card.dataset.id;
+    const bad = document.getElementById(id+'-name').value.trim() &&
+                document.getElementById(id+'-mode').value === 'csv' &&
+                !document.getElementById(id+'-elff').value.trim();
+    markInvalid(id+'-elff', bad);
+    if(bad) csvMissing = true;
+  });
+  if(csvMissing){
+    alert('ELFF 그대로(csv) 방식은 ELFF 포맷 입력이 필요합니다.');
+    return;
+  }
   
   // 🔥 공통 박스 변수 읽어오기
   let DEFAULT_PATH_PREFIX  = document.getElementById('common-path-prefix').value.trim();
@@ -1010,9 +1161,17 @@ function buildConf(){
   const DEFAULT_MAX_OPEN     = parseInt(document.getElementById('common-max-open').value.trim() || "1000", 10);
 
 
-  // output hosts 배열
-  const hosts = DEFAULT_HOSTS;
+  // 공통 input/output 값
   const maxOpen = DEFAULT_MAX_OPEN;
+  const commonDisc   = document.getElementById('common-discover').value.trim() || '5';
+  const commonMode   = document.getElementById('common-mode').value;
+  const commonAction = document.getElementById('common-completed-action').value;
+  const commonLogPath = escapeQuotes(document.getElementById('common-completed-log').value.trim());
+  const hostList = document.getElementById('common-output-hosts').value
+                     .split(',').map(h => h.trim()).filter(Boolean);
+  const hosts = hostList.map(h => '"' + escapeQuotes(h) + '"').join(', ');
+  const useSsl = hostList.some(h => /^https:/i.test(h));
+  const sslVerify = document.getElementById('common-ssl-verify').value;
 
   const mkGrokArray = (parts) => {
     if(!parts || parts.length === 0) return '["%{GREEDYDATA:message}"]';
@@ -1041,16 +1200,17 @@ function buildConf(){
     const start = document.getElementById(id+'-start').value;
     const pathS = document.getElementById(id+'-path').value.trim();
     const sinceS = document.getElementById(id+'-since').value.trim();
-    const disc  = document.getElementById(id+'-discover').value.trim() || '5';
+    const disc  = document.getElementById(id+'-discover').value.trim() || commonDisc;
 
     if(!type) return;
 
     // input
     const fullPath  = DEFAULT_PATH_PREFIX  + pathS;
     const fullSince = DEFAULT_SINCE_PREFIX + sinceS;
-    inputs.push(
-      tplInput(fullPath, start, fullSince, type, disc, maxOpen)
-    );
+    inputs.push(tplInput({
+      path: escapeQuotes(fullPath), mode: commonMode, action: commonAction, logPath: commonLogPath,
+      start, since: escapeQuotes(fullSince), type: escapeQuotes(type), discover: disc, maxOpen
+    }));
 
     // grok/convert
     let data = {parts:[], types:{}};
@@ -1060,14 +1220,25 @@ function buildConf(){
     const grokArray    = mkGrokArray(data.parts);
     const convertBlock = mkConvert(data.types);
 
-    filters.push(
-      tplFilter(type, grokArray, convertBlock)
-    );
+    const parseMode = document.getElementById(id+'-mode').value;
+    const tz = escapeQuotes(document.getElementById(id+'-tz').value.trim() || 'UTC');
+    if(parseMode === 'csv'){
+      const tokens = document.getElementById(id+'-elff').value.trim().split(/\s+/);
+      filters.push(tplFilterCsv(escapeQuotes(type), tokens, tz));
+    } else {
+      filters.push(tplFilter(type, grokArray, convertBlock, tz));
+    }
 
     // output (index = type)
-    outputs.push(
-      tplOutput(type, hosts)
-    );
+    const esUser  = document.getElementById(id+'-es-user').value.trim();
+    const esPass  = document.getElementById(id+'-es-pass').value;
+    const esIndex = document.getElementById(id+'-es-index').value.trim() || type.toLowerCase();
+    outputs.push(tplOutput(escapeQuotes(type), {
+      hosts, ssl: useSsl, sslVerify,
+      user: escapeQuotes(esUser),
+      pass: esPass ? escapeQuotes(esPass) : '${ES_PASSWORD}',
+      index: escapeQuotes(esIndex)
+    }));
   });
 
   if(inputs.length === 0){
@@ -1270,13 +1441,10 @@ function autoElffToGrok(id){
   const raw = document.getElementById(id+'-elff').value.trim();
   // 🔥 ELFF 입력칸이 비었으면 grok 영역 숨김
   const box = document.getElementById(id+"-grok-container");
-  if (raw === "") {
-      if (box) box.style.display = "none";
-      return;
-  }
+  syncParseView(id);
+  if (raw === "") { return; }
 
   // 🔥 입력이 생기면 grok 영역 표시
-  if (box) box.style.display = "block";
 
   
   if(!raw){
@@ -1301,6 +1469,31 @@ function autoElffToGrok(id){
 
   // 🔥 MAP 기반 권장 패턴 테이블도 즉시 생성
   renderGrokTable(id, tokens, data);
+
+  // csv(ELFF 그대로) 컬럼 미리보기
+  document.getElementById(id+'-csv-view').value = tokens.map(elffToField).join(' ');
+}
+
+// 파싱 방식에 따라 Grok/csv 영역 표시 전환
+function syncParseView(id){
+  const raw  = document.getElementById(id+'-elff').value.trim();
+  const mode = document.getElementById(id+'-mode').value;
+  const g = document.getElementById(id+'-grok-container');
+  const c = document.getElementById(id+'-csv-container');
+  if(g) g.style.display = (raw && mode === 'grok') ? 'block' : 'none';
+  if(c) c.style.display = (raw && mode === 'csv')  ? 'block' : 'none';
+  if(raw && mode === 'csv'){
+    document.getElementById(id+'-csv-view').value = raw.split(/\s+/).map(elffToField).join(' ');
+  }
+}
+
+// 공통 input: mode / file_completed_action 연동
+function onCommonInputChange(){
+  const mode = document.getElementById('common-mode').value;
+  const act  = document.getElementById('common-completed-action');
+  const logp = document.getElementById('common-completed-log');
+  act.disabled  = (mode !== 'read');
+  logp.disabled = (mode !== 'read' || act.value === 'delete');
 }
 
 function toggleGrokTable(id){
@@ -1344,7 +1537,7 @@ function highlightLogstash(conf) {
   );
   // 3) 키워드
   html = html.replace(
-    /\b(path|type|sincedb_path|start_position|discover_interval|max_open_files|hosts|index)\b/g,
+    /\b(path|type|mode|file_completed_action|file_completed_log_path|sincedb_path|start_position|discover_interval|max_open_files|hosts|ssl_enabled|ssl_verification_mode|user|password|index|separator|quote_char|columns|timezone|target)\b/g,
     match => `<span class="c-key">${match}</span>`
   );
   // 4) 블록명
@@ -1393,6 +1586,7 @@ function updateTypeTitle(id, value){
 // 초기 상태: type 1개 샘플 + 라이브러리 로드
 addType();
 renderSizingGuideTable();
+onCommonInputChange();
 
 
 // ─────────────────────────────────────────────
@@ -1416,6 +1610,12 @@ c-ip c-ip-version c-port cs-auth-groups cs-bytes cs-categories cs-host cs-icap-e
 // ─────────────────────────────────────────────
 // 기본 Type 자동 추가 함수
 // ─────────────────────────────────────────────
+const DEFAULT_TYPE_OPTS = {
+  "Edge-Main": { path:"main_process/*.log.gz", since:"sincedb-main",  index:"edge-http"  },
+  "Edge-SSL":  { path:"ssl_process/*.log.gz",  since:"sincedb-ssl",   index:"edge-https" },
+  "Cloud":     { path:"*.log.gz",              since:"sincedb-cloud", index:"" }
+};
+
 function addDefaultType(typeName) {
   addType();  // 새로운 type 카드 1개 생성
 
@@ -1424,6 +1624,14 @@ function addDefaultType(typeName) {
   // type 이름 자동 입력
   document.getElementById(`${id}-name`).value = typeName;
   updateTypeTitle(id, typeName);
+
+  // path / sincedb / index 기본값
+  const o = DEFAULT_TYPE_OPTS[typeName];
+  if(o){
+    document.getElementById(`${id}-path`).value = o.path;
+    document.getElementById(`${id}-since`).value = o.since;
+    document.getElementById(`${id}-es-index`).value = o.index;
+  }
 
   // ELFF 자동 입력
   document.getElementById(`${id}-elff`).value = DEFAULT_ELFF[typeName];
