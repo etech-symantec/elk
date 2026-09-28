@@ -1138,6 +1138,7 @@ function showView(v){
   document.getElementById('view-home').style.display = (v === 'home') ? 'flex' : 'none';
   document.getElementById('view-calc').style.display = (v === 'calc') ? 'block' : 'none';
   document.getElementById('view-conf').style.display = (v === 'conf') ? 'flex'  : 'none';
+  document.getElementById('side-nav').style.display = (v === 'home') ? 'none' : 'flex';
   document.getElementById('nav-calc').classList.toggle('active', v === 'calc');
   document.getElementById('nav-conf').classList.toggle('active', v === 'conf');
   window.scrollTo({top:0});
