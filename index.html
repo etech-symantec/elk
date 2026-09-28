@@ -23,7 +23,8 @@
 </script> 
 <script src="https://etech-symantec.github.io/header.js"></script>
   
-<!-- 좌측 고정 메뉴 -->
+<div class="layout">
+<!-- 좌측 미니 메뉴 (첫 화면에서는 숨김) -->
 <nav class="side-nav" id="side-nav">
   <button type="button" class="side-btn" id="nav-calc" onclick="showView('calc')" title="ELK 리소스 계산기">
     <span class="sb-icon">📊</span>리소스<br>계산기
@@ -314,6 +315,7 @@
   </div>
 
 </main>
+</div>
 
 <datalist id="tz-list">
   <option value="UTC"></option><option value="Asia/Seoul">KST</option><option value="Asia/Tokyo"></option>
