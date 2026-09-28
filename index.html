@@ -23,7 +23,37 @@
 </script> 
 <script src="https://etech-symantec.github.io/header.js"></script>
   
+<!-- 좌측 고정 메뉴 -->
+<nav class="side-nav" id="side-nav">
+  <button type="button" class="side-btn" id="nav-calc" onclick="showView('calc')" title="ELK 리소스 계산기">
+    <span class="sb-icon">📊</span>리소스<br>계산기
+  </button>
+  <button type="button" class="side-btn" id="nav-conf" onclick="showView('conf')" title="Logstash 설정파일 만들기">
+    <span class="sb-icon">⚙️</span>Logstash<br>설정
+  </button>
+</nav>
+
 <main>
+  <!-- 첫 화면 -->
+  <div class="home" id="view-home">
+    <h2 class="home-title">무엇을 하시겠어요?</h2>
+    <p class="home-sub">사용할 기능을 선택하세요.</p>
+    <div class="home-btns">
+      <button type="button" class="big-btn calc" onclick="showView('calc')">
+        <span class="bb-icon">📊</span>
+        <span class="bb-title">ELK 리소스 계산기</span>
+        <span class="bb-desc">일일 로그량과 보관 기간으로<br>CPU / MEM / Disk 사양을 산정합니다.</span>
+      </button>
+      <button type="button" class="big-btn" onclick="showView('conf')">
+        <span class="bb-icon">⚙️</span>
+        <span class="bb-title">Logstash 설정파일 만들기</span>
+        <span class="bb-desc">공통 설정과 Log Type을 입력해<br>logstash.conf를 생성합니다.</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ELK 리소스 계산기 영역 -->
+  <div id="view-calc" style="display:none;">
     <!-- ELK 리소스(CPU/MEM/Disk) 산정기 -->
   <section class="card" id="sizing-box">
     <h4 class="title">ELK 리소스 계산기 (CPU / MEM / Disk)
@@ -107,7 +137,10 @@
       </div>
     </div>
   </section>
+  </div>
 
+  <!-- Logstash 설정 영역 -->
+  <div id="view-conf" style="display:none; flex-direction:column; gap:18px;">
     <!-- 공통 변수 박스 -->
   <section class="card" id="common-box">
     <h4 class="title">Log 공통 설정<span class="help">모든 Type에 공통적으로 적용되는 기본 설정입니다.</span></h4>
@@ -268,7 +301,7 @@
         <button class="btn-generate" onclick="buildConf()">
           ⚙️ conf 생성/갱신
         </button>
-        <button class="btn sec" style="padding:4px 8px; font-size:7px;"
+        <button class="btn sec" style="padding:4px 8px; font-size:7.7px;"
                 onclick="copyPreview()">
           복사하기
         </button>
@@ -278,6 +311,7 @@
       <div class="codebox" id="preview"></div>
     
     </section>
+  </div>
 
 </main>
 
