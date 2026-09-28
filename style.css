@@ -42,7 +42,9 @@
 }
 
 .btn.ghost{background:transparent; color:var(--pri); border:1px solid #bfdbfe; box-shadow:none}
-main{font-size:12.3px; padding:24px 24px 24px 96px; display:flex; flex-direction:column; gap:18px; max-width:1200px; margin:0 auto 32px auto;}
+/* 좌측 미니 메뉴 + 본문 레이아웃 */
+.layout{display:flex; align-items:flex-start; gap:14px; max-width:1200px; margin:0 auto 32px auto; padding:24px 24px 0 24px;}
+main{font-size:12.3px; flex:1; min-width:0; display:flex; flex-direction:column; gap:18px;}
 .card{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:var(--pad)}
 .title{font-weight:700; margin:0 0 8px 0}
 .help{color:var(--muted); font-size:9.2px; padding:12px; font-weight: normal;}
@@ -78,9 +80,11 @@ details > summary::-webkit-details-marker{display:none}
 
 /* ELK 리소스 산정기: 다른 카드와 구분되는 다크 테마 */
 #sizing-box{
-  background: linear-gradient(180deg,#0f172a,#111827);
+  --calc-bg: linear-gradient(180deg,#0f172a,#111827);
+  --calc-border: #1e293b;
+  background: var(--calc-bg);
   color:#e2e8f0;
-  border:1px solid #1e293b;
+  border:1px solid var(--calc-border);
 }
 #sizing-box .title{color:#f8fafc}
 #sizing-box .help{color:#94a3b8}
@@ -352,8 +356,8 @@ details > summary::-webkit-details-marker{display:none}
 .big-btn.calc:hover{border-color:#3b82f6}
 
 .side-nav{
-  position:fixed; left:10px; top:130px; z-index:50;
-  display:flex; flex-direction:column; gap:8px; width:74px;
+  display:none; flex:none; position:sticky; top:16px; z-index:50;
+  flex-direction:column; gap:8px; width:74px;
 }
 .side-btn{
   display:flex; flex-direction:column; align-items:center; gap:3px;
