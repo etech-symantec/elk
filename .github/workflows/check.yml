@@ -1,1 +1,18 @@
-sample
+name: check
+on:
+  push:
+  pull_request:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax
+        run: |
+          for f in $(git ls-files '*.sh'); do echo "bash -n $f"; bash -n "$f"; done
+      - name: Wizard embedded files are in sync with the repo
+        run: python3 tools/sync_wizard.py --check
+      - name: Wizard JavaScript syntax
+        run: |
+          python3 tools/sync_wizard.py --extract-js /tmp/wizard.js
+          node --check /tmp/wizard.js
