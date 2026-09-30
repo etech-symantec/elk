@@ -1,0 +1,9 @@
+# Wizard가 생성한 설치 파일/ZIP에는 배포용 SSH/sudo 비밀번호(Base64)와 ELK 계정 비밀번호가 들어 있을 수 있습니다.
+# 절대 커밋하지 마세요.
+/elk-oneclick-install-v*.sh
+elk-oneclick-install-v*.sh
+/elk.env
+*.local.env
+*.zip
+.DS_Store
+Thumbs.db
