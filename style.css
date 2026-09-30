@@ -388,6 +388,10 @@ details > summary::-webkit-details-marker{display:none}
 .big-btn.auto:hover .bb-icon{animation:bb-launch 1.1s ease-in-out infinite}
 .big-btn:not(.calc):not(.auto):hover .bb-icon{animation:bb-spin 1.6s linear infinite}
 
+/* 자동 구성 카드: 계산기(다크)와 Logstash(화이트)의 중간 단계 → 슬레이트 그레이 */
+.big-btn.auto{background:linear-gradient(180deg,#6b7a90,#4a586d); color:#f8fafc; border-color:#8492a6}
+.big-btn.auto .bb-desc{color:#e2e8f0}
+
 /* 자동 구성 카드 강조 (글로우) */
 .big-btn.auto:hover{border-color:#6366f1; animation:bb-glow 1.6s ease-in-out infinite}
 
