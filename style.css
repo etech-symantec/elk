@@ -355,6 +355,59 @@ details > summary::-webkit-details-marker{display:none}
 .big-btn.calc .bb-desc{color:#94a3b8}
 .big-btn.calc:hover{border-color:#3b82f6}
 
+/* ===== 첫 화면 카드 호버 애니메이션 ===== */
+.big-btn{position:relative; overflow:hidden; isolation:isolate}
+.big-btn:hover{transform:translateY(-6px) scale(1.025); box-shadow:0 16px 34px rgba(37,99,235,.20)}
+.big-btn:active{transform:translateY(-2px) scale(.985); transition-duration:.08s}
+
+/* 빛이 훑고 지나가는 효과 */
+.big-btn::before{
+  content:""; position:absolute; top:0; left:-75%; width:50%; height:100%; z-index:-1;
+  background:linear-gradient(105deg, transparent, rgba(255,255,255,.55), transparent);
+  transform:skewX(-20deg); pointer-events:none;
+}
+.big-btn.calc::before{background:linear-gradient(105deg, transparent, rgba(148,163,184,.28), transparent)}
+.big-btn:hover::before{left:135%; transition:left .75s ease}
+
+/* 아이콘 공통 */
+.big-btn .bb-icon{display:inline-block; transition:transform .3s ease, filter .3s ease}
+.big-btn:hover .bb-icon{filter:drop-shadow(0 6px 10px rgba(37,99,235,.35))}
+
+/* 제목 밑줄이 그려지는 효과 */
+.big-btn .bb-title{position:relative; padding-bottom:4px}
+.big-btn .bb-title::after{
+  content:""; position:absolute; left:50%; bottom:0; width:0; height:2px; border-radius:2px;
+  background:linear-gradient(90deg,#3b82f6,#8b5cf6); transform:translateX(-50%); transition:width .35s ease;
+}
+.big-btn:hover .bb-title::after{width:100%}
+.big-btn .bb-desc{transition:transform .3s ease, opacity .3s ease}
+.big-btn:hover .bb-desc{transform:translateY(2px)}
+
+/* 카드별 아이콘 동작 */
+.big-btn.calc:hover .bb-icon{animation:bb-pop .6s ease}
+.big-btn.auto:hover .bb-icon{animation:bb-launch 1.1s ease-in-out infinite}
+.big-btn:not(.calc):not(.auto):hover .bb-icon{animation:bb-spin 1.6s linear infinite}
+
+/* 자동 구성 카드 강조 (글로우) */
+.big-btn.auto:hover{border-color:#6366f1; animation:bb-glow 1.6s ease-in-out infinite}
+
+@keyframes bb-pop{0%{transform:scale(1)} 40%{transform:scale(1.35) rotate(-8deg)} 70%{transform:scale(.95) rotate(4deg)} 100%{transform:scale(1.12)}}
+@keyframes bb-launch{
+  0%{transform:translate(0,0) rotate(0)}
+  30%{transform:translate(-2px,2px) rotate(-3deg)}
+  60%{transform:translate(8px,-12px) rotate(4deg)}
+  100%{transform:translate(0,0) rotate(0)}
+}
+@keyframes bb-spin{to{transform:rotate(360deg)}}
+@keyframes bb-glow{
+  0%,100%{box-shadow:0 14px 30px rgba(99,102,241,.22), 0 0 0 0 rgba(99,102,241,.25)}
+  50%{box-shadow:0 18px 38px rgba(99,102,241,.34), 0 0 0 8px rgba(99,102,241,0)}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .big-btn,.big-btn *{animation:none !important; transition:none !important}
+}
+
 .side-nav{
   display:none; flex:none; position:sticky; top:16px; z-index:50;
   flex-direction:column; gap:8px; width:74px;
