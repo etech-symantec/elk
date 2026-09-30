@@ -16,3 +16,5 @@ jobs:
         run: |
           python3 tools/sync_wizard.py --extract-js /tmp/wizard.js
           node --check /tmp/wizard.js
+      - name: Admin defaults file (wizard-defaults.js) is valid
+        run: python3 tools/gen_defaults.py --check
