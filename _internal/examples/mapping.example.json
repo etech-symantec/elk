@@ -1,0 +1,11 @@
+{
+  "dynamic": true,
+  "properties": {
+    "@timestamp": { "type": "date" },
+    "src_ip": { "type": "ip" },
+    "dst_ip": { "type": "ip" },
+    "response_code": { "type": "integer" },
+    "bytes": { "type": "long" },
+    "message": { "type": "text" }
+  }
+}
