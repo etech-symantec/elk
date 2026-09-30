@@ -19,7 +19,7 @@
 <!-- 공통 헤더 + 제목 + 버전 -->
 <script>
   window.pageTitle = "ELK";
-  window.pageVersion = "ver.2026.09.23";
+  window.pageVersion = "ver.2026.09.30";
 </script> 
 <script src="https://etech-symantec.github.io/header.js"></script>
   
@@ -31,6 +31,9 @@
   </button>
   <button type="button" class="side-btn" id="nav-conf" onclick="showView('conf')" title="Logstash 설정파일 만들기">
     <span class="sb-icon">⚙️</span>Logstash<br>설정
+  </button>
+  <button type="button" class="side-btn" id="nav-wizard" onclick="showView('wizard')" title="ELK 자동 구성">
+    <span class="sb-icon">🚀</span>자동<br>구성
   </button>
 </nav>
 
@@ -45,10 +48,10 @@
         <span class="bb-title">ELK 리소스 계산기</span>
         <span class="bb-desc">일일 로그량과 보관 기간으로<br>CPU / MEM / Disk 사양을 산정합니다.</span>
       </button>
-      <button type="button" class="big-btn auto" onclick="location.href='config-wizard.html'">
+      <button type="button" class="big-btn auto" onclick="showView('wizard')">
         <span class="bb-icon">🚀</span>
         <span class="bb-title">ELK 자동 구성</span>
-        <span class="bb-desc">필수항목만 채워서 끝내는<br>원클릭 설치 스크립트</span>
+        <span class="bb-desc">필수항목만 채워 원클릭 설치 스크립트를 만들고<br>설치 패키지(ZIP)로 내려받습니다.</span>
       </button>
       <button type="button" class="big-btn" onclick="showView('conf')">
         <span class="bb-icon">⚙️</span>
@@ -317,6 +320,11 @@
       <div class="codebox" id="preview"></div>
     
     </section>
+  </div>
+
+  <!-- ELK 자동 구성 (Config Wizard) 영역: 처음 열 때 한 번만 불러옵니다 -->
+  <div id="view-wizard" style="display:none;">
+    <iframe id="wizard-frame" title="ELK 자동 구성" data-src="config-wizard.html" allow="clipboard-write" loading="lazy"></iframe>
   </div>
 
 </main>

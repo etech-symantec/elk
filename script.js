@@ -1132,15 +1132,40 @@ function addDefaultType(typeName) {
 
 
 // ─────────────────────────────────────────────
-// 화면 전환 (첫 화면 / 리소스 계산기 / Logstash 설정)
+// 화면 전환 (첫 화면 / 리소스 계산기 / Logstash 설정 / ELK 자동 구성)
 // ─────────────────────────────────────────────
 function showView(v){
   document.getElementById('view-home').style.display = (v === 'home') ? 'flex' : 'none';
   document.getElementById('view-calc').style.display = (v === 'calc') ? 'block' : 'none';
   document.getElementById('view-conf').style.display = (v === 'conf') ? 'flex'  : 'none';
+  document.getElementById('view-wizard').style.display = (v === 'wizard') ? 'block' : 'none';
   document.getElementById('side-nav').style.display = (v === 'home') ? 'none' : 'flex';
   document.getElementById('nav-calc').classList.toggle('active', v === 'calc');
   document.getElementById('nav-conf').classList.toggle('active', v === 'conf');
+  document.getElementById('nav-wizard').classList.toggle('active', v === 'wizard');
+  // 자동 구성 화면은 입력 카드가 많아 본문 폭을 넓힙니다.
+  document.querySelector('.layout').classList.toggle('wide', v === 'wizard');
+  if(v === 'wizard') openWizardFrame();
   window.scrollTo({top:0});
 }
+
+// ELK 자동 구성(config-wizard.html): 처음 열 때 iframe에 불러오고, 화면 높이에 맞춥니다.
+function openWizardFrame(){
+  const f = document.getElementById('wizard-frame');
+  if(f && !f.getAttribute('src')) f.setAttribute('src', f.dataset.src);
+  fitWizardFrame();
+}
+function fitWizardFrame(){
+  const f = document.getElementById('wizard-frame');
+  if(!f || f.offsetParent === null) return;          // 숨겨져 있으면 계산하지 않음
+  const top = f.getBoundingClientRect().top + window.scrollY;
+  f.style.height = Math.max(520, window.innerHeight - top - 16) + 'px';
+}
+window.addEventListener('resize', fitWizardFrame);
+
 showView('home');
+// 주소 끝에 #wizard / #calc / #conf 를 붙이면 해당 기능을 바로 엽니다. (예: .../elk/#wizard)
+(function(){
+  const h = location.hash.replace('#','');
+  if(['calc','conf','wizard'].includes(h)) showView(h);
+})();
