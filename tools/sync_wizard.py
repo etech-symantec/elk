@@ -42,7 +42,7 @@ EXTRA = {
     '_internal/examples/elk-guide-9.5.2.env':        '644',
 }
 # SHA256SUMS.txt 에 넣지 않는 것(저장소 관리용 파일)
-SUMS_SKIP = {'SHA256SUMS.txt', 'README.md', 'index.html', 'script.js', 'style.css', '.gitignore', '.gitattributes', '.nojekyll'}
+SUMS_SKIP = {'SHA256SUMS.txt', 'README.md', 'index.html', 'script.js', 'style.css', 'wizard-defaults.js', '.gitignore', '.gitattributes', '.nojekyll'}
 SUMS_SKIP_DIRS = {'.git', '.github', 'tools'}
 
 
@@ -109,8 +109,8 @@ def main():
     a = ap.parse_args()
     cur = WIZ.read_text(encoding='utf-8')
     if a.extract_js:
-        s = cur.index('<script>') + len('<script>')
-        Path(a.extract_js).write_text(cur[s:cur.index('</script>')], encoding='utf-8')
+        import re
+        Path(a.extract_js).write_text(re.search(r'<script>(.*?)</script>', cur, re.S).group(1), encoding='utf-8')
         return 0
     new = build(cur)
     if a.check:

@@ -6,6 +6,7 @@
 - **install-elk**: 서비스 기동 대기 중 curl 연결 오류 출력 제거, 15초마다 대기 진행 로그 출력.
 - **install-elk**: `ELASTIC_USERNAME` 검증 추가, Kibana 로그인 사용 여부(`KIBANA_LOGIN_ENABLED`)와 세션 유휴 만료(`KIBANA_SESSION_IDLE_TIMEOUT`) 옵션 추가.
 - **run-remote-deploy.cmd**: 완료/오류 결과를 노란 글씨로 표시하고 창이 닫히지 않도록 `pause` 추가(`ELK_NO_PAUSE=1`이면 생략). 경로에 괄호가 있어도 동작하도록 구조 정리.
+- **Config Wizard**: 초기값(기본값)을 별도 파일 `wizard-defaults.js`로 분리 — 관리자가 이 파일만 고치면 반영(빌드 불필요). 잘못된 항목은 무시하고 화면 위에 경고, 파일이 없거나 문법 오류여도 내장 기본값으로 동작, 비밀번호·키 항목은 지정 불가. `tools/gen_defaults.py`(생성/점검)와 CI 점검 추가.
 - **Config Wizard**: 자동 실행 파일(`elk-auto-install-v2.9.3.cmd`) 다운로드 추가 — 더블클릭하면 임시 폴더에 자동으로 풀고 run-remote-deploy.cmd까지 실행, 끝나면 임시 폴더 삭제(`ELK_KEEP_TEMP=1`이면 유지).
 - **Config Wizard**: 자동 전송 및 설치(10단계) / 검증 및 완료(11단계) 분리, 잘못된 값이 있으면 단계 이동 차단 및 빨간 표시, 좌측 메뉴 `필수` 태그, 초기 사용자 Role 드롭다운, 명령어 복사 버튼 수정(기존 `copy()` 미정의 오류) 및 명령어 펼침, 고급 설정 단계 제목 정리, 전체 패키지 ZIP 다운로드.
 
