@@ -1517,6 +1517,11 @@ EOF_PIPELINES
     done
   fi
 
+  if [[ -s "$SCRIPT_DIR/custom-pipeline.conf" ]]; then
+    # v2.9.4: Config Wizard에서 직접 수정한 pipeline을 그대로 사용한다. (설정값으로부터 자동 생성하지 않음)
+    log "사용자 지정 Logstash pipeline 사용 (custom-pipeline.conf -> $LOGSTASH_PIPELINE_FILE)"
+    cp -f "$SCRIPT_DIR/custom-pipeline.conf" "$LOGSTASH_PIPELINE_FILE"
+  else
   log "Logstash pipeline 생성 ($LOGSTASH_PROFILE)"
   if [[ "$LOGSTASH_PROFILE" == "proxysg_guide" ]]; then
     cat >"$LOGSTASH_PIPELINE_FILE" <<EOF_GUIDE_LS
@@ -1677,6 +1682,7 @@ EOF_GUIDE_SSL_OUT
     fi
     echo "}"
   } >"$LOGSTASH_PIPELINE_FILE"
+  fi
   fi
   chown root:logstash "$LOGSTASH_PIPELINE_FILE"
   chmod 640 "$LOGSTASH_PIPELINE_FILE"
@@ -1841,6 +1847,8 @@ fi
 overall_progress 87 "MAIN/SSL 자동 복사·백업 처리 구성"
 if istrue "$GUIDE_PROXY_FLOW_ENABLED"; then
   [[ -f "$SCRIPT_DIR/guide-log-process.sh" ]] || die "필수 파일 없음: $SCRIPT_DIR/guide-log-process.sh"
+  # v2.9.4: Config Wizard에서 스크립트를 수정했을 수 있으므로 설치 전에 문법을 검사한다.
+  bash -n "$SCRIPT_DIR/guide-log-process.sh" || die "guide-log-process.sh 문법 오류: Config Wizard에서 수정한 스크립트를 확인하세요."
   install -m 750 "$SCRIPT_DIR/guide-log-process.sh" "$GUIDE_PROCESS_SCRIPT"
   touch "$GUIDE_PROCESS_LOG"; chmod 640 "$GUIDE_PROCESS_LOG"
   cat >/etc/cron.d/elk-guide-log-process <<EOF_GUIDE_CRON

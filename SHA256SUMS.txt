@@ -2,10 +2,10 @@
 9bf5a67e7daae742b6e27b788bbccf51cc59735a88bf7bf688f3ce68062f2af5  ./_internal/core/elk-health-monitor.sh
 c20c3300340ee02cbe06ee20ea71f0831768157bd6043367ec8c50b9e6f0cb60  ./_internal/core/elk-ops.sh
 121bc4c8c51324ca8f584fd6eded7263713208731c81e9f3d1a94a0ef56da51d  ./_internal/core/guide-log-process.sh
-e9f90850c86b0f42f48e86b116078d6a2bdb03309a2c9158660efdce201cf23d  ./_internal/core/install-elk.sh
+5119ef67e0eeeb35b3ff088ba7944bb1671ee25741c043a5eda8c5e35963afd5  ./_internal/core/install-elk.sh
 d3236c3007e7fae32ab3e1de0af160253fe42a961664bf6a028e55be4dfbde2c  ./_internal/core/log-ingest-manager.sh
 64ce3d1e1806e25841b060e6d09b747640108f766708cd9d6da5e04d0b321433  ./_internal/core/proxysg-guide-filter.conf
-98b1edb02f491f191c60a7b1ba11cd2351ae18249db4d7681ef56ced5cf713c7  ./_internal/docs/CHANGELOG.md
+561febc2ce9096995ca8dd086062c4a4b9288bdce38a84caacd8a49a5bbd3d03  ./_internal/docs/CHANGELOG.md
 a3b94407b787907dca2c2152e9e6469f415f31714a4806a4454dea2df15b7ac5  ./_internal/docs/PPT_GUIDE_MAPPING.md
 0dbd206fc3ff401e494f78daf2a8b71d7e05ab57f6b0183e7e1f8cb2f9ce384e  ./_internal/docs/README.md
 9a01d9f6f8cc52966858dd108f387e869880f8280bf8a5a45d161deeb3f4782c  ./_internal/docs/VERSION
@@ -18,5 +18,5 @@ c474bfa9572b65d0b2c3dd78ffd08e7bf82aeaf627660525313cf3484b9959f9  ./_internal/ex
 40f283f1d2eae015a41c97e121d96ccbb064b8214e374c3298b63ef1cd147a0d  ./_internal/tools/open-config-gui.cmd
 a3a2f775905dd44e8cf46efc8b1371e67de91f7e6a9495c2133ae2bf19a84ab3  ./_internal/tools/open-config-gui.sh
 6c1e21306b4088341a0903e1da50cb7841dddc563f263a5a3864d99552ea4c55  ./_internal/tools/run-remote-deploy.ps1
-475f71d5e985bff32627f5367f0e2ecdda4e2e5693be0bee3b3ff0413b8ac431  ./config-wizard.html
+8f6a3fd7abad7edec7779ec1dab7b7d4d03f7f78f340f07f810b19030057f1a4  ./config-wizard.html
 89018ec01b9b4fb61ab8788e9153acb55f4d2c215e933d21d96efa658d91e5c2  ./run-remote-deploy.cmd
