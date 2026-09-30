@@ -5,7 +5,7 @@ c20c3300340ee02cbe06ee20ea71f0831768157bd6043367ec8c50b9e6f0cb60  ./_internal/co
 e9f90850c86b0f42f48e86b116078d6a2bdb03309a2c9158660efdce201cf23d  ./_internal/core/install-elk.sh
 d3236c3007e7fae32ab3e1de0af160253fe42a961664bf6a028e55be4dfbde2c  ./_internal/core/log-ingest-manager.sh
 64ce3d1e1806e25841b060e6d09b747640108f766708cd9d6da5e04d0b321433  ./_internal/core/proxysg-guide-filter.conf
-802b1d94ac2e156cfad05a592cb54ce81d78e1bede52a5d468e50b0a856765b2  ./_internal/docs/CHANGELOG.md
+fec34d88c9441ba50a3e820bdf22d2cc9e5c6f7e53dfab48d98e86373554abad  ./_internal/docs/CHANGELOG.md
 a3b94407b787907dca2c2152e9e6469f415f31714a4806a4454dea2df15b7ac5  ./_internal/docs/PPT_GUIDE_MAPPING.md
 0dbd206fc3ff401e494f78daf2a8b71d7e05ab57f6b0183e7e1f8cb2f9ce384e  ./_internal/docs/README.md
 9a01d9f6f8cc52966858dd108f387e869880f8280bf8a5a45d161deeb3f4782c  ./_internal/docs/VERSION
@@ -18,5 +18,5 @@ c474bfa9572b65d0b2c3dd78ffd08e7bf82aeaf627660525313cf3484b9959f9  ./_internal/ex
 40f283f1d2eae015a41c97e121d96ccbb064b8214e374c3298b63ef1cd147a0d  ./_internal/tools/open-config-gui.cmd
 a3a2f775905dd44e8cf46efc8b1371e67de91f7e6a9495c2133ae2bf19a84ab3  ./_internal/tools/open-config-gui.sh
 6c1e21306b4088341a0903e1da50cb7841dddc563f263a5a3864d99552ea4c55  ./_internal/tools/run-remote-deploy.ps1
-c277ab38cb958ba917031a2b6e57b51d15790212c5c9f60ce3051c1214b7e553  ./config-wizard.html
+e6f4fe02ea897d98e29bd32ecc7e163fcf6f640e3058267e3625f9520a0bbb2e  ./config-wizard.html
 89018ec01b9b4fb61ab8788e9153acb55f4d2c215e933d21d96efa658d91e5c2  ./run-remote-deploy.cmd
