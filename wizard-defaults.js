@@ -122,8 +122,8 @@ window.ELK_DEFAULTS = {
     LOGSTASH_PATH_DATA: "/var/lib/logstash",                  // Logstash Path Data
     LOGSTASH_PATH_LOGS: "/var/log/logstash",                  // Logstash Path Logs
     LOGSTASH_PIPELINE_ID: "main",                             // Logstash Pipeline Id
-    LOGSTASH_PIPELINE_FILE: "/etc/logstash/conf.d/logstash.conf",  // Logstash 파이프라인 설정 파일(.conf) 경로
-    LOGSTASH_PROFILE: "proxysg_guide",                        // Logstash Pipeline 프로필  [generic | proxysg_guide]
+    LOGSTASH_PIPELINE_FILE: "/etc/logstash/conf.d/10-main.conf",  // Logstash 파이프라인 설정 파일(.conf) 경로
+    LOGSTASH_PROFILE: "proxysg",                        // Logstash Pipeline 프로필  [generic | proxysg]
     LOGSTASH_HEAP_MIN: "2g",                                  // Logstash Xms
     LOGSTASH_HEAP_MAX: "2g",                                  // Logstash Xmx
     LOGSTASH_PIPELINE_WORKERS: "0",                           // Logstash Pipeline Workers
@@ -237,31 +237,31 @@ window.ELK_DEFAULTS = {
     FTP_INTEGRATE_FILE_INGEST: false,                         // Ftp Integrate File Ingest  [true | false]
 
     // ───── 고급 설정 16단계 · ProxySG MAIN/SSL 파일 흐름 ─────
-    GUIDE_PROXY_FLOW_ENABLED: true,                           // ProxySG MAIN/SSL 흐름 사용  [true | false]
-    GUIDE_MAIN_SOURCE_DIR: "/home/main",                      // MAIN FTP 수신 폴더
-    GUIDE_SSL_SOURCE_DIR: "/home/ssl",                        // SSL FTP 수신 폴더
-    GUIDE_MAIN_BACKUP_DIR: "/home/main_backup",               // MAIN 원본 백업 폴더
-    GUIDE_SSL_BACKUP_DIR: "/home/ssl_backup",                 // SSL 원본 백업 폴더
-    GUIDE_MAIN_PROCESS_DIR: "/home/main_process",             // MAIN Logstash 처리 폴더
-    GUIDE_SSL_PROCESS_DIR: "/home/ssl_process",               // SSL Logstash 처리 폴더
-    GUIDE_FILE_GLOB: "*.log.gz",                              // Guide File Glob
-    GUIDE_DIR_MODE: "0775",                                   // Guide Dir Mode
-    GUIDE_PROCESS_SCRIPT: "/usr/local/sbin/elk-guide-log-process",  // Guide Process Script
-    GUIDE_PROCESS_LOG: "/var/log/elk-guide-log-process.log",  // Guide Process Log
-    GUIDE_PROCESS_CRON: "0 3 * * *",                          // 파일 처리 실행 시간
-    GUIDE_MAIN_SINCEDB: "/var/lib/logstash/sincedb-main",     // Guide Main Sincedb
-    GUIDE_SSL_SINCEDB: "/var/lib/logstash/sincedb-ssl",       // Guide Ssl Sincedb
-    GUIDE_LOGSTASH_DISCOVER_INTERVAL: "5",                    // Guide Logstash Discover Interval
-    GUIDE_LOGSTASH_MAX_OPEN_FILES: "1000",                    // Guide Logstash Max Open Files
-    GUIDE_PROXY_CSV_FILTER_ENABLED: true,                     // ProxySG CSV 파싱  [true | false]
-    GUIDE_MAIN_LOG_FORMAT: "date time time-taken c-ip cs-username cs-auth-group s-supplier-name s-supplier-ip s-supplier-country s-supplier-failures x-exception-id sc-filter-result cs-categories cs(Referer)  sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-path cs-uri-query cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-virus-id cs-threat-source cs-threat-id rs-threat-source rs-threat-id x-bluecoat-application-name x-bluecoat-application-operation x-bluecoat-application-groups cs-threat-risk x-bluecoat-access-security-policy-action x-bluecoat-access-security-policy-reason x-bluecoat-transaction-uuid x-icap-reqmod-header(X-ICAP-Metadata) x-icap-respmod-header(X-ICAP-Metadata)",  // MAIN 로그 포맷 (ELFF 필드 순서)
-    GUIDE_SSL_LOG_FORMAT: "date time time-taken c-ip cs-username cs-auth-group s-supplier-name s-supplier-ip s-supplier-country s-supplier-failures x-exception-id sc-filter-result cs-categories sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-virus-id cs-threat-source cs-threat-id rs-threat-source rs-threat-id x-rs-certificate-observed-errors x-cs-ocsp-error x-rs-ocsp-error x-rs-connection-negotiated-cipher-strength x-rs-certificate-hostname x-rs-certificate-hostname-category cs-threat-risk x-rs-certificate-hostname-threat-risk x-bluecoat-access-security-policy-action x-bluecoat-access-security-policy-reason",  // SSL 로그 포맷 (ELFF 필드 순서)
-    GUIDE_MAIN_INDEX_PREFIX: "proxy-main",                    // MAIN 인덱스 Prefix
-    GUIDE_SSL_INDEX_PREFIX: "proxy-ssl",                      // SSL 인덱스 Prefix
-    GUIDE_MAIN_DATA_VIEW_NAME: "main",                        // MAIN Data View 이름
-    GUIDE_SSL_DATA_VIEW_NAME: "ssl",                          // SSL Data View 이름
-    GUIDE_ILM_POLICY_NAME: "proxy-retention-policy",          // ILM Policy 이름
-    GUIDE_INDEX_TEMPLATE_NAME: "proxy-index-template",        // Index Template 이름
+    PROXYSG_FLOW_ENABLED: true,                           // ProxySG MAIN/SSL 흐름 사용  [true | false]
+    PROXYSG_MAIN_SOURCE_DIR: "/home/main",                      // MAIN FTP 수신 폴더
+    PROXYSG_SSL_SOURCE_DIR: "/home/ssl",                        // SSL FTP 수신 폴더
+    PROXYSG_MAIN_BACKUP_DIR: "/home/main_backup",               // MAIN 원본 백업 폴더
+    PROXYSG_SSL_BACKUP_DIR: "/home/ssl_backup",                 // SSL 원본 백업 폴더
+    PROXYSG_MAIN_PROCESS_DIR: "/home/main_process",             // MAIN Logstash 처리 폴더
+    PROXYSG_SSL_PROCESS_DIR: "/home/ssl_process",               // SSL Logstash 처리 폴더
+    PROXYSG_FILE_GLOB: "*.log.gz",                              // ProxySG File Glob
+    PROXYSG_DIR_MODE: "0775",                                   // ProxySG Dir Mode
+    PROXYSG_PROCESS_SCRIPT: "/usr/local/sbin/elk-proxysg-log-process",  // ProxySG Process Script
+    PROXYSG_PROCESS_LOG: "/var/log/elk-proxysg-log-process.log",  // ProxySG Process Log
+    PROXYSG_PROCESS_CRON: "0 3 * * *",                          // 파일 처리 실행 시간
+    PROXYSG_MAIN_SINCEDB: "/var/lib/logstash/sincedb-main",     // ProxySG Main Sincedb
+    PROXYSG_SSL_SINCEDB: "/var/lib/logstash/sincedb-ssl",       // ProxySG Ssl Sincedb
+    PROXYSG_LOGSTASH_DISCOVER_INTERVAL: "5",                    // ProxySG Logstash Discover Interval
+    PROXYSG_LOGSTASH_MAX_OPEN_FILES: "1000",                    // ProxySG Logstash Max Open Files
+    PROXYSG_CSV_FILTER_ENABLED: true,                     // ProxySG CSV 파싱  [true | false]
+    PROXYSG_MAIN_LOG_FORMAT: "date time time-taken c-ip cs-username cs-auth-group s-supplier-name s-supplier-ip s-supplier-country s-supplier-failures x-exception-id sc-filter-result cs-categories cs(Referer)  sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-path cs-uri-query cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-virus-id cs-threat-source cs-threat-id rs-threat-source rs-threat-id x-bluecoat-application-name x-bluecoat-application-operation x-bluecoat-application-groups cs-threat-risk x-bluecoat-access-security-policy-action x-bluecoat-access-security-policy-reason x-bluecoat-transaction-uuid x-icap-reqmod-header(X-ICAP-Metadata) x-icap-respmod-header(X-ICAP-Metadata)",  // MAIN 로그 포맷 (ELFF 필드 순서)
+    PROXYSG_SSL_LOG_FORMAT: "date time time-taken c-ip cs-username cs-auth-group s-supplier-name s-supplier-ip s-supplier-country s-supplier-failures x-exception-id sc-filter-result cs-categories sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-virus-id cs-threat-source cs-threat-id rs-threat-source rs-threat-id x-rs-certificate-observed-errors x-cs-ocsp-error x-rs-ocsp-error x-rs-connection-negotiated-cipher-strength x-rs-certificate-hostname x-rs-certificate-hostname-category cs-threat-risk x-rs-certificate-hostname-threat-risk x-bluecoat-access-security-policy-action x-bluecoat-access-security-policy-reason",  // SSL 로그 포맷 (ELFF 필드 순서)
+    PROXYSG_MAIN_INDEX_PREFIX: "proxy-main",                    // MAIN 인덱스 Prefix
+    PROXYSG_SSL_INDEX_PREFIX: "proxy-ssl",                      // SSL 인덱스 Prefix
+    PROXYSG_MAIN_DATA_VIEW_NAME: "main",                        // MAIN Data View 이름
+    PROXYSG_SSL_DATA_VIEW_NAME: "ssl",                          // SSL Data View 이름
+    PROXYSG_ILM_POLICY_NAME: "proxy-retention-policy",          // ILM Policy 이름
+    PROXYSG_INDEX_TEMPLATE_NAME: "proxy-index-template",        // Index Template 이름
 
     // ───── 고급 설정 17단계 · 파일 로그 자동 수집 관리자 ─────
     FILE_INGEST_MANAGER_ENABLED: false,                       // File Ingest Manager Enabled  [true | false]
