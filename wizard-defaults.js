@@ -97,7 +97,7 @@ window.ELK_DEFAULTS = {
     KIBANA_CREATE_INITIAL_USER: false,                        // 초기 사용자 자동 생성  [true | false]
     KIBANA_INITIAL_USER_NAME: "",                             // 초기 사용자 ID
     KIBANA_INITIAL_USER_ROLES: "viewer",                      // 초기 사용자 Role  [viewer | editor | kibana_admin | superuser]
-    KIBANA_EXTRA_CONFIG_FILE: "",                             // Kibana Extra Config File
+    KIBANA_EXTRA_CONFIG_FILE: "",                             // Kibana 추가 설정 파일 경로
 
     // ───── 고급 설정 6단계 · Nginx HTTPS (선택) ─────
     INSTALL_NGINX: false,                                     // Nginx HTTPS 사용  [true | false]
@@ -122,7 +122,7 @@ window.ELK_DEFAULTS = {
     LOGSTASH_PATH_DATA: "/var/lib/logstash",                  // Logstash Path Data
     LOGSTASH_PATH_LOGS: "/var/log/logstash",                  // Logstash Path Logs
     LOGSTASH_PIPELINE_ID: "main",                             // Logstash Pipeline Id
-    LOGSTASH_PIPELINE_FILE: "/etc/logstash/conf.d/logstash.conf",  // Logstash Pipeline File
+    LOGSTASH_PIPELINE_FILE: "/etc/logstash/conf.d/logstash.conf",  // Logstash 파이프라인 설정 파일(.conf) 경로
     LOGSTASH_PROFILE: "proxysg_guide",                        // Logstash Pipeline 프로필  [generic | proxysg_guide]
     LOGSTASH_HEAP_MIN: "2g",                                  // Logstash Xms
     LOGSTASH_HEAP_MAX: "2g",                                  // Logstash Xmx
@@ -143,7 +143,7 @@ window.ELK_DEFAULTS = {
     LOGSTASH_ES_USERNAME: "logstash_internal",                // Logstash Elasticsearch 계정
     LOGSTASH_ES_ROLE: "logstash_writer",                      // Logstash Es Role
     LOGSTASH_ES_HOST: "",                                     // Logstash Es Host
-    LOGSTASH_EXTRA_CONFIG_FILE: "",                           // Logstash Extra Config File
+    LOGSTASH_EXTRA_CONFIG_FILE: "",                           // Logstash 추가 설정 파일 경로 (logstash.yml)
 
     // ───── 고급 설정 8단계 · Logstash Input - TCP ─────
     LS_TCP_ENABLED: false,                                    // Ls Tcp Enabled  [true | false]
@@ -254,6 +254,8 @@ window.ELK_DEFAULTS = {
     GUIDE_LOGSTASH_DISCOVER_INTERVAL: "5",                    // Guide Logstash Discover Interval
     GUIDE_LOGSTASH_MAX_OPEN_FILES: "1000",                    // Guide Logstash Max Open Files
     GUIDE_PROXY_CSV_FILTER_ENABLED: true,                     // ProxySG CSV 파싱  [true | false]
+    GUIDE_MAIN_LOG_FORMAT: "date time time-taken c-ip cs-username cs-auth-group s-supplier-name s-supplier-ip s-supplier-country s-supplier-failures x-exception-id sc-filter-result cs-categories cs(Referer)  sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-path cs-uri-query cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-virus-id cs-threat-source cs-threat-id rs-threat-source rs-threat-id x-bluecoat-application-name x-bluecoat-application-operation x-bluecoat-application-groups cs-threat-risk x-bluecoat-access-security-policy-action x-bluecoat-access-security-policy-reason x-bluecoat-transaction-uuid x-icap-reqmod-header(X-ICAP-Metadata) x-icap-respmod-header(X-ICAP-Metadata)",  // MAIN 로그 포맷 (ELFF 필드 순서)
+    GUIDE_SSL_LOG_FORMAT: "date time time-taken c-ip cs-username cs-auth-group s-supplier-name s-supplier-ip s-supplier-country s-supplier-failures x-exception-id sc-filter-result cs-categories sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-virus-id cs-threat-source cs-threat-id rs-threat-source rs-threat-id x-rs-certificate-observed-errors x-cs-ocsp-error x-rs-ocsp-error x-rs-connection-negotiated-cipher-strength x-rs-certificate-hostname x-rs-certificate-hostname-category cs-threat-risk x-rs-certificate-hostname-threat-risk x-bluecoat-access-security-policy-action x-bluecoat-access-security-policy-reason",  // SSL 로그 포맷 (ELFF 필드 순서)
     GUIDE_MAIN_INDEX_PREFIX: "proxy-main",                    // MAIN 인덱스 Prefix
     GUIDE_SSL_INDEX_PREFIX: "proxy-ssl",                      // SSL 인덱스 Prefix
     GUIDE_MAIN_DATA_VIEW_NAME: "main",                        // MAIN Data View 이름
