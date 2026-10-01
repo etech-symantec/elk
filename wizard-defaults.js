@@ -122,7 +122,7 @@ window.ELK_DEFAULTS = {
     LOGSTASH_PATH_DATA: "/var/lib/logstash",                  // Logstash Path Data
     LOGSTASH_PATH_LOGS: "/var/log/logstash",                  // Logstash Path Logs
     LOGSTASH_PIPELINE_ID: "main",                             // Logstash Pipeline Id
-    LOGSTASH_PIPELINE_FILE: "/etc/logstash/conf.d/10-main.conf",  // Logstash 파이프라인 설정 파일(.conf) 경로
+    LOGSTASH_PIPELINE_FILE: "/etc/logstash/conf.d/logstash.conf",  // Logstash 파이프라인 설정 파일(.conf) 경로
     LOGSTASH_PROFILE: "proxysg",                        // Logstash Pipeline 프로필  [generic | proxysg]
     LOGSTASH_HEAP_MIN: "2g",                                  // Logstash Xms
     LOGSTASH_HEAP_MAX: "2g",                                  // Logstash Xmx

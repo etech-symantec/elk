@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""wizard-defaults.js (관리자용 기본값 파일)를 만들거나 점검합니다.
+"""wizard-defaults.js (관리자용 기본값 파일)를 점검하거나, Wizard에 새로 생긴 항목만 더합니다.
 
-  python3 tools/gen_defaults.py           # 파일 생성/갱신. 이미 고친 값은 그대로 유지하고,
-                                          # Wizard에 새로 생긴 항목만 추가합니다.
-  python3 tools/gen_defaults.py --check   # 문법·항목 이름·true/false·선택 값이 올바른지 점검 (CI에서 사용)
+  python3 tools/gen_defaults.py             # 기존 파일은 한 글자도 바꾸지 않고, 파일에 없는 새 항목만 끝부분에 추가
+  python3 tools/gen_defaults.py --check     # 문법·항목 이름·true/false·선택 값이 올바른지 점검 (CI에서 사용)
+  python3 tools/gen_defaults.py --rewrite   # (주의) 파일 전체를 다시 만듭니다. 값은 유지하지만 줄 배치/주석은 새로 정렬됨
+  python3 tools/gen_defaults.py --file X.js # 다른 경로의 파일을 대상으로 실행
 
-평소에 관리자는 이 스크립트 없이 wizard-defaults.js 를 직접 편집하면 됩니다.
+wizard-defaults.js 는 관리자가 직접 편집하는 파일이며, 그 파일 자체가 기준입니다.
+(Wizard의 내장 기본값과 다르게 적은 값이 있어도 그대로 유지됩니다.)
 """
 import argparse, json, re, subprocess, sys
 from pathlib import Path
@@ -174,11 +176,48 @@ def check(D):
     return 0
 
 
+def add_missing(D, preset):
+    """기존 파일은 그대로 두고, values 블록에 없는 항목만 비밀번호 안내 주석 바로 앞에 추가한다."""
+    text = OUT.read_text(encoding='utf-8')
+    present = set(re.findall(r'^\s{4}([A-Z][A-Z0-9_]*):', text, re.M))
+    known = {v['key'] for v in D['vars']}
+    missing = [v for v in D['vars'] if not v.get('secret') and v['key'] not in present]
+    stale = sorted(k for k in present if k not in known)
+    if stale:
+        print('참고: Wizard에 더 이상 없는 항목이 파일에 남아 있습니다(그대로 둠): ' + ', '.join(stale))
+    if not missing:
+        print('변경 없음: 파일에 없는 새 항목이 없습니다. (파일은 수정하지 않았습니다)')
+        return 0
+    marker = re.search(r'^    // \(비밀번호·암호화 키 항목은', text, re.M)
+    if not marker:
+        print('안내 주석 위치를 찾지 못해 파일을 수정하지 않았습니다. 아래 항목을 values 블록 끝에 직접 추가하세요: ' + ', '.join(v['key'] for v in missing))
+        return 1
+    body = ['', '    // ───── 새로 추가된 항목 (tools/gen_defaults.py) ─────']
+    for v in missing:
+        k = v['key']
+        ln = f'    {k}: {fmt(v, preset.get(k, v["default"]))},'
+        h = hint(v)
+        body.append(ln + ' ' * max(2, 62 - len(ln)) + f'// {v.get("label", "")}' + (f'  [{h}]' if h else ''))
+    OUT.write_text(text[:marker.start()] + '\n'.join(body) + '\n\n' + text[marker.start():], encoding='utf-8', newline='')
+    print(f'새 항목 {len(missing)}개를 파일 끝부분에 추가했습니다: ' + ', '.join(v['key'] for v in missing))
+    return 0
+
+
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument('--check', action='store_true'); a = ap.parse_args()
+    global OUT
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--check', action='store_true'); ap.add_argument('--rewrite', action='store_true'); ap.add_argument('--file')
+    a = ap.parse_args()
+    if a.file:
+        OUT = Path(a.file).resolve()
     D, preset, deploy = load_wizard()
     if a.check:
         return check(D)
+    if not a.rewrite and OUT.exists():
+        ex = read_existing()
+        if ex and '_error' in ex:
+            print('기존 wizard-defaults.js 에 문법 오류가 있어 수정하지 않았습니다:', ex['_error']); return 1
+        return add_missing(D, preset)
     ex = read_existing()
     if ex and '_error' in ex:
         print('기존 wizard-defaults.js 에 문법 오류가 있어 덮어쓰지 않았습니다:', ex['_error']); return 1
