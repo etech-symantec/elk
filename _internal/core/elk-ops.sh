@@ -14,9 +14,9 @@ source "$ENV_FILE"
 : "${ES_SECURITY_ENABLED:=true}"
 : "${INDEX_PREFIX:=network-log}"
 : "${INDEX_TEMPLATE_PATTERNS:=}"
-: "${GUIDE_PROXY_FLOW_ENABLED:=false}"
-: "${GUIDE_MAIN_INDEX_PREFIX:=proxy-main}"
-: "${GUIDE_SSL_INDEX_PREFIX:=proxy-ssl}"
+: "${PROXYSG_FLOW_ENABLED:=false}"
+: "${PROXYSG_MAIN_INDEX_PREFIX:=proxy-main}"
+: "${PROXYSG_SSL_INDEX_PREFIX:=proxy-ssl}"
 : "${INSTALL_NGINX:=false}"
 : "${NGINX_HTTPS_PORT:=443}"
 : "${INSTALL_FTP_SERVER:=true}"
@@ -33,7 +33,7 @@ curl_args=(-sS)
 [[ "${ES_SECURITY_ENABLED,,}" == "true" && -n "${ELASTIC_PASSWORD:-}" ]] && curl_args+=(-u "${ELASTIC_USERNAME}:${ELASTIC_PASSWORD}")
 es(){ curl "${curl_args[@]}" "$URL$1"; }
 PATTERN="${INDEX_PREFIX}-*"
-if [[ "${GUIDE_PROXY_FLOW_ENABLED,,}" == "true" ]]; then PATTERN="${GUIDE_MAIN_INDEX_PREFIX}-*,${GUIDE_SSL_INDEX_PREFIX}-*"; elif [[ -n "$INDEX_TEMPLATE_PATTERNS" ]]; then PATTERN="$INDEX_TEMPLATE_PATTERNS"; fi
+if [[ "${PROXYSG_FLOW_ENABLED,,}" == "true" ]]; then PATTERN="${PROXYSG_MAIN_INDEX_PREFIX}-*,${PROXYSG_SSL_INDEX_PREFIX}-*"; elif [[ -n "$INDEX_TEMPLATE_PATTERNS" ]]; then PATTERN="$INDEX_TEMPLATE_PATTERNS"; fi
 cmd="${1:-status}"
 case "$cmd" in
   status)
@@ -52,9 +52,9 @@ case "$cmd" in
     nginx -t || true
     echo "https://$(hostname -I 2>/dev/null | awk '{print $1}'):${NGINX_HTTPS_PORT}"
     ;;
-  guide)
-    echo "Guide profile: ${GUIDE_PROXY_FLOW_ENABLED}"
-    [[ -x /usr/local/sbin/elk-guide-log-process ]] && /usr/local/sbin/elk-guide-log-process "$ENV_FILE" || true
+  proxysg)
+    echo "ProxySG profile: ${PROXYSG_FLOW_ENABLED}"
+    [[ -x /usr/local/sbin/elk-proxysg-log-process ]] && /usr/local/sbin/elk-proxysg-log-process "$ENV_FILE" || true
     ;;
   ftp)
     systemctl --no-pager --full status vsftpd 2>/dev/null | grep -E '●|Active:' || true
@@ -68,7 +68,7 @@ case "$cmd" in
     systemctl restart elasticsearch kibana logstash; [[ "${INSTALL_FTP_SERVER,,}" == "true" ]] && systemctl restart vsftpd || true; [[ "${INSTALL_NGINX,,}" == "true" ]] && systemctl restart nginx || true
     ;;
   *)
-    echo "사용법: $0 [elk.env] {status|health|indices|ilm|disk|nodes|pending|ingest|ftp|nginx|guide|logs|restart}" >&2
+    echo "사용법: $0 [elk.env] {status|health|indices|ilm|disk|nodes|pending|ingest|ftp|nginx|proxysg|logs|restart}" >&2
     exit 2
     ;;
 esac

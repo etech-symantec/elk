@@ -18,8 +18,8 @@ WIZ = ROOT / 'config-wizard.html'
 EMBEDDED = {
     'install-elk.sh':             '_internal/core/install-elk.sh',
     'check-elk.sh':               '_internal/core/check-elk.sh',
-    'guide-log-process.sh':       '_internal/core/guide-log-process.sh',
-    'proxysg-guide-filter.conf':  '_internal/core/proxysg-guide-filter.conf',
+    'proxysg-log-process.sh':       '_internal/core/proxysg-log-process.sh',
+    'proxysg-log-filter.conf':  '_internal/core/proxysg-log-filter.conf',
     'elk-health-monitor.sh':      '_internal/core/elk-health-monitor.sh',
     'elk-ops.sh':                 '_internal/core/elk-ops.sh',
     'log-ingest-manager.sh':      '_internal/core/log-ingest-manager.sh',
@@ -35,11 +35,11 @@ EXTRA = {
     '_internal/tools/diagnose-logstash-version.sh':  '755',
     '_internal/docs/README.md':                      '644',
     '_internal/docs/CHANGELOG.md':                   '644',
-    '_internal/docs/PPT_GUIDE_MAPPING.md':           '644',
+    '_internal/docs/INSTALL_STEP_MAPPING.md':           '644',
     '_internal/docs/VERSION':                        '644',
     '_internal/examples/elk.env':                    '644',
     '_internal/examples/elk.env.example':            '644',
-    '_internal/examples/elk-guide-9.5.2.env':        '644',
+    '_internal/examples/elk-proxysg.env.example':        '644',
 }
 # SHA256SUMS.txt 에 넣지 않는 것(저장소 관리용 파일)
 SUMS_SKIP = {'SHA256SUMS.txt', 'README.md', 'index.html', 'script.js', 'style.css', 'wizard-defaults.js', '.gitignore', '.gitattributes', '.nojekyll'}

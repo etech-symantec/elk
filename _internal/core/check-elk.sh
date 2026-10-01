@@ -25,15 +25,15 @@ source "$ENV_FILE"
 : "${ILM_POLICY_NAME:=${INDEX_PREFIX}-ilm}"
 : "${INDEX_TEMPLATE_NAME:=${INDEX_PREFIX}-template}"
 : "${ILM_ROLLOVER_ALIAS:=${INDEX_PREFIX}}"
-: "${GUIDE_PROXY_FLOW_ENABLED:=false}"
-: "${GUIDE_MAIN_INDEX_PREFIX:=proxy-main}"
-: "${GUIDE_SSL_INDEX_PREFIX:=proxy-ssl}"
-: "${GUIDE_ILM_POLICY_NAME:=proxy-retention-policy}"
-: "${GUIDE_INDEX_TEMPLATE_NAME:=proxy-index-template}"
-: "${GUIDE_MAIN_SOURCE_DIR:=/home/main}"
-: "${GUIDE_SSL_SOURCE_DIR:=/home/ssl}"
-: "${GUIDE_MAIN_PROCESS_DIR:=/home/main_process}"
-: "${GUIDE_SSL_PROCESS_DIR:=/home/ssl_process}"
+: "${PROXYSG_FLOW_ENABLED:=false}"
+: "${PROXYSG_MAIN_INDEX_PREFIX:=proxy-main}"
+: "${PROXYSG_SSL_INDEX_PREFIX:=proxy-ssl}"
+: "${PROXYSG_ILM_POLICY_NAME:=proxy-retention-policy}"
+: "${PROXYSG_INDEX_TEMPLATE_NAME:=proxy-index-template}"
+: "${PROXYSG_MAIN_SOURCE_DIR:=/home/main}"
+: "${PROXYSG_SSL_SOURCE_DIR:=/home/ssl}"
+: "${PROXYSG_MAIN_PROCESS_DIR:=/home/main_process}"
+: "${PROXYSG_SSL_PROCESS_DIR:=/home/ssl_process}"
 : "${ES_PATH_DATA:=/var/lib/elasticsearch}"
 : "${FILE_INGEST_MANAGER_ENABLED:=false}"
 : "${FILE_INGEST_SOURCE_DIRS:=/log/incoming}"
@@ -53,10 +53,10 @@ if [[ -f "$SECRETS_FILE" ]]; then
   source "$SECRETS_FILE"
 fi
 
-if istrue "$GUIDE_PROXY_FLOW_ENABLED"; then
-  ILM_POLICY_NAME="$GUIDE_ILM_POLICY_NAME"
-  INDEX_TEMPLATE_NAME="$GUIDE_INDEX_TEMPLATE_NAME"
-  INDEX_PATTERN="${GUIDE_MAIN_INDEX_PREFIX}-*,${GUIDE_SSL_INDEX_PREFIX}-*"
+if istrue "$PROXYSG_FLOW_ENABLED"; then
+  ILM_POLICY_NAME="$PROXYSG_ILM_POLICY_NAME"
+  INDEX_TEMPLATE_NAME="$PROXYSG_INDEX_TEMPLATE_NAME"
+  INDEX_PATTERN="${PROXYSG_MAIN_INDEX_PREFIX}-*,${PROXYSG_SSL_INDEX_PREFIX}-*"
 elif [[ "$INDEX_MODE" == "rollover" ]]; then
   INDEX_PATTERN="${ILM_ROLLOVER_ALIAS}-*"
 elif [[ "$INDEX_MODE" == "plain" ]]; then
@@ -95,8 +95,8 @@ if istrue "$INSTALL_ELASTICSEARCH"; then
   [[ -n "$df_line" ]] && echo "[INFO] Elasticsearch 디스크: $df_line"
 fi
 
-if istrue "$GUIDE_PROXY_FLOW_ENABLED"; then
-  for d in "$GUIDE_MAIN_SOURCE_DIR" "$GUIDE_SSL_SOURCE_DIR" "$GUIDE_MAIN_PROCESS_DIR" "$GUIDE_SSL_PROCESS_DIR"; do
+if istrue "$PROXYSG_FLOW_ENABLED"; then
+  for d in "$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR" "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR"; do
     [[ -d "$d" ]] && pass "ProxySG 경로 존재: $d" || fail "ProxySG 경로 없음: $d"
   done
 fi

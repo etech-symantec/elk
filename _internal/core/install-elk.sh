@@ -22,6 +22,22 @@ fi
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 
+# ----------------------------- 이전 버전 호환 -----------------------------
+# 이름이 바뀐 환경변수(GUIDE_* -> PROXYSG_*)와 프로필 값(proxysg_guide -> proxysg)을 이어받는다.
+# 새 이름이 이미 지정되어 있으면 그 값을 우선한다. (예전 설치 파일/elk.env를 그대로 써도 설정이 사라지지 않게 하기 위한 처리)
+while IFS= read -r _old_name; do
+  case "$_old_name" in
+    GUIDE_PROXY_FLOW_ENABLED) _new_name="PROXYSG_FLOW_ENABLED" ;;
+    GUIDE_PROXY_CSV_FILTER_ENABLED) _new_name="PROXYSG_CSV_FILTER_ENABLED" ;;
+    *) _new_name="PROXYSG_${_old_name#GUIDE_}" ;;
+  esac
+  if [[ -z "${!_new_name+x}" ]]; then printf -v "$_new_name" '%s' "${!_old_name}"; fi
+done < <(compgen -A variable GUIDE_ || true)
+[[ "${PROXYSG_PROCESS_SCRIPT:-}" == "/usr/local/sbin/elk-guide-log-process" ]] && PROXYSG_PROCESS_SCRIPT="/usr/local/sbin/elk-proxysg-log-process"
+[[ "${PROXYSG_PROCESS_LOG:-}" == "/var/log/elk-guide-log-process.log" ]] && PROXYSG_PROCESS_LOG="/var/log/elk-proxysg-log-process.log"
+[[ "${LOGSTASH_PROFILE:-}" == "proxysg_guide" ]] && LOGSTASH_PROFILE="proxysg"
+unset _old_name _new_name
+
 # ----------------------------- defaults -----------------------------
 : "${INSTALL_ELASTICSEARCH:=true}"
 : "${INSTALL_KIBANA:=true}"
@@ -220,31 +236,31 @@ source "$ENV_FILE"
 : "${FTP_TLS_REQUIRE_REUSE:=false}"
 : "${FTP_INTEGRATE_FILE_INGEST:=true}"
 
-: "${GUIDE_PROXY_FLOW_ENABLED:=false}"
-: "${GUIDE_MAIN_SOURCE_DIR:=/home/main}"
-: "${GUIDE_SSL_SOURCE_DIR:=/home/ssl}"
-: "${GUIDE_MAIN_BACKUP_DIR:=/home/main_backup}"
-: "${GUIDE_SSL_BACKUP_DIR:=/home/ssl_backup}"
-: "${GUIDE_MAIN_PROCESS_DIR:=/home/main_process}"
-: "${GUIDE_SSL_PROCESS_DIR:=/home/ssl_process}"
-: "${GUIDE_FILE_GLOB:=*.log.gz}"
-: "${GUIDE_DIR_MODE:=0775}"
-: "${GUIDE_PROCESS_SCRIPT:=/usr/local/sbin/elk-guide-log-process}"
-: "${GUIDE_PROCESS_LOG:=/var/log/elk-guide-log-process.log}"
-: "${GUIDE_PROCESS_CRON:=0 3 * * *}"
-: "${GUIDE_MAIN_SINCEDB:=/var/lib/logstash/sincedb-main}"
-: "${GUIDE_SSL_SINCEDB:=/var/lib/logstash/sincedb-ssl}"
-: "${GUIDE_LOGSTASH_DISCOVER_INTERVAL:=5}"
-: "${GUIDE_LOGSTASH_MAX_OPEN_FILES:=1000}"
-: "${GUIDE_PROXY_CSV_FILTER_ENABLED:=true}"
-: "${GUIDE_MAIN_LOG_FORMAT:=date time time-taken c-ip cs-username cs-auth-group s-supplier-name s-supplier-ip s-supplier-country s-supplier-failures x-exception-id sc-filter-result cs-categories cs(Referer)  sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-path cs-uri-query cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-virus-id cs-threat-source cs-threat-id rs-threat-source rs-threat-id x-bluecoat-application-name x-bluecoat-application-operation x-bluecoat-application-groups cs-threat-risk x-bluecoat-access-security-policy-action x-bluecoat-access-security-policy-reason x-bluecoat-transaction-uuid x-icap-reqmod-header(X-ICAP-Metadata) x-icap-respmod-header(X-ICAP-Metadata)}"
-: "${GUIDE_SSL_LOG_FORMAT:=date time time-taken c-ip cs-username cs-auth-group s-supplier-name s-supplier-ip s-supplier-country s-supplier-failures x-exception-id sc-filter-result cs-categories sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-virus-id cs-threat-source cs-threat-id rs-threat-source rs-threat-id x-rs-certificate-observed-errors x-cs-ocsp-error x-rs-ocsp-error x-rs-connection-negotiated-cipher-strength x-rs-certificate-hostname x-rs-certificate-hostname-category cs-threat-risk x-rs-certificate-hostname-threat-risk x-bluecoat-access-security-policy-action x-bluecoat-access-security-policy-reason}"
-: "${GUIDE_MAIN_INDEX_PREFIX:=proxy-main}"
-: "${GUIDE_SSL_INDEX_PREFIX:=proxy-ssl}"
-: "${GUIDE_MAIN_DATA_VIEW_NAME:=main}"
-: "${GUIDE_SSL_DATA_VIEW_NAME:=ssl}"
-: "${GUIDE_ILM_POLICY_NAME:=proxy-retention-policy}"
-: "${GUIDE_INDEX_TEMPLATE_NAME:=proxy-index-template}"
+: "${PROXYSG_FLOW_ENABLED:=false}"
+: "${PROXYSG_MAIN_SOURCE_DIR:=/home/main}"
+: "${PROXYSG_SSL_SOURCE_DIR:=/home/ssl}"
+: "${PROXYSG_MAIN_BACKUP_DIR:=/home/main_backup}"
+: "${PROXYSG_SSL_BACKUP_DIR:=/home/ssl_backup}"
+: "${PROXYSG_MAIN_PROCESS_DIR:=/home/main_process}"
+: "${PROXYSG_SSL_PROCESS_DIR:=/home/ssl_process}"
+: "${PROXYSG_FILE_GLOB:=*.log.gz}"
+: "${PROXYSG_DIR_MODE:=0775}"
+: "${PROXYSG_PROCESS_SCRIPT:=/usr/local/sbin/elk-proxysg-log-process}"
+: "${PROXYSG_PROCESS_LOG:=/var/log/elk-proxysg-log-process.log}"
+: "${PROXYSG_PROCESS_CRON:=0 3 * * *}"
+: "${PROXYSG_MAIN_SINCEDB:=/var/lib/logstash/sincedb-main}"
+: "${PROXYSG_SSL_SINCEDB:=/var/lib/logstash/sincedb-ssl}"
+: "${PROXYSG_LOGSTASH_DISCOVER_INTERVAL:=5}"
+: "${PROXYSG_LOGSTASH_MAX_OPEN_FILES:=1000}"
+: "${PROXYSG_CSV_FILTER_ENABLED:=true}"
+: "${PROXYSG_MAIN_LOG_FORMAT:=date time time-taken c-ip cs-username cs-auth-group s-supplier-name s-supplier-ip s-supplier-country s-supplier-failures x-exception-id sc-filter-result cs-categories cs(Referer)  sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-path cs-uri-query cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-virus-id cs-threat-source cs-threat-id rs-threat-source rs-threat-id x-bluecoat-application-name x-bluecoat-application-operation x-bluecoat-application-groups cs-threat-risk x-bluecoat-access-security-policy-action x-bluecoat-access-security-policy-reason x-bluecoat-transaction-uuid x-icap-reqmod-header(X-ICAP-Metadata) x-icap-respmod-header(X-ICAP-Metadata)}"
+: "${PROXYSG_SSL_LOG_FORMAT:=date time time-taken c-ip cs-username cs-auth-group s-supplier-name s-supplier-ip s-supplier-country s-supplier-failures x-exception-id sc-filter-result cs-categories sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-virus-id cs-threat-source cs-threat-id rs-threat-source rs-threat-id x-rs-certificate-observed-errors x-cs-ocsp-error x-rs-ocsp-error x-rs-connection-negotiated-cipher-strength x-rs-certificate-hostname x-rs-certificate-hostname-category cs-threat-risk x-rs-certificate-hostname-threat-risk x-bluecoat-access-security-policy-action x-bluecoat-access-security-policy-reason}"
+: "${PROXYSG_MAIN_INDEX_PREFIX:=proxy-main}"
+: "${PROXYSG_SSL_INDEX_PREFIX:=proxy-ssl}"
+: "${PROXYSG_MAIN_DATA_VIEW_NAME:=main}"
+: "${PROXYSG_SSL_DATA_VIEW_NAME:=ssl}"
+: "${PROXYSG_ILM_POLICY_NAME:=proxy-retention-policy}"
+: "${PROXYSG_INDEX_TEMPLATE_NAME:=proxy-index-template}"
 
 : "${FILE_INGEST_MANAGER_ENABLED:=true}"
 : "${FILE_INGEST_SOURCE_DIRS:=/log/incoming}"
@@ -510,19 +526,19 @@ elff_columns() {
     printf '%s\n' "$col"
   done
 }
-guide_columns_block() {
+proxysg_columns_block() {
   local cols=() i
   mapfile -t cols < <(elff_columns "$1")
   for i in "${!cols[@]}"; do
     if (( i < ${#cols[@]} - 1 )); then printf '          "%s",\n' "${cols[i]}"; else printf '          "%s"\n' "${cols[i]}"; fi
   done
 }
-render_guide_filter() {
+render_proxysg_filter() {
   local tpl="$1" line
   while IFS= read -r line || [[ -n "$line" ]]; do
     case "$line" in
-      "@@GUIDE_MAIN_COLUMNS@@") guide_columns_block "$GUIDE_MAIN_LOG_FORMAT" ;;
-      "@@GUIDE_SSL_COLUMNS@@")  guide_columns_block "$GUIDE_SSL_LOG_FORMAT" ;;
+      "@@PROXYSG_MAIN_COLUMNS@@") proxysg_columns_block "$PROXYSG_MAIN_LOG_FORMAT" ;;
+      "@@PROXYSG_SSL_COLUMNS@@")  proxysg_columns_block "$PROXYSG_SSL_LOG_FORMAT" ;;
       *) printf '%s\n' "$line" ;;
     esac
   done <"$tpl"
@@ -670,8 +686,8 @@ wait_for_es_auth() {
 }
 
 # ProxySG MAIN/SSL 전용 프로필. 일반 고급구성과 충돌하지 않도록 명시적으로 켠 경우에만 적용합니다.
-if istrue "$GUIDE_PROXY_FLOW_ENABLED"; then
-  LOGSTASH_PROFILE="proxysg_guide"
+if istrue "$PROXYSG_FLOW_ENABLED"; then
+  LOGSTASH_PROFILE="proxysg"
   LS_TCP_ENABLED="false"
   LS_UDP_ENABLED="false"
   LS_SYSLOG_ENABLED="false"
@@ -681,9 +697,9 @@ if istrue "$GUIDE_PROXY_FLOW_ENABLED"; then
   FILE_INGEST_MANAGER_ENABLED="false"
   FTP_INTEGRATE_FILE_INGEST="false"
   INDEX_MODE="daily"
-  INDEX_TEMPLATE_NAME="$GUIDE_INDEX_TEMPLATE_NAME"
-  INDEX_TEMPLATE_PATTERNS="${GUIDE_MAIN_INDEX_PREFIX}-*,${GUIDE_SSL_INDEX_PREFIX}-*"
-  ILM_POLICY_NAME="$GUIDE_ILM_POLICY_NAME"
+  INDEX_TEMPLATE_NAME="$PROXYSG_INDEX_TEMPLATE_NAME"
+  INDEX_TEMPLATE_PATTERNS="${PROXYSG_MAIN_INDEX_PREFIX}-*,${PROXYSG_SSL_INDEX_PREFIX}-*"
+  ILM_POLICY_NAME="$PROXYSG_ILM_POLICY_NAME"
   [[ -n "$ILM_EXISTING_INDEX_PATTERNS" ]] || ILM_EXISTING_INDEX_PATTERNS="$INDEX_TEMPLATE_PATTERNS"
 fi
 # Nginx Reverse Proxy 사용 시 Kibana 5601을 외부에 직접 노출하지 않습니다.
@@ -771,7 +787,7 @@ validate_env() {
   case "$INDEX_MODE" in daily|rollover|plain) ;; *) die "INDEX_MODE은 daily/rollover/plain 중 하나여야 합니다." ;; esac
   case "$ES_HEAP_MODE" in auto|fixed) ;; *) die "ES_HEAP_MODE은 auto 또는 fixed여야 합니다." ;; esac
   case "$ES_DISCOVERY_MODE" in single-node|multi-node) ;; *) die "ES_DISCOVERY_MODE은 single-node 또는 multi-node여야 합니다." ;; esac
-  case "$LOGSTASH_PROFILE" in generic|proxysg_guide) ;; *) die "LOGSTASH_PROFILE은 generic 또는 proxysg_guide여야 합니다." ;; esac
+  case "$LOGSTASH_PROFILE" in generic|proxysg) ;; *) die "LOGSTASH_PROFILE은 generic 또는 proxysg여야 합니다." ;; esac
   case "$NGINX_TLS_MODE" in selfsigned|existing) ;; *) die "NGINX_TLS_MODE은 selfsigned/existing 중 하나여야 합니다." ;; esac
   validate_codec "$LS_TCP_CODEC"
   validate_codec "$LS_UDP_CODEC"
@@ -793,17 +809,17 @@ validate_env() {
     case "${FILE_INGEST_DUPLICATE_ACTION,,}" in archive|delete|leave) ;; *) die "FILE_INGEST_DUPLICATE_ACTION은 archive/delete/leave 중 하나여야 합니다." ;; esac
     case "${FILE_INGEST_PLAIN_BACKUP_COMPRESSION,,}" in zstd|gzip|xz|none) ;; *) die "FILE_INGEST_PLAIN_BACKUP_COMPRESSION은 zstd/gzip/xz/none 중 하나여야 합니다." ;; esac
   fi
-  if istrue "$GUIDE_PROXY_FLOW_ENABLED"; then
-    istrue "$INSTALL_LOGSTASH" || die "GUIDE_PROXY_FLOW_ENABLED=true이면 INSTALL_LOGSTASH=true가 필요합니다."
+  if istrue "$PROXYSG_FLOW_ENABLED"; then
+    istrue "$INSTALL_LOGSTASH" || die "PROXYSG_FLOW_ENABLED=true이면 INSTALL_LOGSTASH=true가 필요합니다."
     istrue "$INSTALL_FTP_SERVER" || warn "ProxySG MAIN/SSL 흐름을 사용하지만 FTP 서버 설치가 꺼져 있습니다. source 디렉터리에 파일을 별도로 공급해야 합니다."
-    for _d in "$GUIDE_MAIN_SOURCE_DIR" "$GUIDE_SSL_SOURCE_DIR" "$GUIDE_MAIN_BACKUP_DIR" "$GUIDE_SSL_BACKUP_DIR" "$GUIDE_MAIN_PROCESS_DIR" "$GUIDE_SSL_PROCESS_DIR"; do
-      [[ "$_d" == /* ]] || die "GUIDE_* 디렉터리는 절대경로여야 합니다: $_d"
+    for _d in "$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR" "$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR" "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR"; do
+      [[ "$_d" == /* ]] || die "PROXYSG_* 디렉터리는 절대경로여야 합니다: $_d"
     done
-    [[ "$GUIDE_PROCESS_CRON" =~ ^[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+$ ]] || die "GUIDE_PROCESS_CRON은 5개 필드 cron 형식이어야 합니다. 예: 0 3 * * *"
+    [[ "$PROXYSG_PROCESS_CRON" =~ ^[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+$ ]] || die "PROXYSG_PROCESS_CRON은 5개 필드 cron 형식이어야 합니다. 예: 0 3 * * *"
   fi
-  if istrue "$INSTALL_LOGSTASH" && [[ "$LOGSTASH_PROFILE" == "proxysg_guide" ]] && istrue "$GUIDE_PROXY_CSV_FILTER_ENABLED"; then
+  if istrue "$INSTALL_LOGSTASH" && [[ "$LOGSTASH_PROFILE" == "proxysg" ]] && istrue "$PROXYSG_CSV_FILTER_ENABLED"; then
     # v2.9.4: MAIN/SSL 로그 포맷(ELFF 필드 순서)으로 Logstash csv columns를 만든다.
-    for _lf in GUIDE_MAIN_LOG_FORMAT GUIDE_SSL_LOG_FORMAT; do
+    for _lf in PROXYSG_MAIN_LOG_FORMAT PROXYSG_SSL_LOG_FORMAT; do
       _lv="${!_lf}"
       [[ -n "${_lv//[[:space:]]/}" ]] || die "${_lf}이 비어 있습니다. (ProxySG access log의 #Fields 순서를 공백으로 구분해 입력)"
       [[ "$_lv" =~ ^[A-Za-z0-9_.:()[:space:]-]+$ ]] || die "${_lf}에 허용되지 않는 문자가 있습니다. (영문/숫자, - _ . : ( ) 와 공백만 사용)"
@@ -827,7 +843,7 @@ case "$INDEX_MODE" in
   daily) INDEX_MATCH_PATTERN="${INDEX_PREFIX}-*" ;;
 esac
 [[ -n "$INDEX_TEMPLATE_PATTERNS" ]] || INDEX_TEMPLATE_PATTERNS="$INDEX_MATCH_PATTERN"
-if istrue "$GUIDE_PROXY_FLOW_ENABLED"; then INDEX_MATCH_PATTERN="$INDEX_TEMPLATE_PATTERNS"; fi
+if istrue "$PROXYSG_FLOW_ENABLED"; then INDEX_MATCH_PATTERN="$INDEX_TEMPLATE_PATTERNS"; fi
 [[ -n "$ILM_EXISTING_INDEX_PATTERNS" ]] || ILM_EXISTING_INDEX_PATTERNS="$INDEX_TEMPLATE_PATTERNS"
 if [[ "$INDEX_MODE" == "rollover" && -z "$ILM_ROLLOVER_MAX_AGE$ILM_ROLLOVER_MAX_PRIMARY_SHARD_SIZE$ILM_ROLLOVER_MAX_DOCS" ]]; then
   die "INDEX_MODE=rollover에서는 rollover 조건(max_age/max_primary_shard_size/max_docs) 중 하나 이상이 필요합니다."
@@ -847,7 +863,7 @@ if [[ "$RUN_MODE" == "--validate" || "$RUN_MODE" == "validate" ]]; then
   Index match        : $INDEX_MATCH_PATTERN
   Template patterns  : $INDEX_TEMPLATE_PATTERNS
   Logstash profile   : $LOGSTASH_PROFILE
-  Guide proxy flow   : $GUIDE_PROXY_FLOW_ENABLED
+  ProxySG flow       : $PROXYSG_FLOW_ENABLED
   ILM policy         : $ILM_POLICY_NAME
   Delete age         : $ILM_DELETE_MIN_AGE
   TCP input          : $LS_TCP_ENABLED / $LS_TCP_PORT
@@ -1105,12 +1121,12 @@ fi
 
 # ----------------------------- ProxySG MAIN/SSL directories -----------------------------
 overall_progress 54 "MAIN/SSL 로그 디렉터리 및 권한 설정"
-if istrue "$GUIDE_PROXY_FLOW_ENABLED"; then
+if istrue "$PROXYSG_FLOW_ENABLED"; then
   log "ProxySG MAIN/SSL 디렉터리 생성"
-  mkdir -p "$GUIDE_MAIN_SOURCE_DIR" "$GUIDE_SSL_SOURCE_DIR" "$GUIDE_MAIN_BACKUP_DIR" "$GUIDE_SSL_BACKUP_DIR" "$GUIDE_MAIN_PROCESS_DIR" "$GUIDE_SSL_PROCESS_DIR"
-  chown -R "$FTP_USER:$FTP_GROUP" "$GUIDE_MAIN_SOURCE_DIR" "$GUIDE_SSL_SOURCE_DIR" "$GUIDE_MAIN_BACKUP_DIR" "$GUIDE_SSL_BACKUP_DIR"
-  chown -R logstash:logstash "$GUIDE_MAIN_PROCESS_DIR" "$GUIDE_SSL_PROCESS_DIR"
-  chmod "$GUIDE_DIR_MODE" "$GUIDE_MAIN_SOURCE_DIR" "$GUIDE_SSL_SOURCE_DIR" "$GUIDE_MAIN_BACKUP_DIR" "$GUIDE_SSL_BACKUP_DIR" "$GUIDE_MAIN_PROCESS_DIR" "$GUIDE_SSL_PROCESS_DIR"
+  mkdir -p "$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR" "$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR" "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR"
+  chown -R "$FTP_USER:$FTP_GROUP" "$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR" "$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR"
+  chown -R logstash:logstash "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR"
+  chmod "$PROXYSG_DIR_MODE" "$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR" "$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR" "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR"
 fi
 
 # ----------------------------- Elasticsearch bootstrap -----------------------------
@@ -1574,80 +1590,80 @@ EOF_PIPELINES
     cp -f "$SCRIPT_DIR/custom-pipeline.conf" "$LOGSTASH_PIPELINE_FILE"
   else
   log "Logstash pipeline 생성 ($LOGSTASH_PROFILE)"
-  if [[ "$LOGSTASH_PROFILE" == "proxysg_guide" ]]; then
-    cat >"$LOGSTASH_PIPELINE_FILE" <<EOF_GUIDE_LS
+  if [[ "$LOGSTASH_PROFILE" == "proxysg" ]]; then
+    cat >"$LOGSTASH_PIPELINE_FILE" <<EOF_PROXYSG_LS
 input {
   file {
-    path => ["${GUIDE_MAIN_PROCESS_DIR}/${GUIDE_FILE_GLOB}"]
+    path => ["${PROXYSG_MAIN_PROCESS_DIR}/${PROXYSG_FILE_GLOB}"]
     mode => "read"
     file_completed_action => "delete"
-    sincedb_path => "${GUIDE_MAIN_SINCEDB}"
+    sincedb_path => "${PROXYSG_MAIN_SINCEDB}"
     type => "edge-http"
-    discover_interval => ${GUIDE_LOGSTASH_DISCOVER_INTERVAL}
-    max_open_files => ${GUIDE_LOGSTASH_MAX_OPEN_FILES}
+    discover_interval => ${PROXYSG_LOGSTASH_DISCOVER_INTERVAL}
+    max_open_files => ${PROXYSG_LOGSTASH_MAX_OPEN_FILES}
   }
   file {
-    path => ["${GUIDE_SSL_PROCESS_DIR}/${GUIDE_FILE_GLOB}"]
+    path => ["${PROXYSG_SSL_PROCESS_DIR}/${PROXYSG_FILE_GLOB}"]
     mode => "read"
     file_completed_action => "delete"
-    sincedb_path => "${GUIDE_SSL_SINCEDB}"
+    sincedb_path => "${PROXYSG_SSL_SINCEDB}"
     type => "edge-https"
-    discover_interval => ${GUIDE_LOGSTASH_DISCOVER_INTERVAL}
-    max_open_files => ${GUIDE_LOGSTASH_MAX_OPEN_FILES}
+    discover_interval => ${PROXYSG_LOGSTASH_DISCOVER_INTERVAL}
+    max_open_files => ${PROXYSG_LOGSTASH_MAX_OPEN_FILES}
   }
 }
-EOF_GUIDE_LS
-    if istrue "$GUIDE_PROXY_CSV_FILTER_ENABLED"; then
-      [[ -f "$SCRIPT_DIR/proxysg-guide-filter.conf" ]] || die "필수 파일 없음: $SCRIPT_DIR/proxysg-guide-filter.conf"
-      render_guide_filter "$SCRIPT_DIR/proxysg-guide-filter.conf" >>"$LOGSTASH_PIPELINE_FILE"
+EOF_PROXYSG_LS
+    if istrue "$PROXYSG_CSV_FILTER_ENABLED"; then
+      [[ -f "$SCRIPT_DIR/proxysg-log-filter.conf" ]] || die "필수 파일 없음: $SCRIPT_DIR/proxysg-log-filter.conf"
+      render_proxysg_filter "$SCRIPT_DIR/proxysg-log-filter.conf" >>"$LOGSTASH_PIPELINE_FILE"
     else
       printf '\nfilter { if ![message] or [message] =~ /^\s*#/ or [message] =~ /^\s*$/ { drop { } } }\n' >>"$LOGSTASH_PIPELINE_FILE"
     fi
-    cat >>"$LOGSTASH_PIPELINE_FILE" <<EOF_GUIDE_OUT
+    cat >>"$LOGSTASH_PIPELINE_FILE" <<EOF_PROXYSG_OUT
 output {
   if [type] == "edge-http" {
     elasticsearch {
       hosts => ["${LOGSTASH_ES_HOST}"]
-EOF_GUIDE_OUT
+EOF_PROXYSG_OUT
     if istrue "$ES_SECURITY_ENABLED"; then
-      cat >>"$LOGSTASH_PIPELINE_FILE" <<'EOF_GUIDE_AUTH'
+      cat >>"$LOGSTASH_PIPELINE_FILE" <<'EOF_PROXYSG_AUTH'
       user => "${LS_ES_USER}"
       password => "${LS_ES_PASSWORD}"
-EOF_GUIDE_AUTH
-      if istrue "$ES_HTTP_TLS_ENABLED"; then cat >>"$LOGSTASH_PIPELINE_FILE" <<'EOF_GUIDE_TLS'
+EOF_PROXYSG_AUTH
+      if istrue "$ES_HTTP_TLS_ENABLED"; then cat >>"$LOGSTASH_PIPELINE_FILE" <<'EOF_PROXYSG_TLS'
       ssl_enabled => true
       ssl_certificate_authorities => ["/etc/logstash/certs/http_ca.crt"]
-EOF_GUIDE_TLS
+EOF_PROXYSG_TLS
       fi
     fi
-    cat >>"$LOGSTASH_PIPELINE_FILE" <<EOF_GUIDE_MAIN_OUT
+    cat >>"$LOGSTASH_PIPELINE_FILE" <<EOF_PROXYSG_MAIN_OUT
       manage_template => false
       ilm_enabled => false
-      index => "${GUIDE_MAIN_INDEX_PREFIX}-%{+${INDEX_DATE_PATTERN}}"
+      index => "${PROXYSG_MAIN_INDEX_PREFIX}-%{+${INDEX_DATE_PATTERN}}"
     }
   } else if [type] == "edge-https" {
     elasticsearch {
       hosts => ["${LOGSTASH_ES_HOST}"]
-EOF_GUIDE_MAIN_OUT
+EOF_PROXYSG_MAIN_OUT
     if istrue "$ES_SECURITY_ENABLED"; then
-      cat >>"$LOGSTASH_PIPELINE_FILE" <<'EOF_GUIDE_AUTH2'
+      cat >>"$LOGSTASH_PIPELINE_FILE" <<'EOF_PROXYSG_AUTH2'
       user => "${LS_ES_USER}"
       password => "${LS_ES_PASSWORD}"
-EOF_GUIDE_AUTH2
-      if istrue "$ES_HTTP_TLS_ENABLED"; then cat >>"$LOGSTASH_PIPELINE_FILE" <<'EOF_GUIDE_TLS2'
+EOF_PROXYSG_AUTH2
+      if istrue "$ES_HTTP_TLS_ENABLED"; then cat >>"$LOGSTASH_PIPELINE_FILE" <<'EOF_PROXYSG_TLS2'
       ssl_enabled => true
       ssl_certificate_authorities => ["/etc/logstash/certs/http_ca.crt"]
-EOF_GUIDE_TLS2
+EOF_PROXYSG_TLS2
       fi
     fi
-    cat >>"$LOGSTASH_PIPELINE_FILE" <<EOF_GUIDE_SSL_OUT
+    cat >>"$LOGSTASH_PIPELINE_FILE" <<EOF_PROXYSG_SSL_OUT
       manage_template => false
       ilm_enabled => false
-      index => "${GUIDE_SSL_INDEX_PREFIX}-%{+${INDEX_DATE_PATTERN}}"
+      index => "${PROXYSG_SSL_INDEX_PREFIX}-%{+${INDEX_DATE_PATTERN}}"
     }
   }
 }
-EOF_GUIDE_SSL_OUT
+EOF_PROXYSG_SSL_OUT
   else
   {
     echo "input {"
@@ -1896,19 +1912,24 @@ fi
 
 # ----------------------------- ProxySG MAIN/SSL copy/backup process -----------------------------
 overall_progress 87 "MAIN/SSL 자동 복사·백업 처리 구성"
-if istrue "$GUIDE_PROXY_FLOW_ENABLED"; then
-  [[ -f "$SCRIPT_DIR/guide-log-process.sh" ]] || die "필수 파일 없음: $SCRIPT_DIR/guide-log-process.sh"
+if istrue "$PROXYSG_FLOW_ENABLED"; then
+  [[ -f "$SCRIPT_DIR/proxysg-log-process.sh" ]] || die "필수 파일 없음: $SCRIPT_DIR/proxysg-log-process.sh"
   # v2.9.4: Config Wizard에서 스크립트를 수정했을 수 있으므로 설치 전에 문법을 검사한다.
-  bash -n "$SCRIPT_DIR/guide-log-process.sh" || die "guide-log-process.sh 문법 오류: Config Wizard에서 수정한 스크립트를 확인하세요."
-  install -m 750 "$SCRIPT_DIR/guide-log-process.sh" "$GUIDE_PROCESS_SCRIPT"
-  touch "$GUIDE_PROCESS_LOG"; chmod 640 "$GUIDE_PROCESS_LOG"
-  cat >/etc/cron.d/elk-guide-log-process <<EOF_GUIDE_CRON
+  bash -n "$SCRIPT_DIR/proxysg-log-process.sh" || die "proxysg-log-process.sh 문법 오류: Config Wizard에서 수정한 스크립트를 확인하세요."
+  install -m 750 "$SCRIPT_DIR/proxysg-log-process.sh" "$PROXYSG_PROCESS_SCRIPT"
+  touch "$PROXYSG_PROCESS_LOG"; chmod 640 "$PROXYSG_PROCESS_LOG"
+  # 이전 버전이 같은 처리를 다른 이름으로 등록해 두었다면 정리한다. (이름 변경 후 같은 처리가 두 번 실행되는 것을 방지)
+  if [[ -e /etc/cron.d/elk-guide-log-process || -e /usr/local/sbin/elk-guide-log-process ]]; then
+    log "이전 이름으로 등록된 파일 처리 스케줄/스크립트를 정리합니다."
+    rm -f /etc/cron.d/elk-guide-log-process /usr/local/sbin/elk-guide-log-process
+  fi
+  cat >/etc/cron.d/elk-proxysg-log-process <<EOF_PROXYSG_CRON
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-${GUIDE_PROCESS_CRON} root ${GUIDE_PROCESS_SCRIPT} /etc/elk-auto/elk.env >> ${GUIDE_PROCESS_LOG} 2>&1
-EOF_GUIDE_CRON
-  chmod 644 /etc/cron.d/elk-guide-log-process
-  log "MAIN/SSL 파일 처리 cron 등록: $GUIDE_PROCESS_CRON"
+${PROXYSG_PROCESS_CRON} root ${PROXYSG_PROCESS_SCRIPT} /etc/elk-auto/elk.env >> ${PROXYSG_PROCESS_LOG} 2>&1
+EOF_PROXYSG_CRON
+  chmod 644 /etc/cron.d/elk-proxysg-log-process
+  log "MAIN/SSL 파일 처리 cron 등록: $PROXYSG_PROCESS_CRON"
 fi
 
 # ----------------------------- managed file ingest / ops / monitoring -----------------------------
@@ -2132,9 +2153,9 @@ if istrue "$START_SERVICES_AFTER_INSTALL"; then
         _code="$(echo "$_out" | tail -n1)"
         if [[ "$_code" == "200" ]]; then log "Kibana Data View 생성/갱신: $_name ($_title)"; else warn "Kibana Data View 자동 생성 실패: $_name HTTP=$_code"; fi
       }
-      if istrue "$GUIDE_PROXY_FLOW_ENABLED"; then
-        create_data_view "$GUIDE_MAIN_DATA_VIEW_NAME" "${GUIDE_MAIN_INDEX_PREFIX}-*"
-        create_data_view "$GUIDE_SSL_DATA_VIEW_NAME" "${GUIDE_SSL_INDEX_PREFIX}-*"
+      if istrue "$PROXYSG_FLOW_ENABLED"; then
+        create_data_view "$PROXYSG_MAIN_DATA_VIEW_NAME" "${PROXYSG_MAIN_INDEX_PREFIX}-*"
+        create_data_view "$PROXYSG_SSL_DATA_VIEW_NAME" "${PROXYSG_SSL_INDEX_PREFIX}-*"
       else
         create_data_view "$KIBANA_DATA_VIEW_NAME" "$INDEX_MATCH_PATTERN"
       fi
@@ -2207,7 +2228,7 @@ cat <<RESULT
  FTP Upload            : ${FTP_USER}@${server_ip}:${FTP_LISTEN_PORT} -> ${FTP_UPLOAD_DIR}
  FTP Passive Ports     : ${FTP_PASV_MIN_PORT}-${FTP_PASV_MAX_PORT}
  FTP TLS               : ${FTP_TLS_ENABLED}
- Guide Proxy Flow      : ${GUIDE_PROXY_FLOW_ENABLED}
+ ProxySG Flow         : ${PROXYSG_FLOW_ENABLED}
  File Ingest Manager   : ${FILE_INGEST_MANAGER_ENABLED}
  File Source(s)        : ${FILE_INGEST_SOURCE_DIRS}
  File Backup           : ${FILE_INGEST_BACKUP_DIR}

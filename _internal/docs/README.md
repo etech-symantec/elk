@@ -95,15 +95,15 @@ sudo elk-check /etc/elk-auto/elk.env
 
 Ubuntu 22.04/24.04 초기 설치 서버에서 **Elasticsearch + Kibana + Logstash + FTP(vsftpd) + 선택형 Nginx HTTPS + ILM + ProxySG MAIN/SSL 파일 처리**를 자동 구성합니다.
 
-이번 v2.9.0은 사용자가 제공한 **ELK 9.5.2 설치 가이드 스크린샷 전체**를 Configuration Wizard의 `가이드 간단 설정`에 반영했습니다. 기존 전체 환경변수 설정은 `전체 고급 설정`에서 그대로 사용할 수 있습니다.
+Configuration Wizard의 `빠른 설정`은 설치 순서에 맞춰 필요한 항목만 단계별로 보여 줍니다. 모든 환경변수는 `고급 설정`에서 조정할 수 있습니다.
 
-> ILM 기본 삭제 기간은 **90일**입니다. PPT의 60일 설정은 사용자 요청에 따라 90일로 변경했습니다.
+> ILM 기본 삭제 기간은 **90일**입니다.
 
 ## 빠른 사용
 
 Windows에서 ZIP을 풀고 `open-config-gui.cmd`를 실행하거나 `config-wizard.html`을 Chrome/Edge에서 엽니다.
 
-Wizard에서 `PPT 9.5.2 프리셋`을 적용하고 필요한 값을 수정한 뒤 마지막 단계에서 **`단일 설치 파일 다운로드 (.sh)`**를 누릅니다. Ubuntu 서버에는 생성된 `elk-oneclick-install-v2.9.0.sh` 하나만 복사합니다.
+Wizard의 `빠른 설정`에서 필요한 값을 입력한 뒤 마지막 단계에서 **`단일 설치 파일 다운로드 (.sh)`**를 누릅니다. Ubuntu 서버에는 생성된 `elk-oneclick-install-v2.9.0.sh` 하나만 복사합니다.
 
 ```bash
 chmod 600 elk-oneclick-install-v2.9.0.sh
@@ -127,14 +127,14 @@ sudo elk-ops indices
 
 전역 상단에 관리자 입력값을 모으지 않습니다. 각 단계에 들어가면 **그 단계에서 실제 운영환경에 맞게 확인해야 할 값만 가장 위쪽 주황색 영역**에 표시됩니다. 예를 들어 Elasticsearch 단계에는 관리자 비밀번호와 데이터 경로, FTP 단계에는 FTP 계정/비밀번호와 루트·업로드 경로, MAIN/SSL 단계에는 Source/Backup/Process 경로가 우선 표시됩니다. 조건부 기능을 켜면 Nginx 인증서, Kibana 사용자, UFW 허용 대역 등의 필수 항목도 해당 단계에서 자동으로 나타납니다.
 
-입력 카드의 상세 설명은 기본적으로 접혀 있습니다. **카드의 빈 영역을 클릭**하면 `기능 / 왜 필요한가 / 입력 가이드` 설명이 펼쳐지고 다시 클릭하면 접힙니다. 입력창, Select, 생성/보기 버튼을 클릭할 때는 설명이 열리지 않아 값 편집을 방해하지 않습니다.
+입력 카드의 상세 설명은 기본적으로 접혀 있습니다. **카드의 빈 영역을 클릭**하면 `기능 / 왜 필요한가 / 입력 방법` 설명이 펼쳐지고 다시 클릭하면 접힙니다. 입력창, Select, 생성/보기 버튼을 클릭할 때는 설명이 열리지 않아 값 편집을 방해하지 않습니다.
 
 
-`config-wizard.html`에는 두 가지 모드가 있습니다.
+`config-wizard.html`에는 두 가지 모드(`빠른 설정`, `고급 설정`)가 있습니다.
 
-### 가이드 간단 설정
+### 빠른 설정
 
-PPT 설치 순서에 맞춘 10단계입니다.
+설치 순서에 맞춘 단계입니다.
 
 ```text
 01 Elastic 9.x 저장소
@@ -158,15 +158,15 @@ PPT 설치 순서에 맞춘 10단계입니다.
 10 검증 · 장애 대응 · elk.env 생성
 ```
 
-각 변수에는 PPT에서 왜 필요한지, 어떤 단계에서 사용되는지, 기본/권장값이 표시됩니다.
+각 변수에는 기능, 왜 필요한지, 입력 방법과 기본값이 표시됩니다.
 
-### 전체 고급 설정
+### 고급 설정
 
 현재 `elk.env`의 **308개 환경변수**를 모두 수정할 수 있습니다. 변수 검색, 기존 env 불러오기, 비밀번호 생성, 최종 검증과 env 다운로드를 지원합니다.
 
-## PPT 가이드 프로필의 기본 흐름
+## ProxySG MAIN/SSL 프로필의 기본 흐름
 
-`PPT 9.5.2 프리셋`은 다음 구성을 만듭니다.
+빠른 설정의 초기값은 다음 구성을 만듭니다.
 
 ```text
 FTP client
@@ -175,7 +175,7 @@ FTP client
    └─ SSL  .log.gz → /home/ssl
              │
              ▼
-      guide-log-process.sh
+      proxysg-log-process.sh
       기본: 매일 03:00
              │
       ┌──────┴───────────┐
@@ -202,7 +202,7 @@ FTP client
                     90일 삭제
 ```
 
-`guide-log-process.sh`는 PPT의 스크립트 의도를 유지하면서 다음 보호 기능을 추가했습니다.
+`proxysg-log-process.sh`는 다음 보호 기능을 포함합니다.
 
 - `flock` 중복 실행 방지
 - 임시 `.part` 복사 후 atomic rename
@@ -212,20 +212,20 @@ FTP client
 
 ## Elasticsearch
 
-가이드 프리셋은 Elastic 9.5.2를 선택합니다. 일반 기본 설정은 `ELASTIC_VERSION=""`로 두어 9.x 저장소 최신 버전을 사용할 수 있습니다.
+Elastic 버전은 기본적으로 `ELASTIC_VERSION=""`로 비워 두어 9.x 저장소의 최신 버전을 설치합니다. 특정 버전으로 고정하려면 `x.y.z` 형식(예: `9.5.2`)으로 입력합니다.
 
-PPT의 주요 설정은 다음 변수로 관리합니다.
+주요 설정은 다음 변수로 관리합니다.
 
 ```bash
 ES_NETWORK_HOST="0.0.0.0"
 ES_HTTP_PORT="9200"
-ES_ACTION_DESTRUCTIVE_REQUIRES_NAME="false"  # 가이드 프리셋
+ES_ACTION_DESTRUCTIVE_REQUIRES_NAME="false"  # 빠른 설정 초기값
 ELASTIC_PASSWORD=""                           # 비우면 자동 생성
 ```
 
-일반 기본값에서 `ES_ACTION_DESTRUCTIVE_REQUIRES_NAME`은 안전을 위해 `true`입니다. PPT 가이드 프리셋을 적용할 때만 `false`가 됩니다.
+일반 기본값에서 `ES_ACTION_DESTRUCTIVE_REQUIRES_NAME`은 안전을 위해 `true`입니다. 빠른 설정은 편의상 `false`로 시작합니다.
 
-PPT의 테스트 VM 503 장애 대응에 나온 `-Xms512m / -Xmx512m`은 운영 기본값으로 설정하지 않았습니다. 기본은:
+테스트 VM에서 쓰는 `-Xms512m / -Xmx512m` 같은 작은 고정 Heap은 운영 기본값으로 설정하지 않았습니다. 기본은:
 
 ```bash
 ES_HEAP_MODE="auto"
@@ -235,7 +235,7 @@ ES_HEAP_MODE="auto"
 
 ## Kibana / 사용자
 
-자동 설치에서는 PPT의 Enrollment Token + Verification Code 수동 절차 대신 Kibana용 **Service Account Token**을 생성해 Kibana keystore에 저장합니다.
+자동 설치에서는 Enrollment Token + Verification Code 수동 절차 대신 Kibana용 **Service Account Token**을 생성해 Kibana keystore에 저장합니다.
 
 초기 사용자를 별도로 만들고 싶으면:
 
@@ -250,7 +250,7 @@ KIBANA_INITIAL_USER_ROLES="kibana_admin"
 
 ## Nginx HTTPS
 
-PPT의 선택 구성을 자동화했습니다.
+선택 구성(Self-Signed HTTPS, 80→443 Redirect, Kibana Reverse Proxy)을 자동화했습니다.
 
 ```bash
 INSTALL_NGINX="true"
@@ -264,33 +264,33 @@ NGINX_TLS_CN=""
 
 Self-Signed 인증서를 자동 생성하고 SAN에 서버 IP/hostname을 넣습니다. Nginx 구성 후 반드시 `nginx -t`를 통과해야 설치가 계속됩니다. Nginx 사용 시 Kibana listen 주소가 `0.0.0.0`이면 자동으로 `127.0.0.1`로 제한합니다.
 
-## Logstash ProxySG 가이드 프로필
+## Logstash ProxySG 프로필
 
 ```bash
-LOGSTASH_PROFILE="proxysg_guide"
-GUIDE_PROXY_FLOW_ENABLED="true"
-GUIDE_MAIN_PROCESS_DIR="/home/main_process"
-GUIDE_SSL_PROCESS_DIR="/home/ssl_process"
-GUIDE_FILE_GLOB="*.log.gz"
-GUIDE_MAIN_SINCEDB="/var/lib/logstash/sincedb-main"
-GUIDE_SSL_SINCEDB="/var/lib/logstash/sincedb-ssl"
-GUIDE_LOGSTASH_DISCOVER_INTERVAL="5"
-GUIDE_LOGSTASH_MAX_OPEN_FILES="1000"
+LOGSTASH_PROFILE="proxysg"
+PROXYSG_FLOW_ENABLED="true"
+PROXYSG_MAIN_PROCESS_DIR="/home/main_process"
+PROXYSG_SSL_PROCESS_DIR="/home/ssl_process"
+PROXYSG_FILE_GLOB="*.log.gz"
+PROXYSG_MAIN_SINCEDB="/var/lib/logstash/sincedb-main"
+PROXYSG_SSL_SINCEDB="/var/lib/logstash/sincedb-ssl"
+PROXYSG_LOGSTASH_DISCOVER_INTERVAL="5"
+PROXYSG_LOGSTASH_MAX_OPEN_FILES="1000"
 ```
 
 Logstash File Input은 `read` mode로 구성되며 파일 처리가 완료되면 process 파일을 삭제합니다. 원본은 이미 backup 폴더에 보관됩니다.
 
-`proxysg-guide-filter.conf`는 제공된 PPT의 ProxySG CSV 파싱 구성을 기준으로 포함했습니다. 실제 장비의 `#Fields` 순서가 다르면:
+`proxysg-log-filter.conf`는 ProxySG CSV 파싱 템플릿이며, MAIN/SSL 로그 포맷(`PROXYSG_MAIN_LOG_FORMAT`, `PROXYSG_SSL_LOG_FORMAT`)으로 만든 컬럼 목록이 설치할 때 들어갑니다. 파싱을 쓰지 않으려면:
 
 ```bash
-GUIDE_PROXY_CSV_FILTER_ENABLED="false"
+PROXYSG_CSV_FILTER_ENABLED="false"
 ```
 
-로 먼저 raw message 수집을 확인한 뒤 parser의 columns를 실제 포맷에 맞게 조정하십시오.
+로 먼저 raw message 수집을 확인한 뒤, 로그 포맷을 실제 `#Fields` 순서에 맞게 입력하십시오.
 
 ## FTP
 
-가이드 프리셋은 PPT의 구조에 맞게 `elkftp` 계정이 `/home/main` 및 `/home/ssl`에 접근하도록 구성합니다.
+빠른 설정은 `elkftp` 계정이 `/home/main` 및 `/home/ssl`에 접근하도록 구성합니다.
 
 ```bash
 FTP_USER="elkftp"
@@ -306,15 +306,15 @@ FTP_TLS_ENABLED="false"
 
 ## Index / Data View / ILM
 
-가이드 프리셋:
+빠른 설정 초기값:
 
 ```bash
-GUIDE_MAIN_INDEX_PREFIX="proxy-main"
-GUIDE_SSL_INDEX_PREFIX="proxy-ssl"
-GUIDE_MAIN_DATA_VIEW_NAME="main"
-GUIDE_SSL_DATA_VIEW_NAME="ssl"
-GUIDE_ILM_POLICY_NAME="proxy-retention-policy"
-GUIDE_INDEX_TEMPLATE_NAME="proxy-index-template"
+PROXYSG_MAIN_INDEX_PREFIX="proxy-main"
+PROXYSG_SSL_INDEX_PREFIX="proxy-ssl"
+PROXYSG_MAIN_DATA_VIEW_NAME="main"
+PROXYSG_SSL_DATA_VIEW_NAME="ssl"
+PROXYSG_ILM_POLICY_NAME="proxy-retention-policy"
+PROXYSG_INDEX_TEMPLATE_NAME="proxy-index-template"
 INDEX_TEMPLATE_PATTERNS="proxy-main-*,proxy-ssl-*"
 ILM_DELETE_MIN_AGE="90d"
 ILM_APPLY_TO_EXISTING="true"
@@ -348,16 +348,16 @@ sudo elk-ops indices
 sudo elk-ops ilm
 ```
 
-PPT에 있던 Logstash `E212: Can't open file for writing` 대응의 `chmod 777 /etc/logstash/conf.d/`는 자동화에 넣지 않았습니다. 설치기는 root 권한으로 설정 파일을 만들고 필요한 서비스 그룹 권한만 부여합니다.
+Logstash `E212: Can't open file for writing` 대응으로 흔히 쓰는 `chmod 777 /etc/logstash/conf.d/`는 자동화에 넣지 않았습니다. 설치기는 root 권한으로 설정 파일을 만들고 필요한 서비스 그룹 권한만 부여합니다.
 
-자세한 PPT 항목 매핑은 `PPT_GUIDE_MAPPING.md`를 참고하십시오.
+자세한 설치 단계 매핑은 `INSTALL_STEP_MAPPING.md`를 참고하십시오.
 
 
 ## v2.5 Wizard UI 개선
 - 상단 전역 관리자 입력 영역을 제거하고, **각 단계의 맨 위**에 그 단계에서 확인할 계정·비밀번호·경로·인증서·방화벽 값을 표시합니다.
 - 관리자 확인 항목은 아래 일반 설정 영역에서 중복 표시하지 않습니다.
 - Kibana 사용자 생성, Nginx, UFW 등 조건 기능을 켜거나 끄면 해당 단계 필수 항목이 즉시 다시 계산됩니다.
-- 입력 카드 설명은 기본적으로 접혀 있으며, 카드를 클릭하면 `기능 / 왜 필요한가 / 입력 가이드`가 펼쳐집니다.
+- 입력 카드 설명은 기본적으로 접혀 있으며, 카드를 클릭하면 `기능 / 왜 필요한가 / 입력 방법`가 펼쳐집니다.
 - 입력창과 버튼을 클릭할 때는 카드가 열리거나 닫히지 않도록 분리했습니다.
 
 ---
