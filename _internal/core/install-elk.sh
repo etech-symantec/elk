@@ -237,6 +237,8 @@ source "$ENV_FILE"
 : "${GUIDE_LOGSTASH_DISCOVER_INTERVAL:=5}"
 : "${GUIDE_LOGSTASH_MAX_OPEN_FILES:=1000}"
 : "${GUIDE_PROXY_CSV_FILTER_ENABLED:=true}"
+: "${GUIDE_MAIN_LOG_FORMAT:=date time time-taken c-ip cs-username cs-auth-group s-supplier-name s-supplier-ip s-supplier-country s-supplier-failures x-exception-id sc-filter-result cs-categories cs(Referer)  sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-path cs-uri-query cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-virus-id cs-threat-source cs-threat-id rs-threat-source rs-threat-id x-bluecoat-application-name x-bluecoat-application-operation x-bluecoat-application-groups cs-threat-risk x-bluecoat-access-security-policy-action x-bluecoat-access-security-policy-reason x-bluecoat-transaction-uuid x-icap-reqmod-header(X-ICAP-Metadata) x-icap-respmod-header(X-ICAP-Metadata)}"
+: "${GUIDE_SSL_LOG_FORMAT:=date time time-taken c-ip cs-username cs-auth-group s-supplier-name s-supplier-ip s-supplier-country s-supplier-failures x-exception-id sc-filter-result cs-categories sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-virus-id cs-threat-source cs-threat-id rs-threat-source rs-threat-id x-rs-certificate-observed-errors x-cs-ocsp-error x-rs-ocsp-error x-rs-connection-negotiated-cipher-strength x-rs-certificate-hostname x-rs-certificate-hostname-category cs-threat-risk x-rs-certificate-hostname-threat-risk x-bluecoat-access-security-policy-action x-bluecoat-access-security-policy-reason}"
 : "${GUIDE_MAIN_INDEX_PREFIX:=proxy-main}"
 : "${GUIDE_SSL_INDEX_PREFIX:=proxy-ssl}"
 : "${GUIDE_MAIN_DATA_VIEW_NAME:=main}"
@@ -486,6 +488,44 @@ backup_file() {
   safe="$(echo "$f" | sed 's#/#_#g; s/^_//')"
   ts="$(date '+%Y%m%d-%H%M%S')"
   cp -a "$f" "$BACKUP_DIR/${safe}.${ts}.bak"
+}
+
+# ---- v2.9.4: ProxySG MAIN/SSL 로그 포맷(ELFF) -> Logstash csv columns --------------------------------
+# 규칙: date->log_date, time->log_time, 그 밖의 필드는 소문자로 바꾸고 영문/숫자 이외의 연속 문자를 _ 로 바꿈
+#       (예: cs(Referer)->cs_referer, rs(Content-Type)->rs_content_type, c-ip->c_ip). 이름이 겹치면 _2, _3 ... 을 붙임.
+elff_columns() {
+  local fmt="$1" tok col base n
+  local -A seen=()
+  local IFS=$' \t\n'
+  for tok in $fmt; do
+    case "$tok" in
+      date) col="log_date" ;;
+      time) col="log_time" ;;
+      *) col="$(printf '%s' "$tok" | LC_ALL=C tr 'A-Z' 'a-z' | LC_ALL=C sed -E 's/[^a-z0-9]+/_/g; s/^_+//; s/_+$//')" ;;
+    esac
+    [[ -n "$col" ]] || col="field"
+    base="$col"; n=1
+    while [[ -n "${seen[$col]:-}" ]]; do n=$((n+1)); col="${base}_${n}"; done
+    seen[$col]=1
+    printf '%s\n' "$col"
+  done
+}
+guide_columns_block() {
+  local cols=() i
+  mapfile -t cols < <(elff_columns "$1")
+  for i in "${!cols[@]}"; do
+    if (( i < ${#cols[@]} - 1 )); then printf '          "%s",\n' "${cols[i]}"; else printf '          "%s"\n' "${cols[i]}"; fi
+  done
+}
+render_guide_filter() {
+  local tpl="$1" line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      "@@GUIDE_MAIN_COLUMNS@@") guide_columns_block "$GUIDE_MAIN_LOG_FORMAT" ;;
+      "@@GUIDE_SSL_COLUMNS@@")  guide_columns_block "$GUIDE_SSL_LOG_FORMAT" ;;
+      *) printf '%s\n' "$line" ;;
+    esac
+  done <"$tpl"
 }
 
 random_secret() {
@@ -760,6 +800,17 @@ validate_env() {
       [[ "$_d" == /* ]] || die "GUIDE_* 디렉터리는 절대경로여야 합니다: $_d"
     done
     [[ "$GUIDE_PROCESS_CRON" =~ ^[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+$ ]] || die "GUIDE_PROCESS_CRON은 5개 필드 cron 형식이어야 합니다. 예: 0 3 * * *"
+  fi
+  if istrue "$INSTALL_LOGSTASH" && [[ "$LOGSTASH_PROFILE" == "proxysg_guide" ]] && istrue "$GUIDE_PROXY_CSV_FILTER_ENABLED"; then
+    # v2.9.4: MAIN/SSL 로그 포맷(ELFF 필드 순서)으로 Logstash csv columns를 만든다.
+    for _lf in GUIDE_MAIN_LOG_FORMAT GUIDE_SSL_LOG_FORMAT; do
+      _lv="${!_lf}"
+      [[ -n "${_lv//[[:space:]]/}" ]] || die "${_lf}이 비어 있습니다. (ProxySG access log의 #Fields 순서를 공백으로 구분해 입력)"
+      [[ "$_lv" =~ ^[A-Za-z0-9_.:()[:space:]-]+$ ]] || die "${_lf}에 허용되지 않는 문자가 있습니다. (영문/숫자, - _ . : ( ) 와 공백만 사용)"
+    done
+  fi
+  if istrue "$INSTALL_LOGSTASH" && { [[ "$LOGSTASH_PIPELINE_FILE" != /etc/logstash/conf.d/*.conf ]] || [[ "${LOGSTASH_PIPELINE_FILE#/etc/logstash/conf.d/}" == */* ]]; }; then
+    die "LOGSTASH_PIPELINE_FILE은 /etc/logstash/conf.d/ 바로 아래의 .conf 파일이어야 합니다. (pipelines.yml이 conf.d/*.conf만 읽습니다): $LOGSTASH_PIPELINE_FILE"
   fi
   if istrue "$INSTALL_NGINX" && [[ "$NGINX_TLS_MODE" == "existing" ]]; then
     [[ -s "$NGINX_TLS_CERT_FILE" && -s "$NGINX_TLS_KEY_FILE" ]] || die "NGINX_TLS_MODE=existing이면 인증서/키 파일이 미리 존재해야 합니다."
@@ -1548,7 +1599,7 @@ input {
 EOF_GUIDE_LS
     if istrue "$GUIDE_PROXY_CSV_FILTER_ENABLED"; then
       [[ -f "$SCRIPT_DIR/proxysg-guide-filter.conf" ]] || die "필수 파일 없음: $SCRIPT_DIR/proxysg-guide-filter.conf"
-      cat "$SCRIPT_DIR/proxysg-guide-filter.conf" >>"$LOGSTASH_PIPELINE_FILE"
+      render_guide_filter "$SCRIPT_DIR/proxysg-guide-filter.conf" >>"$LOGSTASH_PIPELINE_FILE"
     else
       printf '\nfilter { if ![message] or [message] =~ /^\s*#/ or [message] =~ /^\s*$/ { drop { } } }\n' >>"$LOGSTASH_PIPELINE_FILE"
     fi
