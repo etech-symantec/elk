@@ -17,6 +17,8 @@ source "$ENV_FILE"
 : "${PROXYSG_FLOW_ENABLED:=false}"
 : "${PROXYSG_MAIN_INDEX_PREFIX:=proxy-main}"
 : "${PROXYSG_SSL_INDEX_PREFIX:=proxy-ssl}"
+: "${PROXYSG_CLOUD_ENABLED:=false}"
+: "${PROXYSG_CLOUD_INDEX_PREFIX:=proxy-cloud}"
 : "${INSTALL_NGINX:=false}"
 : "${NGINX_HTTPS_PORT:=443}"
 : "${INSTALL_FTP_SERVER:=true}"
@@ -33,7 +35,7 @@ curl_args=(-sS)
 [[ "${ES_SECURITY_ENABLED,,}" == "true" && -n "${ELASTIC_PASSWORD:-}" ]] && curl_args+=(-u "${ELASTIC_USERNAME}:${ELASTIC_PASSWORD}")
 es(){ curl "${curl_args[@]}" "$URL$1"; }
 PATTERN="${INDEX_PREFIX}-*"
-if [[ "${PROXYSG_FLOW_ENABLED,,}" == "true" ]]; then PATTERN="${PROXYSG_MAIN_INDEX_PREFIX}-*,${PROXYSG_SSL_INDEX_PREFIX}-*"; elif [[ -n "$INDEX_TEMPLATE_PATTERNS" ]]; then PATTERN="$INDEX_TEMPLATE_PATTERNS"; fi
+if [[ "${PROXYSG_FLOW_ENABLED,,}" == "true" ]]; then PATTERN="${PROXYSG_MAIN_INDEX_PREFIX}-*,${PROXYSG_SSL_INDEX_PREFIX}-*"; [[ "${PROXYSG_CLOUD_ENABLED,,}" == "true" ]] && PATTERN="${PATTERN},${PROXYSG_CLOUD_INDEX_PREFIX}-*"; elif [[ -n "$INDEX_TEMPLATE_PATTERNS" ]]; then PATTERN="$INDEX_TEMPLATE_PATTERNS"; fi
 cmd="${1:-status}"
 case "$cmd" in
   status)
@@ -53,7 +55,7 @@ case "$cmd" in
     echo "https://$(hostname -I 2>/dev/null | awk '{print $1}'):${NGINX_HTTPS_PORT}"
     ;;
   proxysg)
-    echo "ProxySG profile: ${PROXYSG_FLOW_ENABLED}"
+    echo "ProxySG 로그 처리 스크립트: ${PROXYSG_FLOW_ENABLED} (Cloud: ${PROXYSG_CLOUD_ENABLED})"
     [[ -x /usr/local/sbin/elk-proxysg-log-process ]] && /usr/local/sbin/elk-proxysg-log-process "$ENV_FILE" || true
     ;;
   ftp)

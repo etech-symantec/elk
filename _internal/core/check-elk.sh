@@ -28,6 +28,10 @@ source "$ENV_FILE"
 : "${PROXYSG_FLOW_ENABLED:=false}"
 : "${PROXYSG_MAIN_INDEX_PREFIX:=proxy-main}"
 : "${PROXYSG_SSL_INDEX_PREFIX:=proxy-ssl}"
+: "${PROXYSG_CLOUD_ENABLED:=false}"
+: "${PROXYSG_CLOUD_INDEX_PREFIX:=proxy-cloud}"
+: "${PROXYSG_CLOUD_SOURCE_DIR:=/home/cloud}"
+: "${PROXYSG_CLOUD_PROCESS_DIR:=/home/cloud_process}"
 : "${PROXYSG_ILM_POLICY_NAME:=proxy-retention-policy}"
 : "${PROXYSG_INDEX_TEMPLATE_NAME:=proxy-index-template}"
 : "${PROXYSG_MAIN_SOURCE_DIR:=/home/main}"
@@ -57,6 +61,7 @@ if istrue "$PROXYSG_FLOW_ENABLED"; then
   ILM_POLICY_NAME="$PROXYSG_ILM_POLICY_NAME"
   INDEX_TEMPLATE_NAME="$PROXYSG_INDEX_TEMPLATE_NAME"
   INDEX_PATTERN="${PROXYSG_MAIN_INDEX_PREFIX}-*,${PROXYSG_SSL_INDEX_PREFIX}-*"
+  if istrue "$PROXYSG_CLOUD_ENABLED"; then INDEX_PATTERN="${INDEX_PATTERN},${PROXYSG_CLOUD_INDEX_PREFIX}-*"; fi
 elif [[ "$INDEX_MODE" == "rollover" ]]; then
   INDEX_PATTERN="${ILM_ROLLOVER_ALIAS}-*"
 elif [[ "$INDEX_MODE" == "plain" ]]; then
@@ -96,7 +101,9 @@ if istrue "$INSTALL_ELASTICSEARCH"; then
 fi
 
 if istrue "$PROXYSG_FLOW_ENABLED"; then
-  for d in "$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR" "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR"; do
+  _chk=("$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR" "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR")
+  if istrue "$PROXYSG_CLOUD_ENABLED"; then _chk+=("$PROXYSG_CLOUD_SOURCE_DIR" "$PROXYSG_CLOUD_PROCESS_DIR"); fi
+  for d in "${_chk[@]}"; do
     [[ -d "$d" ]] && pass "ProxySG 경로 존재: $d" || fail "ProxySG 경로 없음: $d"
   done
 fi

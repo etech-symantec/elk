@@ -9,6 +9,10 @@ source "$ENV_FILE"
 
 : "${PROXYSG_MAIN_SOURCE_DIR:=/home/main}"
 : "${PROXYSG_SSL_SOURCE_DIR:=/home/ssl}"
+: "${PROXYSG_CLOUD_ENABLED:=false}"
+: "${PROXYSG_CLOUD_SOURCE_DIR:=/home/cloud}"
+: "${PROXYSG_CLOUD_BACKUP_DIR:=/home/cloud_backup}"
+: "${PROXYSG_CLOUD_PROCESS_DIR:=/home/cloud_process}"
 : "${PROXYSG_MAIN_BACKUP_DIR:=/home/main_backup}"
 : "${PROXYSG_SSL_BACKUP_DIR:=/home/ssl_backup}"
 : "${PROXYSG_MAIN_PROCESS_DIR:=/home/main_process}"
@@ -27,12 +31,16 @@ flock -n 200 || exit 0
 ts(){ date '+%Y-%m-%d %H:%M:%S'; }
 log(){ printf '[%s] %s\n' "$(ts)" "$*"; }
 
-mkdir -p "$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR" \
-  "$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR" \
-  "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR"
-chmod "$PROXYSG_DIR_MODE" "$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR" \
-  "$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR" \
-  "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR" || true
+CLOUD_ON=false
+[[ "${PROXYSG_CLOUD_ENABLED,,}" == "true" ]] && CLOUD_ON=true
+ALL_DIRS=("$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR"
+  "$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR"
+  "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR")
+if [[ "$CLOUD_ON" == true ]]; then
+  ALL_DIRS+=("$PROXYSG_CLOUD_SOURCE_DIR" "$PROXYSG_CLOUD_BACKUP_DIR" "$PROXYSG_CLOUD_PROCESS_DIR")
+fi
+mkdir -p "${ALL_DIRS[@]}"
+chmod "$PROXYSG_DIR_MODE" "${ALL_DIRS[@]}" || true
 
 process_dir() {
   local label="$1" source_dir="$2" process_dir="$3" backup_dir="$4"
@@ -89,4 +97,7 @@ process_dir() {
 log "File processing started"
 process_dir MAIN "$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_MAIN_BACKUP_DIR"
 process_dir SSL  "$PROXYSG_SSL_SOURCE_DIR"  "$PROXYSG_SSL_PROCESS_DIR"  "$PROXYSG_SSL_BACKUP_DIR"
+if [[ "$CLOUD_ON" == true ]]; then
+  process_dir CLOUD "$PROXYSG_CLOUD_SOURCE_DIR" "$PROXYSG_CLOUD_PROCESS_DIR" "$PROXYSG_CLOUD_BACKUP_DIR"
+fi
 log "File processing finished"

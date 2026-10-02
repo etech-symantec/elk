@@ -237,12 +237,16 @@ unset _old_name _new_name
 : "${FTP_INTEGRATE_FILE_INGEST:=true}"
 
 : "${PROXYSG_FLOW_ENABLED:=false}"
+: "${PROXYSG_CLOUD_ENABLED:=false}"
 : "${PROXYSG_MAIN_SOURCE_DIR:=/home/main}"
 : "${PROXYSG_SSL_SOURCE_DIR:=/home/ssl}"
+: "${PROXYSG_CLOUD_SOURCE_DIR:=/home/cloud}"
 : "${PROXYSG_MAIN_BACKUP_DIR:=/home/main_backup}"
 : "${PROXYSG_SSL_BACKUP_DIR:=/home/ssl_backup}"
+: "${PROXYSG_CLOUD_BACKUP_DIR:=/home/cloud_backup}"
 : "${PROXYSG_MAIN_PROCESS_DIR:=/home/main_process}"
 : "${PROXYSG_SSL_PROCESS_DIR:=/home/ssl_process}"
+: "${PROXYSG_CLOUD_PROCESS_DIR:=/home/cloud_process}"
 : "${PROXYSG_FILE_GLOB:=*.log.gz}"
 : "${PROXYSG_DIR_MODE:=0775}"
 : "${PROXYSG_PROCESS_SCRIPT:=/usr/local/sbin/elk-proxysg-log-process}"
@@ -250,15 +254,19 @@ unset _old_name _new_name
 : "${PROXYSG_PROCESS_CRON:=0 3 * * *}"
 : "${PROXYSG_MAIN_SINCEDB:=/var/lib/logstash/sincedb-main}"
 : "${PROXYSG_SSL_SINCEDB:=/var/lib/logstash/sincedb-ssl}"
+: "${PROXYSG_CLOUD_SINCEDB:=/var/lib/logstash/sincedb-cloud}"
 : "${PROXYSG_LOGSTASH_DISCOVER_INTERVAL:=5}"
 : "${PROXYSG_LOGSTASH_MAX_OPEN_FILES:=1000}"
 : "${PROXYSG_CSV_FILTER_ENABLED:=true}"
 : "${PROXYSG_MAIN_LOG_FORMAT:=date time time-taken c-ip cs-username cs-auth-group s-supplier-name s-supplier-ip s-supplier-country s-supplier-failures x-exception-id sc-filter-result cs-categories cs(Referer)  sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-path cs-uri-query cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-virus-id cs-threat-source cs-threat-id rs-threat-source rs-threat-id x-bluecoat-application-name x-bluecoat-application-operation x-bluecoat-application-groups cs-threat-risk x-bluecoat-access-security-policy-action x-bluecoat-access-security-policy-reason x-bluecoat-transaction-uuid x-icap-reqmod-header(X-ICAP-Metadata) x-icap-respmod-header(X-ICAP-Metadata)}"
 : "${PROXYSG_SSL_LOG_FORMAT:=date time time-taken c-ip cs-username cs-auth-group s-supplier-name s-supplier-ip s-supplier-country s-supplier-failures x-exception-id sc-filter-result cs-categories sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-virus-id cs-threat-source cs-threat-id rs-threat-source rs-threat-id x-rs-certificate-observed-errors x-cs-ocsp-error x-rs-ocsp-error x-rs-connection-negotiated-cipher-strength x-rs-certificate-hostname x-rs-certificate-hostname-category cs-threat-risk x-rs-certificate-hostname-threat-risk x-bluecoat-access-security-policy-action x-bluecoat-access-security-policy-reason}"
+: "${PROXYSG_CLOUD_LOG_FORMAT:=c-ip c-ip-version c-port cs-auth-groups cs-bytes cs-categories cs-host cs-icap-error-details cs-icap-service cs-icap-status cs-method cs-referer cs-threat-risk cs-uri-extension cs-uri-path cs-uri-port cs-uri-query cs-uri-scheme cs-user-agent cs-user-domain cs-userdn cs-x-requested-with date r-ip r-ip-version r-supplier-country rs-content-type rs-icap-error-details rs-icap-service rs-icap-status s-action s-ip s-source-ip s-supplier-country s-supplier-failures s-supplier-ip sc-bytes sc-filter-result sc-status time time-taken x-action-result x-bluecoat-access-type x-bluecoat-application-name x-bluecoat-application-operation x-bluecoat-location-id x-bluecoat-location-name x-bluecoat-placeholder x-bluecoat-reference-id x-bluecoat-reference-ids x-bluecoat-request-tenant-id x-bluecoat-transaction-uuid x-client-agent-ip x-client-agent-sw x-client-agent-type x-client-device-id x-client-device-name x-client-device-type x-client-os x-client-security-posture-details x-client-security-posture-risk-score x-cloud-rs x-cs-certificate-subject x-cs-client-ip-country x-cs-connection-negotiated-cipher x-cs-connection-negotiated-cipher-size x-cs-connection-negotiated-ssl-version x-cs-ocsp-error x-cs-public-ip x-data-leak-detected x-data-types x-exception-id x-file-details x-icap-reqmod-header(X-ICAP-Metadata) x-icap-respmod-header(X-ICAP-Metadata) x-random-ipv6 x-request-origin x-rs-certificate-hostname x-rs-certificate-hostname-categories x-rs-certificate-hostname-threat-risk x-rs-certificate-observed-errors x-rs-certificate-validate-status x-rs-connection-negotiated-cipher x-rs-connection-negotiated-cipher-size x-rs-connection-negotiated-ssl-version x-rs-ocsp-error x-sc-connection-issuer-keyring x-sc-connection-issuer-keyring-alias x-symc-inspected x-symc-page-views x-symc-upload-source x-virus-id}"
 : "${PROXYSG_MAIN_INDEX_PREFIX:=proxy-main}"
 : "${PROXYSG_SSL_INDEX_PREFIX:=proxy-ssl}"
+: "${PROXYSG_CLOUD_INDEX_PREFIX:=proxy-cloud}"
 : "${PROXYSG_MAIN_DATA_VIEW_NAME:=main}"
 : "${PROXYSG_SSL_DATA_VIEW_NAME:=ssl}"
+: "${PROXYSG_CLOUD_DATA_VIEW_NAME:=cloud}"
 : "${PROXYSG_ILM_POLICY_NAME:=proxy-retention-policy}"
 : "${PROXYSG_INDEX_TEMPLATE_NAME:=proxy-index-template}"
 
@@ -534,11 +542,17 @@ proxysg_columns_block() {
   done
 }
 render_proxysg_filter() {
-  local tpl="$1" line
+  local tpl="$1" line skip=0
   while IFS= read -r line || [[ -n "$line" ]]; do
     case "$line" in
-      "@@PROXYSG_MAIN_COLUMNS@@") proxysg_columns_block "$PROXYSG_MAIN_LOG_FORMAT" ;;
-      "@@PROXYSG_SSL_COLUMNS@@")  proxysg_columns_block "$PROXYSG_SSL_LOG_FORMAT" ;;
+      "# @@PROXYSG_CLOUD_BEGIN@@") istrue "$PROXYSG_CLOUD_ENABLED" || skip=1; continue ;;
+      "# @@PROXYSG_CLOUD_END@@")   skip=0; continue ;;
+    esac
+    (( skip )) && continue
+    case "$line" in
+      "@@PROXYSG_MAIN_COLUMNS@@")  proxysg_columns_block "$PROXYSG_MAIN_LOG_FORMAT" ;;
+      "@@PROXYSG_SSL_COLUMNS@@")   proxysg_columns_block "$PROXYSG_SSL_LOG_FORMAT" ;;
+      "@@PROXYSG_CLOUD_COLUMNS@@") proxysg_columns_block "$PROXYSG_CLOUD_LOG_FORMAT" ;;
       *) printf '%s\n' "$line" ;;
     esac
   done <"$tpl"
@@ -699,6 +713,7 @@ if istrue "$PROXYSG_FLOW_ENABLED"; then
   INDEX_MODE="daily"
   INDEX_TEMPLATE_NAME="$PROXYSG_INDEX_TEMPLATE_NAME"
   INDEX_TEMPLATE_PATTERNS="${PROXYSG_MAIN_INDEX_PREFIX}-*,${PROXYSG_SSL_INDEX_PREFIX}-*"
+  if istrue "$PROXYSG_CLOUD_ENABLED"; then INDEX_TEMPLATE_PATTERNS="${INDEX_TEMPLATE_PATTERNS},${PROXYSG_CLOUD_INDEX_PREFIX}-*"; fi
   ILM_POLICY_NAME="$PROXYSG_ILM_POLICY_NAME"
   [[ -n "$ILM_EXISTING_INDEX_PATTERNS" ]] || ILM_EXISTING_INDEX_PATTERNS="$INDEX_TEMPLATE_PATTERNS"
 fi
@@ -809,17 +824,24 @@ validate_env() {
     case "${FILE_INGEST_DUPLICATE_ACTION,,}" in archive|delete|leave) ;; *) die "FILE_INGEST_DUPLICATE_ACTION은 archive/delete/leave 중 하나여야 합니다." ;; esac
     case "${FILE_INGEST_PLAIN_BACKUP_COMPRESSION,,}" in zstd|gzip|xz|none) ;; *) die "FILE_INGEST_PLAIN_BACKUP_COMPRESSION은 zstd/gzip/xz/none 중 하나여야 합니다." ;; esac
   fi
+  if istrue "$PROXYSG_CLOUD_ENABLED" && ! istrue "$PROXYSG_FLOW_ENABLED"; then
+    warn "PROXYSG_CLOUD_ENABLED=true이지만 로그 처리 스크립트(PROXYSG_FLOW_ENABLED)가 꺼져 있어 Cloud 수신 폴더 복사는 자동으로 실행되지 않습니다. Cloud 처리 폴더에 파일을 직접 공급해야 합니다."
+  fi
   if istrue "$PROXYSG_FLOW_ENABLED"; then
     istrue "$INSTALL_LOGSTASH" || die "PROXYSG_FLOW_ENABLED=true이면 INSTALL_LOGSTASH=true가 필요합니다."
-    istrue "$INSTALL_FTP_SERVER" || warn "ProxySG MAIN/SSL 흐름을 사용하지만 FTP 서버 설치가 꺼져 있습니다. source 디렉터리에 파일을 별도로 공급해야 합니다."
-    for _d in "$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR" "$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR" "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR"; do
+    istrue "$INSTALL_FTP_SERVER" || warn "ProxySG 로그 처리 스크립트를 사용하지만 FTP 서버 설치가 꺼져 있습니다. source 디렉터리에 파일을 별도로 공급해야 합니다."
+    _chk_dirs=("$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR" "$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR" "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR")
+    if istrue "$PROXYSG_CLOUD_ENABLED"; then _chk_dirs+=("$PROXYSG_CLOUD_SOURCE_DIR" "$PROXYSG_CLOUD_BACKUP_DIR" "$PROXYSG_CLOUD_PROCESS_DIR"); fi
+    for _d in "${_chk_dirs[@]}"; do
       [[ "$_d" == /* ]] || die "PROXYSG_* 디렉터리는 절대경로여야 합니다: $_d"
     done
     [[ "$PROXYSG_PROCESS_CRON" =~ ^[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+$ ]] || die "PROXYSG_PROCESS_CRON은 5개 필드 cron 형식이어야 합니다. 예: 0 3 * * *"
   fi
   if istrue "$INSTALL_LOGSTASH" && [[ "$LOGSTASH_PROFILE" == "proxysg" ]] && istrue "$PROXYSG_CSV_FILTER_ENABLED"; then
-    # v2.9.4: MAIN/SSL 로그 포맷(ELFF 필드 순서)으로 Logstash csv columns를 만든다.
-    for _lf in PROXYSG_MAIN_LOG_FORMAT PROXYSG_SSL_LOG_FORMAT; do
+    # v2.9.4: MAIN/SSL(/Cloud) 로그 포맷(ELFF 필드 순서)으로 Logstash csv columns를 만든다.
+    _fmt_vars=(PROXYSG_MAIN_LOG_FORMAT PROXYSG_SSL_LOG_FORMAT)
+    if istrue "$PROXYSG_CLOUD_ENABLED"; then _fmt_vars+=(PROXYSG_CLOUD_LOG_FORMAT); fi
+    for _lf in "${_fmt_vars[@]}"; do
       _lv="${!_lf}"
       [[ -n "${_lv//[[:space:]]/}" ]] || die "${_lf}이 비어 있습니다. (ProxySG access log의 #Fields 순서를 공백으로 구분해 입력)"
       [[ "$_lv" =~ ^[A-Za-z0-9_.:()[:space:]-]+$ ]] || die "${_lf}에 허용되지 않는 문자가 있습니다. (영문/숫자, - _ . : ( ) 와 공백만 사용)"
@@ -1120,13 +1142,19 @@ EOF_FTP_TLS
 fi
 
 # ----------------------------- ProxySG MAIN/SSL directories -----------------------------
-overall_progress 54 "MAIN/SSL 로그 디렉터리 및 권한 설정"
+overall_progress 54 "ProxySG 로그 디렉터리 및 권한 설정"
 if istrue "$PROXYSG_FLOW_ENABLED"; then
-  log "ProxySG MAIN/SSL 디렉터리 생성"
-  mkdir -p "$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR" "$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR" "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR"
-  chown -R "$FTP_USER:$FTP_GROUP" "$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR" "$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR"
-  chown -R logstash:logstash "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR"
-  chmod "$PROXYSG_DIR_MODE" "$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR" "$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR" "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR"
+  log "ProxySG 로그 처리 디렉터리 생성"
+  _ps_src=("$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR")
+  _ps_bak=("$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR")
+  _ps_prc=("$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR")
+  if istrue "$PROXYSG_CLOUD_ENABLED"; then
+    _ps_src+=("$PROXYSG_CLOUD_SOURCE_DIR"); _ps_bak+=("$PROXYSG_CLOUD_BACKUP_DIR"); _ps_prc+=("$PROXYSG_CLOUD_PROCESS_DIR")
+  fi
+  mkdir -p "${_ps_src[@]}" "${_ps_bak[@]}" "${_ps_prc[@]}"
+  chown -R "$FTP_USER:$FTP_GROUP" "${_ps_src[@]}" "${_ps_bak[@]}"
+  chown -R logstash:logstash "${_ps_prc[@]}"
+  chmod "$PROXYSG_DIR_MODE" "${_ps_src[@]}" "${_ps_bak[@]}" "${_ps_prc[@]}"
 fi
 
 # ----------------------------- Elasticsearch bootstrap -----------------------------
@@ -1611,8 +1639,21 @@ input {
     discover_interval => ${PROXYSG_LOGSTASH_DISCOVER_INTERVAL}
     max_open_files => ${PROXYSG_LOGSTASH_MAX_OPEN_FILES}
   }
-}
 EOF_PROXYSG_LS
+    if istrue "$PROXYSG_CLOUD_ENABLED"; then
+      cat >>"$LOGSTASH_PIPELINE_FILE" <<EOF_PROXYSG_CLOUD_IN
+  file {
+    path => ["${PROXYSG_CLOUD_PROCESS_DIR}/${PROXYSG_FILE_GLOB}"]
+    mode => "read"
+    file_completed_action => "delete"
+    sincedb_path => "${PROXYSG_CLOUD_SINCEDB}"
+    type => "cloud"
+    discover_interval => ${PROXYSG_LOGSTASH_DISCOVER_INTERVAL}
+    max_open_files => ${PROXYSG_LOGSTASH_MAX_OPEN_FILES}
+  }
+EOF_PROXYSG_CLOUD_IN
+    fi
+    printf '}\n' >>"$LOGSTASH_PIPELINE_FILE"
     if istrue "$PROXYSG_CSV_FILTER_ENABLED"; then
       [[ -f "$SCRIPT_DIR/proxysg-log-filter.conf" ]] || die "필수 파일 없음: $SCRIPT_DIR/proxysg-log-filter.conf"
       render_proxysg_filter "$SCRIPT_DIR/proxysg-log-filter.conf" >>"$LOGSTASH_PIPELINE_FILE"
@@ -1662,8 +1703,33 @@ EOF_PROXYSG_TLS2
       index => "${PROXYSG_SSL_INDEX_PREFIX}-%{+${INDEX_DATE_PATTERN}}"
     }
   }
-}
 EOF_PROXYSG_SSL_OUT
+    if istrue "$PROXYSG_CLOUD_ENABLED"; then
+      cat >>"$LOGSTASH_PIPELINE_FILE" <<EOF_PROXYSG_CLOUD_OUT
+  if [type] == "cloud" {
+    elasticsearch {
+      hosts => ["${LOGSTASH_ES_HOST}"]
+EOF_PROXYSG_CLOUD_OUT
+      if istrue "$ES_SECURITY_ENABLED"; then
+        cat >>"$LOGSTASH_PIPELINE_FILE" <<'EOF_PROXYSG_AUTH3'
+      user => "${LS_ES_USER}"
+      password => "${LS_ES_PASSWORD}"
+EOF_PROXYSG_AUTH3
+        if istrue "$ES_HTTP_TLS_ENABLED"; then cat >>"$LOGSTASH_PIPELINE_FILE" <<'EOF_PROXYSG_TLS3'
+      ssl_enabled => true
+      ssl_certificate_authorities => ["/etc/logstash/certs/http_ca.crt"]
+EOF_PROXYSG_TLS3
+        fi
+      fi
+      cat >>"$LOGSTASH_PIPELINE_FILE" <<EOF_PROXYSG_CLOUD_OUT2
+      manage_template => false
+      ilm_enabled => false
+      index => "${PROXYSG_CLOUD_INDEX_PREFIX}-%{+${INDEX_DATE_PATTERN}}"
+    }
+  }
+EOF_PROXYSG_CLOUD_OUT2
+    fi
+    printf '}\n' >>"$LOGSTASH_PIPELINE_FILE"
   else
   {
     echo "input {"
@@ -1929,7 +1995,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ${PROXYSG_PROCESS_CRON} root ${PROXYSG_PROCESS_SCRIPT} /etc/elk-auto/elk.env >> ${PROXYSG_PROCESS_LOG} 2>&1
 EOF_PROXYSG_CRON
   chmod 644 /etc/cron.d/elk-proxysg-log-process
-  log "MAIN/SSL 파일 처리 cron 등록: $PROXYSG_PROCESS_CRON"
+  log "로그 처리 스크립트 cron 등록: $PROXYSG_PROCESS_CRON"
 fi
 
 # ----------------------------- managed file ingest / ops / monitoring -----------------------------
@@ -2156,6 +2222,7 @@ if istrue "$START_SERVICES_AFTER_INSTALL"; then
       if istrue "$PROXYSG_FLOW_ENABLED"; then
         create_data_view "$PROXYSG_MAIN_DATA_VIEW_NAME" "${PROXYSG_MAIN_INDEX_PREFIX}-*"
         create_data_view "$PROXYSG_SSL_DATA_VIEW_NAME" "${PROXYSG_SSL_INDEX_PREFIX}-*"
+        if istrue "$PROXYSG_CLOUD_ENABLED"; then create_data_view "$PROXYSG_CLOUD_DATA_VIEW_NAME" "${PROXYSG_CLOUD_INDEX_PREFIX}-*"; fi
       else
         create_data_view "$KIBANA_DATA_VIEW_NAME" "$INDEX_MATCH_PATTERN"
       fi

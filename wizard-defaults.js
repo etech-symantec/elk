@@ -377,6 +377,17 @@ window.ELK_DEFAULTS = {
     APT_RETRIES: "10",                                        // APT 다운로드 재시도 횟수
     APT_CONNECT_TIMEOUT: "30",                                // APT 연결 타임아웃(초)
 
+
+    // ───── 새로 추가된 항목 (tools/gen_defaults.py) ─────
+    PROXYSG_CLOUD_ENABLED: false,                             // Cloud 로그 처리 사용  [true | false]
+    PROXYSG_CLOUD_SOURCE_DIR: "/home/cloud",                  // Cloud FTP 수신 폴더
+    PROXYSG_CLOUD_BACKUP_DIR: "/home/cloud_backup",           // Cloud 원본 백업 폴더
+    PROXYSG_CLOUD_PROCESS_DIR: "/home/cloud_process",         // Cloud Logstash 처리 폴더
+    PROXYSG_CLOUD_SINCEDB: "/var/lib/logstash/sincedb-cloud",  // Cloud sincedb 파일
+    PROXYSG_CLOUD_LOG_FORMAT: "c-ip c-ip-version c-port cs-auth-groups cs-bytes cs-categories cs-host cs-icap-error-details cs-icap-service cs-icap-status cs-method cs-referer cs-threat-risk cs-uri-extension cs-uri-path cs-uri-port cs-uri-query cs-uri-scheme cs-user-agent cs-user-domain cs-userdn cs-x-requested-with date r-ip r-ip-version r-supplier-country rs-content-type rs-icap-error-details rs-icap-service rs-icap-status s-action s-ip s-source-ip s-supplier-country s-supplier-failures s-supplier-ip sc-bytes sc-filter-result sc-status time time-taken x-action-result x-bluecoat-access-type x-bluecoat-application-name x-bluecoat-application-operation x-bluecoat-location-id x-bluecoat-location-name x-bluecoat-placeholder x-bluecoat-reference-id x-bluecoat-reference-ids x-bluecoat-request-tenant-id x-bluecoat-transaction-uuid x-client-agent-ip x-client-agent-sw x-client-agent-type x-client-device-id x-client-device-name x-client-device-type x-client-os x-client-security-posture-details x-client-security-posture-risk-score x-cloud-rs x-cs-certificate-subject x-cs-client-ip-country x-cs-connection-negotiated-cipher x-cs-connection-negotiated-cipher-size x-cs-connection-negotiated-ssl-version x-cs-ocsp-error x-cs-public-ip x-data-leak-detected x-data-types x-exception-id x-file-details x-icap-reqmod-header(X-ICAP-Metadata) x-icap-respmod-header(X-ICAP-Metadata) x-random-ipv6 x-request-origin x-rs-certificate-hostname x-rs-certificate-hostname-categories x-rs-certificate-hostname-threat-risk x-rs-certificate-observed-errors x-rs-certificate-validate-status x-rs-connection-negotiated-cipher x-rs-connection-negotiated-cipher-size x-rs-connection-negotiated-ssl-version x-rs-ocsp-error x-sc-connection-issuer-keyring x-sc-connection-issuer-keyring-alias x-symc-inspected x-symc-page-views x-symc-upload-source x-virus-id",  // Cloud 로그 포맷 (ELFF 필드 순서)
+    PROXYSG_CLOUD_INDEX_PREFIX: "proxy-cloud",                // Cloud 인덱스 Prefix
+    PROXYSG_CLOUD_DATA_VIEW_NAME: "cloud",                    // Cloud Data View 이름
+
     // (비밀번호·암호화 키 항목은 이 파일에서 지정할 수 없습니다: ELASTIC_PASSWORD, KIBANA_SECURITY_ENCRYPTION_KEY, KIBANA_REPORTING_ENCRYPTION_KEY, KIBANA_SAVED_OBJECTS_ENCRYPTION_KEY, KIBANA_INITIAL_USER_PASSWORD, LOGSTASH_ES_PASSWORD, FTP_PASSWORD)
   },
 

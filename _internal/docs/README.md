@@ -93,7 +93,7 @@ sudo elk-check /etc/elk-auto/elk.env
 > 단일 설치 파일에는 관리자가 입력한 계정/비밀번호가 포함될 수 있으므로 서버에서 권한을 `600`으로 유지하십시오. 실행 시 스크립트도 자신의 파일 권한을 자동으로 `600`으로 조정합니다.
 
 
-Ubuntu 22.04/24.04 초기 설치 서버에서 **Elasticsearch + Kibana + Logstash + FTP(vsftpd) + 선택형 Nginx HTTPS + ILM + ProxySG MAIN/SSL 파일 처리**를 자동 구성합니다.
+Ubuntu 22.04/24.04 초기 설치 서버에서 **Elasticsearch + Kibana + Logstash + FTP(vsftpd) + 선택형 Nginx HTTPS + ILM + ProxySG 로그 처리 스크립트(MAIN·SSL, 선택 Cloud)**를 자동 구성합니다.
 
 Configuration Wizard의 `빠른 설정`은 설치 순서에 맞춰 필요한 항목만 단계별로 보여 줍니다. 모든 환경변수는 `고급 설정`에서 조정할 수 있습니다.
 
@@ -125,7 +125,7 @@ sudo elk-ops indices
 
 ### v2.5 단계별 관리자 확인 UI
 
-전역 상단에 관리자 입력값을 모으지 않습니다. 각 단계에 들어가면 **그 단계에서 실제 운영환경에 맞게 확인해야 할 값만 가장 위쪽 주황색 영역**에 표시됩니다. 예를 들어 Elasticsearch 단계에는 관리자 비밀번호와 데이터 경로, FTP 단계에는 FTP 계정/비밀번호와 루트·업로드 경로, MAIN/SSL 단계에는 Source/Backup/Process 경로가 우선 표시됩니다. 조건부 기능을 켜면 Nginx 인증서, Kibana 사용자, UFW 허용 대역 등의 필수 항목도 해당 단계에서 자동으로 나타납니다.
+전역 상단에 관리자 입력값을 모으지 않습니다. 각 단계에 들어가면 **그 단계에서 실제 운영환경에 맞게 확인해야 할 값만 가장 위쪽 주황색 영역**에 표시됩니다. 예를 들어 Elasticsearch 단계에는 관리자 비밀번호와 데이터 경로, FTP 단계에는 FTP 계정/비밀번호와 루트·업로드 경로, 로그 처리 스크립트 단계에는 MAIN·SSL·Cloud별 Source/Backup/Process 경로가 3열로 우선 표시됩니다. 조건부 기능을 켜면 Nginx 인증서, Kibana 사용자, UFW 허용 대역 등의 필수 항목도 해당 단계에서 자동으로 나타납니다.
 
 입력 카드의 상세 설명은 기본적으로 접혀 있습니다. **카드의 빈 영역을 클릭**하면 `기능 / 왜 필요한가 / 입력 방법` 설명이 펼쳐지고 다시 클릭하면 접힙니다. 입력창, Select, 생성/보기 버튼을 클릭할 때는 설명이 열리지 않아 값 편집을 방해하지 않습니다.
 
@@ -149,7 +149,7 @@ sudo elk-ops indices
        ↓
 06 FTP (vsftpd)
        ↓
-07 MAIN / SSL 파일 처리
+07 로그 처리 스크립트
        ↓
 08 인덱스 · Data View · ILM 90일
        ↓
@@ -164,15 +164,16 @@ sudo elk-ops indices
 
 현재 `elk.env`의 **308개 환경변수**를 모두 수정할 수 있습니다. 변수 검색, 기존 env 불러오기, 비밀번호 생성, 최종 검증과 env 다운로드를 지원합니다.
 
-## ProxySG MAIN/SSL 프로필의 기본 흐름
+## ProxySG 로그 처리 스크립트의 기본 흐름
 
 빠른 설정의 초기값은 다음 구성을 만듭니다.
 
 ```text
 FTP client
    │
-   ├─ MAIN .log.gz → /home/main
-   └─ SSL  .log.gz → /home/ssl
+   ├─ MAIN  .log.gz → /home/main
+   ├─ SSL   .log.gz → /home/ssl
+   └─ Cloud .log.gz → /home/cloud   (선택, 기본 사용 안 함)
              │
              ▼
       proxysg-log-process.sh
@@ -271,16 +272,21 @@ LOGSTASH_PROFILE="proxysg"
 PROXYSG_FLOW_ENABLED="true"
 PROXYSG_MAIN_PROCESS_DIR="/home/main_process"
 PROXYSG_SSL_PROCESS_DIR="/home/ssl_process"
+PROXYSG_CLOUD_ENABLED="false"                       # true로 바꾸면 아래 Cloud 항목이 적용됩니다
+PROXYSG_CLOUD_SOURCE_DIR="/home/cloud"
+PROXYSG_CLOUD_BACKUP_DIR="/home/cloud_backup"
+PROXYSG_CLOUD_PROCESS_DIR="/home/cloud_process"
 PROXYSG_FILE_GLOB="*.log.gz"
 PROXYSG_MAIN_SINCEDB="/var/lib/logstash/sincedb-main"
 PROXYSG_SSL_SINCEDB="/var/lib/logstash/sincedb-ssl"
+PROXYSG_CLOUD_SINCEDB="/var/lib/logstash/sincedb-cloud"
 PROXYSG_LOGSTASH_DISCOVER_INTERVAL="5"
 PROXYSG_LOGSTASH_MAX_OPEN_FILES="1000"
 ```
 
 Logstash File Input은 `read` mode로 구성되며 파일 처리가 완료되면 process 파일을 삭제합니다. 원본은 이미 backup 폴더에 보관됩니다.
 
-`proxysg-log-filter.conf`는 ProxySG CSV 파싱 템플릿이며, MAIN/SSL 로그 포맷(`PROXYSG_MAIN_LOG_FORMAT`, `PROXYSG_SSL_LOG_FORMAT`)으로 만든 컬럼 목록이 설치할 때 들어갑니다. 파싱을 쓰지 않으려면:
+`proxysg-log-filter.conf`는 ProxySG CSV 파싱 템플릿이며, MAIN/SSL 로그 포맷(`PROXYSG_MAIN_LOG_FORMAT`, `PROXYSG_SSL_LOG_FORMAT`, Cloud 사용 시 `PROXYSG_CLOUD_LOG_FORMAT`)으로 만든 컬럼 목록이 설치할 때 들어갑니다. Cloud 분기는 템플릿의 `# @@PROXYSG_CLOUD_BEGIN@@ … # @@PROXYSG_CLOUD_END@@` 사이에 있으며 Cloud를 사용할 때만 남습니다. 파싱을 쓰지 않으려면:
 
 ```bash
 PROXYSG_CSV_FILTER_ENABLED="false"
@@ -311,11 +317,13 @@ FTP_TLS_ENABLED="false"
 ```bash
 PROXYSG_MAIN_INDEX_PREFIX="proxy-main"
 PROXYSG_SSL_INDEX_PREFIX="proxy-ssl"
+PROXYSG_CLOUD_INDEX_PREFIX="proxy-cloud"            # Cloud 사용 시에만 적용
 PROXYSG_MAIN_DATA_VIEW_NAME="main"
 PROXYSG_SSL_DATA_VIEW_NAME="ssl"
+PROXYSG_CLOUD_DATA_VIEW_NAME="cloud"                # Cloud 사용 시에만 적용
 PROXYSG_ILM_POLICY_NAME="proxy-retention-policy"
 PROXYSG_INDEX_TEMPLATE_NAME="proxy-index-template"
-INDEX_TEMPLATE_PATTERNS="proxy-main-*,proxy-ssl-*"
+INDEX_TEMPLATE_PATTERNS="proxy-main-*,proxy-ssl-*"      # Cloud 사용 시 ,proxy-cloud-* 가 추가됩니다
 ILM_DELETE_MIN_AGE="90d"
 ILM_APPLY_TO_EXISTING="true"
 ILM_EXISTING_INDEX_PATTERNS="proxy-main-*,proxy-ssl-*"

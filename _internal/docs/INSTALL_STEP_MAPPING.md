@@ -16,8 +16,9 @@
 | Logstash 설치 / enable | `INSTALL_LOGSTASH`, `ENABLE_SERVICES_ON_BOOT` |
 | MAIN `/home/main_process/*.log.gz` | `PROXYSG_MAIN_PROCESS_DIR`, `PROXYSG_FILE_GLOB` |
 | SSL `/home/ssl_process/*.log.gz` | `PROXYSG_SSL_PROCESS_DIR`, `PROXYSG_FILE_GLOB` |
+| (선택) Cloud `/home/cloud_process/*.log.gz` | `PROXYSG_CLOUD_ENABLED`, `PROXYSG_CLOUD_PROCESS_DIR`, `PROXYSG_FILE_GLOB` |
 | Logstash `mode => read` / 처리 후 delete | `proxysg` 프로필에서 자동 생성 |
-| `sincedb-main`, `sincedb-ssl` | `PROXYSG_MAIN_SINCEDB`, `PROXYSG_SSL_SINCEDB` |
+| `sincedb-main`, `sincedb-ssl`, (선택) `sincedb-cloud` | `PROXYSG_MAIN_SINCEDB`, `PROXYSG_SSL_SINCEDB`, `PROXYSG_CLOUD_SINCEDB` |
 | `discover_interval => 5`, `max_open_files => 1000` | ProxySG Logstash 변수로 반영 |
 | vsftpd 설치 | `INSTALL_FTP_SERVER=true` |
 | `elkftp` 계정 | `FTP_USER=elkftp`; 비밀번호 자동생성 가능 |
