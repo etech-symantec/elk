@@ -2108,6 +2108,17 @@ EOF_HEALTH_ROTATE
 fi
 systemctl daemon-reload
 
+# ----------------------------- partial patch tool -----------------------------
+# v2.9.4: 설치 후 일부 값만 바꿔 적용하는 도구를 서버에 남겨 둔다. (사용법: sudo elk-patch --list)
+if [[ -f "$SCRIPT_DIR/elk-patch.sh" && -f "$SCRIPT_DIR/proxysg-lib.sh" ]]; then
+  install -d -m 755 /usr/local/lib/elk-auto
+  install -m 755 "$SCRIPT_DIR/elk-patch.sh" /usr/local/sbin/elk-patch
+  install -m 644 "$SCRIPT_DIR/proxysg-lib.sh" /usr/local/lib/elk-auto/proxysg-lib.sh
+  if [[ -f "$SCRIPT_DIR/proxysg-log-filter.conf" ]]; then install -m 644 "$SCRIPT_DIR/proxysg-log-filter.conf" /usr/local/lib/elk-auto/proxysg-log-filter.conf; fi
+  if [[ -s "$SCRIPT_DIR/custom-pipeline.conf" ]]; then install -m 644 "$SCRIPT_DIR/custom-pipeline.conf" /usr/local/lib/elk-auto/custom-pipeline.conf; else rm -f /usr/local/lib/elk-auto/custom-pipeline.conf; fi
+  log "부분 패치 도구 설치: /usr/local/sbin/elk-patch  (예: sudo elk-patch --list)"
+fi
+
 # ----------------------------- snapshots -----------------------------
 overall_progress 91 "Snapshot / SLM 구성"
 if istrue "$INSTALL_ELASTICSEARCH" && istrue "$SNAPSHOT_REPO_ENABLED"; then

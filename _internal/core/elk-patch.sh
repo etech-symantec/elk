@@ -3,7 +3,7 @@
 #
 #   sudo bash elk-patch.sh --set patch.env [--lib DIR] [--env /etc/elk-auto/elk.env] [--dry-run] [--yes]
 #   sudo bash elk-patch.sh [옵션] KEY='값' [KEY='값' ...]
-#   bash elk-patch.sh --list            # 패치할 수 있는 항목과 적용 방식
+#   bash elk-patch.sh --list            # 패치할 수 있는 항목과 적용 방식  (설치기가 설치한 서버에서는 `sudo elk-patch ...` 로도 실행)
 #
 # 하는 일: ① 허용된 항목만 검사 → ② elk.env 백업 후 해당 값만 수정 → ③ 영향받는 부분만 적용
 #   cron 시간 · ILM 보존기간 · Logstash pipeline(로그 포맷/Cloud 등) · Index Template 패턴 · Data View · 폴더
@@ -13,7 +13,9 @@ IFS=$'\n\t'
 
 PATCH_VERSION="1"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
-LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 도구 파일(proxysg-lib.sh 등)은 이 스크립트 옆에 있으면 그것을, 없으면 설치기가 넣어 둔 /usr/local/lib/elk-auto 를 사용
+if [[ -f "$_SELF_DIR/proxysg-lib.sh" ]]; then LIB_DIR="$_SELF_DIR"; else LIB_DIR="${ELK_PATCH_LIB_DIR:-/usr/local/lib/elk-auto}"; fi
 CRON_DIR="${ELK_CRON_DIR:-/etc/cron.d}"
 BACKUP_ROOT="${ELK_PATCH_BACKUP_DIR:-/var/backups/elk-auto}"
 LOGSTASH_BIN="${ELK_LOGSTASH_BIN:-/usr/share/logstash/bin/logstash}"
@@ -87,6 +89,7 @@ declare -A NEWV=(); declare -a ORDER=()
 add_kv() {
   local k="${1%%=*}" v="${1#*=}"
   [[ "$k" =~ ^[A-Z][A-Z0-9_]*$ ]] || die "항목 이름이 올바르지 않습니다: $k"
+  [[ "$v" != *$'\n'* && "$v" != *$'\r'* ]] || die "$k : 값은 한 줄이어야 합니다. (줄바꿈이 들어 있습니다)"
   if [[ "$v" == \'*\' && ${#v} -ge 2 ]]; then v="${v:1:${#v}-2}"; v="${v//\'\\\'\'/\'}"; fi
   [[ -n "${NEWV[$k]+x}" ]] || ORDER+=("$k")
   NEWV[$k]="$v"
@@ -191,7 +194,7 @@ set_env_value() {
 restore_env() { cp -p "$BK/elk.env" "$ENV_FILE"; }
 for k in "${ORDER[@]}"; do set_env_value "$k" "${NEWV[$k]}"; printf -v "$k" '%s' "${NEWV[$k]}"; done
 chmod 600 "$ENV_FILE"
-log "elk.env 수정 완료: ${ORDER[*]}"
+log "elk.env 수정 완료: $(IFS=' '; printf '%s' "${ORDER[*]}")"
 
 # ---------------------------------------------------------------- ES / Kibana 접속
 ES_LOCAL_URL=""
