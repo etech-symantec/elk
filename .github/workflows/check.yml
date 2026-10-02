@@ -18,3 +18,5 @@ jobs:
           node --check /tmp/wizard.js
       - name: Admin defaults file (wizard-defaults.js) is valid
         run: python3 tools/gen_defaults.py --check
+      - name: Patch tool library generates the same pipeline as the installer
+        run: bash tools/check_patch_lib.sh
