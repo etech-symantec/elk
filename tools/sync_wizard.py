@@ -26,10 +26,17 @@ EMBEDDED = {
     'custom-filter.example.conf': '_internal/examples/custom-filter.example.conf',
     'mapping.example.json':       '_internal/examples/mapping.example.json',
 }
+# 부분 패치 파일(.sh) 생성에 쓰는 도구: Wizard 내부 이름 -> 저장소 경로
+PATCH = {
+    'elk-patch.sh':   '_internal/core/elk-patch.sh',
+    'proxysg-lib.sh': '_internal/core/proxysg-lib.sh',
+}
 # ZIP에만 들어가는 파일: 저장소 경로 -> 권한(8진수 문자열)
 EXTRA = {
     'run-remote-deploy.cmd':                         '644',
     '_internal/tools/run-remote-deploy.ps1':         '644',
+    '_internal/core/elk-patch.sh':                   '755',
+    '_internal/core/proxysg-lib.sh':                 '644',
     '_internal/tools/open-config-gui.cmd':           '644',
     '_internal/tools/open-config-gui.sh':            '755',
     '_internal/tools/diagnose-logstash-version.sh':  '755',
@@ -79,6 +86,9 @@ def build(text):
     # 1) 단일 설치 파일에 내장되는 파일
     j, k = find_obj(text, 'const EMBEDDED_FILES=')
     text = text[:j] + dumps({n: b64(p) for n, p in EMBEDDED.items()}) + text[k:]
+    # 1-1) 부분 패치 도구
+    j, k = find_obj(text, 'const PATCH_FILES=')
+    text = text[:j] + dumps({n: b64(p) for n, p in PATCH.items()}) + text[k:]
     # 2) ZIP 경로 매핑
     j, k = find_obj(text, 'const EMBEDDED_PATHS=')
     text = text[:j] + dumps(EMBEDDED) + text[k:]

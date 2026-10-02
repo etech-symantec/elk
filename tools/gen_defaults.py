@@ -43,7 +43,7 @@ def load_wizard():
     a, b = find_obj(sc, 'const DATA=')
     D = json.loads(sc[a:b])
     # 빠른 설정 초기값(initialPreset)과 배포 기본값(reset) — 파일이 없을 때의 내장 동작
-    m = re.search(r"function initialPreset\(\)\{reset\(\);(?:for\(const k of Object\.keys\(FILE_EDITS\)\)delete FILE_EDITS\[k\];)?Object\.assign\(values,\{(.*?)\}\);", sc, re.S)
+    m = re.search(r"function initialPreset\(\)\{reset\(\);(?:for\(const k of Object\.keys\(FILE_EDITS\)\)delete FILE_EDITS\[k\];)?(?:if\(typeof PATCH_MANUAL!=='undefined'&&PATCH_MANUAL\)\{[^}]*\})?Object\.assign\(values,\{(.*?)\}\);", sc, re.S)
     preset = dict(re.findall(r"([A-Z0-9_]+):'([^']*)'", m.group(1)))
     r = re.search(r"deployValues=\{host:'([^']*)',user:'([^']*)',password:'',sudoSame:(true|false),sudoPassword:'',port:'([^']*)',remoteDir:'([^']*)',autoInstall:(true|false),removeAfter:(true|false)\}", sc)
     deploy = {'host': r.group(1), 'user': r.group(2), 'port': r.group(4), 'remoteDir': r.group(5),
