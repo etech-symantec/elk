@@ -1143,8 +1143,6 @@ function showView(v){
   document.getElementById('nav-calc').classList.toggle('active', v === 'calc');
   document.getElementById('nav-conf').classList.toggle('active', v === 'conf');
   document.getElementById('nav-wizard').classList.toggle('active', v === 'wizard');
-  // 자동 구성 화면은 입력 카드가 많아 본문 폭을 넓힙니다.
-  document.querySelector('.layout').classList.toggle('wide', v === 'wizard');
   if(v === 'wizard') openWizardFrame();
   window.scrollTo({top:0});
 }
@@ -1160,6 +1158,9 @@ function fitWizardFrame(){
   if(!f || f.offsetParent === null) return;          // 숨겨져 있으면 계산하지 않음
   const top = f.getBoundingClientRect().top + window.scrollY;
   f.style.height = Math.max(520, window.innerHeight - top - 16) + 'px';
+  // 바깥 페이지에 남는 세로 스크롤(여백만큼)을 없애 스크롤 영역이 iframe 안쪽 하나만 되도록 합니다.
+  const over = document.documentElement.scrollHeight - window.innerHeight;
+  if(over > 0){ const h = parseFloat(f.style.height) - over; if(h >= 520) f.style.height = h + 'px'; }
 }
 window.addEventListener('resize', fitWizardFrame);
 

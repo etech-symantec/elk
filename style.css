@@ -43,7 +43,7 @@
 
 .btn.ghost{background:transparent; color:var(--pri); border:1px solid #bfdbfe; box-shadow:none}
 /* 좌측 미니 메뉴 + 본문 레이아웃 */
-.layout{display:flex; align-items:flex-start; gap:14px; max-width:1200px; margin:0 auto 32px auto; padding:24px 24px 0 24px;}
+.layout{display:flex; align-items:flex-start; gap:14px; max-width:1560px; margin:0 auto 32px auto; padding:24px 24px 0 24px;}
 main{font-size:12.3px; flex:1; min-width:0; display:flex; flex-direction:column; gap:18px;}
 .card{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:var(--pad)}
 .title{font-weight:700; margin:0 0 8px 0}
@@ -427,5 +427,4 @@ details > summary::-webkit-details-marker{display:none}
 .side-btn.active{background:#1e293b; color:#fff; border-color:#1e293b}
 
 /* ── ELK 자동 구성 (Config Wizard) 화면 ── */
-.layout.wide{max-width:1560px}
 #wizard-frame{display:block; width:100%; height:calc(100vh - 160px); min-height:520px; border:1px solid #cbd5e1; border-radius:14px; background:#fff; box-shadow:var(--shadow)}

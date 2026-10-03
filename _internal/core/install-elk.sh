@@ -365,6 +365,7 @@ unset _old_name _new_name
 
 : "${UFW_MANAGE:=false}"
 : "${UFW_ENABLE_IF_INACTIVE:=false}"
+: "${UFW_ADD_RULES_IF_ACTIVE:=true}"
 : "${UFW_KIBANA_ALLOWED_CIDRS:=}"
 : "${UFW_NGINX_ALLOWED_CIDRS:=}"
 : "${UFW_ELASTICSEARCH_ALLOWED_CIDRS:=}"
@@ -954,6 +955,7 @@ if [[ "$RUN_MODE" == "--validate" || "$RUN_MODE" == "validate" ]]; then
   Backup compression : $FILE_INGEST_PLAIN_BACKUP_COMPRESSION
   Health monitor     : $HEALTH_MONITOR_ENABLED / $HEALTH_MONITOR_INTERVAL
   Root LVM extend    : $OS_EXTEND_ROOT_LVM
+  UFW manage         : $UFW_MANAGE (add rules if UFW already active: $UFW_ADD_RULES_IF_ACTIVE)
 VALID
   exit 0
 fi
@@ -2259,49 +2261,73 @@ fi
 
 # ----------------------------- firewall -----------------------------
 overall_progress 95 "UFW 방화벽 구성"
+# v2.9.4: UFW 규칙 추가는 두 경우에 한다.
+#   1) UFW_MANAGE=true                          : ufw 설치 → 규칙 추가 → (UFW_ENABLE_IF_INACTIVE 이면) 활성화  (예전과 같음)
+#   2) UFW_MANAGE=false 이지만 UFW 가 "이미 켜져 있고" UFW_ADD_RULES_IF_ACTIVE=true : 설치한 서비스에 필요한 포트만 허용 규칙으로 추가
+#      → UFW 를 설치/활성화/비활성화하거나 기본 정책·기존 규칙을 바꾸지 않는다. (켜져 있는 방화벽 때문에 Kibana/FTP 등에 접속이 안 되는 것을 막기 위함)
+# 규칙 하나가 실패해도(잘못된 대역 등) 설치는 계속하고 경고만 남긴다.
+UFW_RULES_ADDED=0; UFW_RULES_FAILED=0
 ufw_allow_list() {
-  local csv="$1" port="$2" proto="${3:-tcp}" item
-  [[ -n "$csv" ]] || return 0
-  IFS=',' read -ra arr <<< "$csv"
+  local csv="$1" port="$2" proto="${3:-tcp}" what="${4:-}" item
+  if [[ -z "${csv//[[:space:]]/}" ]]; then warn "UFW 허용 대역이 비어 있어 ${what:+$what }${port}/${proto} 규칙을 추가하지 않았습니다. (해당 서비스에 외부에서 접속할 수 없습니다)"; return 0; fi
+  local -a arr; IFS=',' read -ra arr <<< "$csv"
   for item in "${arr[@]}"; do
     item="$(echo "$item" | xargs)"
     [[ -n "$item" ]] || continue
-    ufw allow from "$item" to any port "$port" proto "$proto" >/dev/null
+    if [[ "${item,,}" == "any" || "${item,,}" == "anywhere" ]]; then
+      if LC_ALL=C ufw allow to any port "$port" proto "$proto" >/dev/null 2>&1; then UFW_RULES_ADDED=$((UFW_RULES_ADDED+1)); log "UFW 허용: 모든 주소 → ${what:+$what }${port}/${proto}"; else UFW_RULES_FAILED=$((UFW_RULES_FAILED+1)); warn "UFW 규칙 추가 실패: any → ${port}/${proto}"; fi
+    elif LC_ALL=C ufw allow from "$item" to any port "$port" proto "$proto" >/dev/null 2>&1; then
+      UFW_RULES_ADDED=$((UFW_RULES_ADDED+1)); log "UFW 허용: ${item} → ${what:+$what }${port}/${proto}"
+    else
+      UFW_RULES_FAILED=$((UFW_RULES_FAILED+1)); warn "UFW 규칙 추가 실패(허용 대역 형식을 확인하세요): ${item} → ${port}/${proto}"
+    fi
   done
+  return 0
 }
+ufw_apply_rules() {
+  local item
+  if istrue "$INSTALL_NGINX"; then
+    ufw_allow_list "$UFW_NGINX_ALLOWED_CIDRS" "$NGINX_HTTP_PORT" tcp "Nginx HTTP"
+    ufw_allow_list "$UFW_NGINX_ALLOWED_CIDRS" "$NGINX_HTTPS_PORT" tcp "Nginx HTTPS"
+  else
+    ufw_allow_list "$UFW_KIBANA_ALLOWED_CIDRS" "$KIBANA_SERVER_PORT" tcp "Kibana"
+  fi
+  ufw_allow_list "$UFW_ELASTICSEARCH_ALLOWED_CIDRS" "$ES_HTTP_PORT" tcp "Elasticsearch"
+  if istrue "$LS_TCP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_TCP_PORT" tcp "Logstash TCP"; fi
+  if istrue "$LS_UDP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_UDP_PORT" udp "Logstash UDP"; fi
+  if istrue "$LS_SYSLOG_ENABLED"; then
+    ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_SYSLOG_PORT" tcp "Logstash Syslog"
+    ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_SYSLOG_PORT" udp "Logstash Syslog"
+  fi
+  if istrue "$LS_BEATS_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_BEATS_PORT" tcp "Logstash Beats"; fi
+  if istrue "$LS_HTTP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_HTTP_PORT" tcp "Logstash HTTP"; fi
+  if istrue "$INSTALL_FTP_SERVER"; then
+    ufw_allow_list "$UFW_FTP_ALLOWED_CIDRS" "$FTP_LISTEN_PORT" tcp "FTP"
+    if istrue "$FTP_PASV_ENABLE" && [[ "$FTP_PASV_MIN_PORT" != "$FTP_PASV_MAX_PORT" ]]; then
+      ufw_allow_list "$UFW_FTP_ALLOWED_CIDRS" "${FTP_PASV_MIN_PORT}:${FTP_PASV_MAX_PORT}" tcp "FTP 패시브"
+    elif istrue "$FTP_PASV_ENABLE"; then
+      ufw_allow_list "$UFW_FTP_ALLOWED_CIDRS" "$FTP_PASV_MIN_PORT" tcp "FTP 패시브"
+    fi
+  fi
+  if (( UFW_RULES_FAILED > 0 )); then warn "UFW 허용 규칙: ${UFW_RULES_ADDED}개 추가, ${UFW_RULES_FAILED}개 실패"; else log "UFW 허용 규칙 ${UFW_RULES_ADDED}개 적용 완료"; fi
+}
+ufw_is_active() { command -v ufw >/dev/null 2>&1 && LC_ALL=C ufw status 2>/dev/null | grep -q '^Status: active'; }
 
 if istrue "$UFW_MANAGE"; then
   apt_install_progress "UFW" ufw
-  if istrue "$INSTALL_NGINX"; then
-    ufw_allow_list "$UFW_NGINX_ALLOWED_CIDRS" "$NGINX_HTTP_PORT" tcp
-    ufw_allow_list "$UFW_NGINX_ALLOWED_CIDRS" "$NGINX_HTTPS_PORT" tcp
-  else
-    ufw_allow_list "$UFW_KIBANA_ALLOWED_CIDRS" "$KIBANA_SERVER_PORT" tcp
-  fi
-  ufw_allow_list "$UFW_ELASTICSEARCH_ALLOWED_CIDRS" "$ES_HTTP_PORT" tcp
-  if istrue "$LS_TCP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_TCP_PORT" tcp; fi
-  if istrue "$LS_UDP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_UDP_PORT" udp; fi
-  if istrue "$LS_SYSLOG_ENABLED"; then
-    ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_SYSLOG_PORT" tcp
-    ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_SYSLOG_PORT" udp
-  fi
-  if istrue "$LS_BEATS_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_BEATS_PORT" tcp; fi
-  if istrue "$LS_HTTP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_HTTP_PORT" tcp; fi
-  if istrue "$INSTALL_FTP_SERVER"; then
-    ufw_allow_list "$UFW_FTP_ALLOWED_CIDRS" "$FTP_LISTEN_PORT" tcp
-    if istrue "$FTP_PASV_ENABLE" && [[ "$FTP_PASV_MIN_PORT" != "$FTP_PASV_MAX_PORT" ]]; then
-      IFS=',' read -ra ftp_cidrs <<< "$UFW_FTP_ALLOWED_CIDRS"
-      for item in "${ftp_cidrs[@]}"; do
-        item="$(echo "$item" | xargs)"; [[ -n "$item" ]] || continue
-        ufw allow from "$item" to any port "${FTP_PASV_MIN_PORT}:${FTP_PASV_MAX_PORT}" proto tcp >/dev/null
-      done
-    elif istrue "$FTP_PASV_ENABLE"; then
-      ufw_allow_list "$UFW_FTP_ALLOWED_CIDRS" "$FTP_PASV_MIN_PORT" tcp
-    fi
-  fi
-  if istrue "$UFW_ENABLE_IF_INACTIVE" && ufw status | grep -q 'Status: inactive'; then
+  ufw_apply_rules
+  if istrue "$UFW_ENABLE_IF_INACTIVE" && LC_ALL=C ufw status | grep -q 'Status: inactive'; then
     ufw --force enable
   fi
+elif istrue "$UFW_ADD_RULES_IF_ACTIVE" && ufw_is_active; then
+  log "UFW가 이미 켜져 있습니다. (UFW_MANAGE=false) 설치한 서비스에 필요한 포트만 허용 규칙으로 추가합니다. UFW의 활성 상태·기본 정책·기존 규칙은 바꾸지 않습니다."
+  ufw_apply_rules
+elif ! istrue "$UFW_ADD_RULES_IF_ACTIVE"; then
+  log "UFW 규칙을 건드리지 않습니다. (UFW_MANAGE=false, UFW_ADD_RULES_IF_ACTIVE=false) UFW를 쓰는 서버라면 필요한 포트를 직접 허용하세요."
+elif command -v ufw >/dev/null 2>&1; then
+  log "UFW가 꺼져 있어 방화벽 규칙을 추가하지 않습니다. (UFW_MANAGE=false)"
+else
+  log "UFW가 설치되어 있지 않아 방화벽 규칙을 추가하지 않습니다. (UFW_MANAGE=false)"
 fi
 
 # ----------------------------- health & data view -----------------------------
