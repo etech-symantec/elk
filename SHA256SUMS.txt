@@ -9,7 +9,7 @@ d3236c3007e7fae32ab3e1de0af160253fe42a961664bf6a028e55be4dfbde2c  ./_internal/co
 5f6f5e2d9a15975b43b87e32d7dbeea2754a5d134d896e645c493ebe54c73de4  ./_internal/core/proxysg-lib.sh
 839868055b922824a0e04123584d4dce7f93b47f5b6e251d4bbcd07e2f5d8c99  ./_internal/core/proxysg-log-filter.conf
 211edd85f8ba405b117938aea7bbf2794a3caed7fd38e54caf40663563e00f37  ./_internal/core/proxysg-log-process.sh
-62b19b7fd4a7d8707ecf8e9105ed20b1c310ae9a380452ed682c6a8fc7f5af0d  ./_internal/docs/CHANGELOG.md
+af9d8961014706818868b6685c6144e83f06ac3d26ee63d7f87ac4c2d3cac47e  ./_internal/docs/CHANGELOG.md
 47be5254601bf0ca98f0b905974598b875eb988503d7408bb6ef5b1e7ba866e7  ./_internal/docs/INSTALL_STEP_MAPPING.md
 5261df5d2b36b68ea16b684e5d403b46bafffda3545f73e7995ad488eae98064  ./_internal/docs/README.md
 01a5e9fea8b161cb6a13b869c4b927459b3639c401bdef3a69036206683bbe24  ./_internal/docs/VERSION
@@ -22,5 +22,5 @@ e32409ee26c4e59fcfe3edaf548ab089d60c7ae86a51ce532c956269e7543f6f  ./_internal/ex
 40f283f1d2eae015a41c97e121d96ccbb064b8214e374c3298b63ef1cd147a0d  ./_internal/tools/open-config-gui.cmd
 a3a2f775905dd44e8cf46efc8b1371e67de91f7e6a9495c2133ae2bf19a84ab3  ./_internal/tools/open-config-gui.sh
 3874d90eb96019f8eb8eab6ba237c25e267de71400aa3cccd41346630e0d8480  ./_internal/tools/run-remote-deploy.ps1
-37e20546623272c6d8b5d5d31447ae4dc57fb972b5f61797482553c2f6cc4603  ./config-wizard.html
+15024a04aaecd0b8d088b8adf3f92d958f9979a69e718bb7476435554c378cf8  ./config-wizard.html
 89018ec01b9b4fb61ab8788e9153acb55f4d2c215e933d21d96efa658d91e5c2  ./run-remote-deploy.cmd
