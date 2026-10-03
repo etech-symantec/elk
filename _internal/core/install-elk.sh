@@ -58,6 +58,7 @@ unset _old_name _new_name
 : "${DISABLE_SWAP:=true}"
 : "${VM_MAX_MAP_COUNT:=1048576}"
 : "${SYSTEM_SWAPPINESS:=1}"
+: "${OS_EXTEND_ROOT_LVM:=true}"
 : "${INSTALL_LOG:=/var/log/elk-auto-install.log}"
 : "${STATE_DIR:=/root/.elk-auto-installer}"
 : "${SECRETS_FILE:=${STATE_DIR}/secrets.env}"
@@ -391,14 +392,59 @@ if [[ -t 1 ]]; then
   fi
 fi
 
-exec > >(tee -a "$INSTALL_LOG") 2>&1
+# >>> elk-color-wiring (start)
+# v2.9.4: 화면 출력만 색을 입힌다. 로그 파일($INSTALL_LOG)에는 색 없는 글자만 남는다.
+#   ELK_COLOR=auto(기본: 터미널일 때만)|always|never, NO_COLOR=1 이면 끔
+if [[ -f "$SCRIPT_DIR/elk-color.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$SCRIPT_DIR/elk-color.sh"
+else
+  ELK_COLOR_ON=0
+  elk_color_init() { :; }
+  elk_paint_stream() { cat; }
+  elk_legend() { :; }
+  elk_banner() { local kind="$1" title="$2" bar g=""; shift 2; [[ "$kind" == ok ]] && g="✔ "; [[ "$kind" == fail ]] && g="✖ "; bar="$(printf '%*s' 79 '')"; if [[ "$kind" == fail ]]; then bar="${bar// /!}"; else bar="${bar// /=}"; fi; echo "$bar"; echo " ${g}${title}"; local l; for l in "$@"; do echo " $l"; done; echo "$bar"; }
+fi
+elk_color_init
+elk_legend          # 색 안내는 화면에만 한 번 보여 준다(로그 파일에는 남기지 않음)
+if (( ELK_COLOR_ON )); then
+  exec > >(tee -a "$INSTALL_LOG" | elk_paint_stream) 2>&1
+  ELK_STREAM_PAINTED=1
+else
+  exec > >(tee -a "$INSTALL_LOG") 2>&1
+fi
+# <<< elk-color-wiring (end)
 
 # ----------------------------- helpers -----------------------------
 _ts() { date '+%Y-%m-%d %H:%M:%S'; }
 log()  { echo "[$(_ts)] [INFO] $*"; }
 warn() { echo "[$(_ts)] [WARN] $*"; }
-die()  { echo "[$(_ts)] [ERROR] $*" >&2; exit 1; }
+die()  { _ELK_LAST_ERROR="$*"; echo "[$(_ts)] [ERROR] $*" >&2; exit 1; }
+ok_msg() { echo "[$(_ts)] [OK] $*"; }
 istrue() { [[ "${1,,}" =~ ^(1|true|yes|y|on)$ ]]; }
+
+# >>> elk-fail-banner (start)
+# v2.9.4: 설치가 중간에 끝나면(die 또는 예상 못 한 명령 실패) 빨간 실패 상자로 원인/로그 위치/다음 조치를 보여 준다.
+ELK_DONE=0; _ELK_LAST_ERROR=""; _ELK_ERR_CMD=""; _ELK_ERR_LINE=""; _ELK_ERR_FN=""
+trap '_ELK_ERR_LINE="$LINENO"; _ELK_ERR_CMD="$BASH_COMMAND"; _ELK_ERR_FN="${FUNCNAME[*]:-}"' ERR
+_elk_on_exit() {
+  local rc="$1" why=""
+  trap - EXIT ERR
+  if (( rc != 0 && ELK_DONE == 0 )); then
+    why="$_ELK_LAST_ERROR"
+    if [[ -z "$why" ]]; then
+      local fn="${_ELK_ERR_FN//$'\n'/ }"; fn="${fn//$'\t'/ }"; fn="${fn// / ← }"; fn="${fn% ← main}"; [[ "$fn" == "main" ]] && fn=""
+      why="명령 실패: ${_ELK_ERR_CMD:-알 수 없음} (install-elk.sh ${_ELK_ERR_LINE:-?}번째 줄${fn:+, 함수 $fn})"
+    fi
+    elk_banner fail "ELK 설치 실패 (종료 코드 $rc)" "원인: ${why:0:300}" "로그: $INSTALL_LOG" "다음 조치: 위 [ERROR] 줄과 바로 앞 로그를 확인한 뒤 같은 설치 파일을 다시 실행하세요. (다시 실행해도 안전합니다)"
+    sleep 0.4
+  elif (( ELK_DONE == 1 )); then
+    sleep 0.4
+  fi
+  exit "$rc"
+}
+trap '_elk_on_exit $?' EXIT
+# <<< elk-fail-banner (end)
 
 
 progress_tty() {
@@ -907,9 +953,44 @@ if [[ "$RUN_MODE" == "--validate" || "$RUN_MODE" == "validate" ]]; then
   File ingest mgr    : $FILE_INGEST_MANAGER_ENABLED / $FILE_INGEST_SOURCE_DIRS
   Backup compression : $FILE_INGEST_PLAIN_BACKUP_COMPRESSION
   Health monitor     : $HEALTH_MONITOR_ENABLED / $HEALTH_MONITOR_INTERVAL
+  Root LVM extend    : $OS_EXTEND_ROOT_LVM
 VALID
   exit 0
 fi
+
+
+# ---- v2.9.4: Ubuntu 설치 때 LVM 볼륨 그룹에 남아 있는 공간을 루트(/)에 모두 할당 ---------------------------
+# Ubuntu Server 기본 LVM 설치는 디스크 일부만 루트 LV에 할당합니다. (나머지는 VG의 미할당 공간으로 남음)
+# 수동 명령:  sudo lvextend -l +100%FREE -r /dev/mapper/ubuntu--vg-ubuntu--lv
+# 안전 규칙: 루트(/)가 일반 LVM 볼륨일 때만 확장하고, LVM이 아니거나 thin 볼륨이거나 남는 공간이 없으면 건너뜁니다.
+#            확장이 실패해도 설치는 계속합니다(경고만). 이미 모두 할당된 서버에서 다시 실행해도 아무 일도 하지 않습니다.
+extend_root_lvm() {
+  local IFS=' '
+  local src fstype info vg lv attr free_b size_before size_after
+  if ! istrue "${OS_EXTEND_ROOT_LVM:-true}"; then log "루트 디스크 자동 확장: 사용 안 함 (OS_EXTEND_ROOT_LVM=false)"; return 0; fi
+  command -v findmnt >/dev/null 2>&1 || { log "루트 디스크 확장 건너뜀: findmnt 명령이 없습니다."; return 0; }
+  src="$(findmnt -n -o SOURCE / 2>/dev/null || true)"; fstype="$(findmnt -n -o FSTYPE / 2>/dev/null || true)"
+  if [[ -z "$src" || "$src" != /dev/* ]]; then log "루트 디스크 확장 건너뜀: 루트 장치를 확인할 수 없습니다. (${src:-unknown})"; return 0; fi
+  if ! command -v lvs >/dev/null 2>&1 || ! command -v vgs >/dev/null 2>&1 || ! command -v lvextend >/dev/null 2>&1; then
+    log "루트 디스크 확장 건너뜀: LVM 도구(lvm2)가 없습니다. (LVM 구성이 아닌 서버)"; return 0
+  fi
+  info="$(lvs --noheadings --separator '|' -o vg_name,lv_name,lv_attr "$src" 2>/dev/null | tr -d ' ' | head -n1 || true)"
+  if [[ -z "$info" || "$info" != *"|"*"|"* ]]; then log "루트 디스크 확장 건너뜀: 루트(/)가 LVM 볼륨이 아닙니다. (장치 $src, 파일시스템 ${fstype:-?})"; return 0; fi
+  vg="${info%%|*}"; lv="${info#*|}"; attr="${lv#*|}"; lv="${lv%%|*}"
+  if [[ "${attr:0:1}" == "V" || "${attr:0:1}" == "t" ]]; then log "루트 디스크 확장 건너뜀: thin 볼륨은 자동 확장 대상이 아닙니다. ($vg/$lv)"; return 0; fi
+  free_b="$(vgs --noheadings --units b --nosuffix -o vg_free "$vg" 2>/dev/null | tr -d ' ' | head -n1 || true)"
+  if [[ ! "$free_b" =~ ^[0-9]+$ ]]; then warn "루트 디스크 확장 건너뜀: VG 여유 공간을 읽을 수 없습니다. ($vg)"; return 0; fi
+  if (( free_b < 4194304 )); then log "루트 디스크 확장 불필요: VG($vg)에 남는 공간이 없습니다. (이미 모두 할당됨)"; return 0; fi
+  size_before="$(lvs --noheadings --units g --nosuffix -o lv_size "$src" 2>/dev/null | tr -d ' ' | head -n1 || true)"
+  log "루트 LV 확장: $src  (VG $vg 여유 $(( free_b / 1048576 )) MiB 전부 할당, 파일시스템 ${fstype:-?} 함께 확장)"
+  if lvextend -l +100%FREE -r "$src"; then
+    size_after="$(lvs --noheadings --units g --nosuffix -o lv_size "$src" 2>/dev/null | tr -d ' ' | head -n1 || true)"
+    log "루트 LV 확장 완료: ${size_before:-?} GiB → ${size_after:-?} GiB"
+  else
+    warn "루트 LV 확장에 실패했습니다. 설치는 계속합니다. 직접 실행: sudo lvextend -l +100%FREE -r $src"
+  fi
+  return 0
+}
 
 # ----------------------------- OS -----------------------------
 log "환경파일: $ENV_FILE"
@@ -920,6 +1001,8 @@ log "설치 로그: $INSTALL_LOG"
 source /etc/os-release
 [[ "${ID:-}" == "ubuntu" ]] || warn "Ubuntu가 아닌 OS입니다: ${PRETTY_NAME:-unknown}. 설치는 계속하지만 검증 범위 밖입니다."
 log "OS: ${PRETTY_NAME:-unknown}"
+
+extend_root_lvm
 
 if istrue "$SET_HOSTNAME"; then
   log "Hostname 설정: $SYSTEM_HOSTNAME"
@@ -2294,7 +2377,7 @@ server_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
 cat <<RESULT
 
 ===============================================================================
- ELK Auto Installer 완료
+ ✔ ELK 설치 완료
 ===============================================================================
  Hostname              : $(hostname)
  Elasticsearch         : $(systemctl is-active elasticsearch 2>/dev/null || echo n/a)
@@ -2349,4 +2432,5 @@ if istrue "$LS_BEATS_ENABLED"; then echo " Logstash Beats Input   : ${server_ip}
 if istrue "$LS_HTTP_ENABLED"; then echo " Logstash HTTP Input    : ${server_ip}:${LS_HTTP_PORT}"; fi
 
 echo
-log "완료"
+ELK_DONE=1
+ok_msg "ELK 설치가 모두 완료되었습니다. (로그: $INSTALL_LOG)"

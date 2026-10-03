@@ -388,6 +388,10 @@ window.ELK_DEFAULTS = {
     PROXYSG_CLOUD_INDEX_PREFIX: "proxy-cloud",                // Cloud 인덱스 Prefix
     PROXYSG_CLOUD_DATA_VIEW_NAME: "cloud",                    // Cloud Data View 이름
 
+
+    // ───── 새로 추가된 항목 (tools/gen_defaults.py) ─────
+    OS_EXTEND_ROOT_LVM: true,                                 // 설치 전 루트(/) 디스크 자동 확장 (LVM)  [true | false]
+
     // (비밀번호·암호화 키 항목은 이 파일에서 지정할 수 없습니다: ELASTIC_PASSWORD, KIBANA_SECURITY_ENCRYPTION_KEY, KIBANA_REPORTING_ENCRYPTION_KEY, KIBANA_SAVED_OBJECTS_ENCRYPTION_KEY, KIBANA_INITIAL_USER_PASSWORD, LOGSTASH_ES_PASSWORD, FTP_PASSWORD)
   },
 

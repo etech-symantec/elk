@@ -9,6 +9,99 @@ $PackageRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $Unit = 'elk-oneclick-install.service'
 $ConsoleLog = '/var/log/elk-oneclick-console.log'
 
+# >>> elk-ps-color (start)
+# v2.9.4: screen colors.  Write-Host -ForegroundColor works in every console (no ANSI needed).
+#   Turn colors off with NO_COLOR=1 or ELK_COLOR=never (output redirected to a file never shows colors anyway).
+#   The remote install log is painted on the Ubuntu side with the same library the one-click installer uses (elk-color.sh);
+#   that part needs ANSI support in this console, so it is enabled only when the console supports it (see Get-RemoteColorMode).
+$script:ElkColor = $true
+if ($env:NO_COLOR -or $env:ELK_COLOR -eq 'never') { $script:ElkColor = $false }
+
+function Write-Elk {
+  param([string]$Level = 'INFO', [string]$Text = '')
+  if (-not $script:ElkColor) { Write-Host ('[{0}] {1}' -f $Level, $Text); return }
+  switch ($Level) {
+    'OK'    { Write-Host ' OK ' -NoNewline -ForegroundColor Black -BackgroundColor Green;     Write-Host (' ' + $Text) -ForegroundColor Green }
+    'ERROR' { Write-Host ' ERROR ' -NoNewline -ForegroundColor White -BackgroundColor Red;    Write-Host (' ' + $Text) -ForegroundColor Red }
+    'WARN'  { Write-Host ' WARN ' -NoNewline -ForegroundColor Black -BackgroundColor Yellow;  Write-Host (' ' + $Text) -ForegroundColor Yellow }
+    'DIAG'  { Write-Host ' DIAG ' -NoNewline -ForegroundColor White -BackgroundColor Magenta; Write-Host (' ' + $Text) }
+    default { Write-Host 'INFO' -NoNewline -ForegroundColor DarkGray;                          Write-Host (' ' + $Text) }
+  }
+}
+
+function Write-ElkStep {
+  param([string]$Text)
+  if ($script:ElkColor) { Write-Host $Text -ForegroundColor Cyan } else { Write-Host $Text }
+}
+
+# Boxes: ok = green (completion), fail = red (error), neutral = grey.  Plain text keeps the same shape (ASCII only).
+function Write-ElkBanner {
+  param([string]$Kind = 'neutral', [string]$Title = '', [string[]]$Lines = @())
+  $ch  = if ($Kind -eq 'fail') { '!' } else { '=' }
+  $bar = ($ch * 78)
+  $tag = switch ($Kind) { 'ok' { 'DONE   ' } 'fail' { 'FAILED ' } default { '' } }
+  if (-not $script:ElkColor) {
+    Write-Host $bar; Write-Host (' ' + $tag + $Title); foreach ($l in $Lines) { Write-Host (' ' + $l) }; Write-Host $bar
+    return
+  }
+  switch ($Kind) {
+    'ok'   { Write-Host $bar -ForegroundColor Green;   Write-Host (' ' + $tag + $Title + ' ') -ForegroundColor Black -BackgroundColor Green
+             foreach ($l in $Lines) { Write-Host (' ' + $l) }; Write-Host $bar -ForegroundColor Green }
+    'fail' { Write-Host $bar -ForegroundColor Red;     Write-Host (' ' + $tag + $Title + ' ') -ForegroundColor White -BackgroundColor Red
+             foreach ($l in $Lines) { Write-Host (' ' + $l) -ForegroundColor Red }; Write-Host $bar -ForegroundColor Red }
+    default { Write-Host $bar -ForegroundColor DarkCyan; Write-Host (' ' + $Title) -ForegroundColor White
+             foreach ($l in $Lines) { Write-Host (' ' + $l) }; Write-Host $bar -ForegroundColor DarkCyan }
+  }
+}
+
+function Enable-ConsoleVt {
+  # Classic Windows PowerShell 5.1 console: switch on ANSI escape processing. Returns $true when it is on.
+  try {
+    if (-not ('ElkWin.Con' -as [type])) {
+      Add-Type -Namespace ElkWin -Name Con -MemberDefinition @'
+[DllImport("kernel32.dll")] public static extern System.IntPtr GetStdHandle(int n);
+[DllImport("kernel32.dll")] public static extern bool GetConsoleMode(System.IntPtr h, out uint m);
+[DllImport("kernel32.dll")] public static extern bool SetConsoleMode(System.IntPtr h, uint m);
+'@
+    }
+    $h = [ElkWin.Con]::GetStdHandle(-11)
+    $m = [uint32]0
+    if (-not [ElkWin.Con]::GetConsoleMode($h, [ref]$m)) { return $false }
+    if (($m -band 4) -ne 0) { return $true }
+    return [ElkWin.Con]::SetConsoleMode($h, ($m -bor 4))
+  } catch { return $false }
+}
+
+function Get-RemoteColorMode {
+  if (-not $script:ElkColor) { return 'never' }
+  if ($env:ELK_COLOR -eq 'always') { return 'always' }
+  try { if ([Console]::IsOutputRedirected) { return 'never' } } catch { }
+  if ($env:WT_SESSION -or $env:ConEmuANSI -eq 'ON' -or $env:TERM_PROGRAM -or $PSVersionTable.PSVersion.Major -ge 7) { return 'always' }
+  if (Enable-ConsoleVt) { return 'always' }
+  return 'never'
+}
+
+function Get-ColorLibGzB64 {
+  # elk-color.sh (the color library shared with the installer) as gzip+base64, or '' when the file is not in the package.
+  $lib = Join-Path $PackageRoot '_internal\core\elk-color.sh'
+  if (-not (Test-Path -LiteralPath $lib)) { return '' }
+  try {
+    $raw = [IO.File]::ReadAllBytes($lib)
+    $ms = New-Object IO.MemoryStream
+    $gz = New-Object IO.Compression.GZipStream($ms, [IO.Compression.CompressionMode]::Compress)
+    $gz.Write($raw, 0, $raw.Length); $gz.Close()
+    return [Convert]::ToBase64String($ms.ToArray())
+  } catch { return '' }
+}
+
+function New-RemoteMonitorScript {
+  param([string]$LogPath, [string]$UnitName, [string]$ColorMode = 'never', [string]$LibGzB64 = '')
+  if ($LibGzB64) { $pre = 'eval "$(echo ' + $LibGzB64 + ' | base64 -d | gunzip -c)"; ELK_COLOR=' + $ColorMode + '; elk_color_init; ' }
+  else { $pre = 'elk_paint_stream() { cat; }; ' }
+  return $pre + 'LOG=' + "'$LogPath'" + '; UNIT=' + "'$UnitName'" + '; touch "$LOG"; tail -n +1 -F "$LOG" > >(elk_paint_stream) & TPID=$!; while :; do STATE=$(systemctl show -p ActiveState --value "$UNIT" 2>/dev/null || echo unknown); SUB=$(systemctl show -p SubState --value "$UNIT" 2>/dev/null || echo unknown); if [ "$STATE" = failed ] || [ "$SUB" = exited ] || [ "$STATE" = inactive ] || [ "$STATE" = unknown ]; then break; fi; sleep 2; done; kill "$TPID" 2>/dev/null || true; wait "$TPID" 2>/dev/null || true; sleep 1; RC=$(systemctl show -p ExecMainStatus --value "$UNIT" 2>/dev/null || echo 1); echo; echo "[REMOTE] state=$STATE/$SUB exit=$RC"; exit ${RC:-1}'
+}
+# <<< elk-ps-color (end)
+
 function Get-InstallerPath {
   param([string]$Requested)
   if ($Requested) {
@@ -231,25 +324,25 @@ function Show-SudoDiagnostics {
   # Password values are never printed here - only lengths / yes-no results.
   $enc = New-Object System.Text.UTF8Encoding($false)
   Write-Host
-  Write-Host '[DIAG] sudo authentication failed. Running diagnostics (password values are never printed).'
-  Write-Host ('[DIAG] Local sudo password length : {0} chars / {1} bytes (UTF-8)' -f $SudoPassword.Length, $enc.GetByteCount($SudoPassword))
+  Write-Elk 'DIAG' 'sudo authentication failed. Running diagnostics (password values are never printed).'
+  Write-Elk 'DIAG' ('Local sudo password length : {0} chars / {1} bytes (UTF-8)' -f $SudoPassword.Length, $enc.GetByteCount($SudoPassword))
 
   # 1) Is the stored SSH password really accepted? Key auth would hide a wrong password.
   if (-not [string]::IsNullOrEmpty($SshPassword)) {
     & $SshExe @Common -o PreferredAuthentications=password -o PubkeyAuthentication=no -T -p $Port $Target 'true'
-    if ($LASTEXITCODE -eq 0) { Write-Host '[DIAG] 1) SSH password-only login : OK (stored SSH password is valid)' }
-    else { Write-Host '[DIAG] 1) SSH password-only login : FAILED (stored password is NOT accepted; the earlier SSH OK probably came from a key)' }
+    if ($LASTEXITCODE -eq 0) { Write-Elk 'DIAG' '1) SSH password-only login : OK (stored SSH password is valid)' }
+    else { Write-Elk 'DIAG' '1) SSH password-only login : FAILED (stored password is NOT accepted; the earlier SSH OK probably came from a key)' }
   }
 
   # 2) What does the remote shell actually receive on stdin?
-  Write-Host '[DIAG] 2) Password as received by the remote shell (length only):'
+  Write-Elk 'DIAG' '2) Password as received by the remote shell (length only):'
   $probe = 'IFS= read -r p; case "$p" in *[![:print:]]*) np=yes;; *) np=no;; esac; echo "       remote_len=${#p} nonprintable=$np shell=$SHELL groups=$(id -nG)"'
   $probeArgs = @()
   $probeArgs += $Common
   $probeArgs += @('-T','-p',$Port,$Target,$probe)
   $null = Invoke-OpenSshWithInput -Exe $SshExe -Arguments $probeArgs -InputText ($SudoPassword + "`n") -TimeoutSeconds 20
 
-  Write-Host '[DIAG] How to read this:'
+  Write-Elk 'DIAG' 'How to read this:'
   Write-Host '       - remote_len != local length, or nonprintable=yes  -> password is altered in transit'
   Write-Host '       - password-only login FAILED                        -> the password stored in the SH is wrong'
   Write-Host '       - both fine, groups has sudo/admin                  -> Ubuntu sudo password really differs (or sudoers uses rootpw/targetpw)'
@@ -267,13 +360,13 @@ function Test-RemoteCredentials {
     [string]$SudoPassword
   )
 
-  Write-Host '[0/3] Checking SSH / sudo credentials...'
+  Write-ElkStep '[0/3] Checking SSH / sudo credentials...'
   & $SshExe @Common -T -p $Port $Target 'printf __ELK_SSH_OK__'
   $sshRc = $LASTEXITCODE
   if ($sshRc -ne 0) {
     throw "SSH authentication/connection test failed. Exit code: $sshRc"
   }
-  Write-Host '[OK] SSH authentication succeeded.'
+  Write-Elk 'OK' 'SSH authentication succeeded.'
 
   if (-not [string]::IsNullOrEmpty($SudoPassword)) {
     $sudoRc = Invoke-SshRoot -SshExe $SshExe -Common $Common -Port $Port -Target $Target -RootScript "printf '__ELK_SUDO_OK__\n'" -SudoPassword $SudoPassword -TimeoutSeconds 20
@@ -281,16 +374,16 @@ function Test-RemoteCredentials {
       Show-SudoDiagnostics -SshExe $SshExe -Common $Common -Port $Port -Target $Target -SshPassword $SshPassword -SudoPassword $SudoPassword
       throw 'SSH login succeeded, but sudo password authentication failed. In Config Wizard, verify "sudo password = SSH password". If sudo uses a different password, turn that option off and enter the separate sudo password.'
     }
-    Write-Host '[OK] sudo password authentication succeeded.'
+    Write-Elk 'OK' 'sudo password authentication succeeded.'
   }
   else {
     # Do not force an interactive prompt during preflight. NOPASSWD is enough to pass silently.
     & $SshExe @Common -T -p $Port $Target 'sudo -n true >/dev/null 2>&1'
     if ($LASTEXITCODE -eq 0) {
-      Write-Host '[OK] sudo NOPASSWD authentication is available.'
+      Write-Elk 'OK' 'sudo NOPASSWD authentication is available.'
     }
     else {
-      Write-Host '[INFO] No stored sudo password/NOPASSWD detected. sudo may prompt during deployment.'
+      Write-Elk 'INFO' 'No stored sudo password/NOPASSWD detected. sudo may prompt during deployment.'
     }
   }
   Write-Host
@@ -337,17 +430,15 @@ $Common = @(
   '-o','NumberOfPasswordPrompts=3'
 )
 
-Write-Host '=============================================================================='
-Write-Host ' ELK Remote Auto Deploy - Windows OpenSSH v2.9.3 sudo-hotfix5'
-Write-Host '=============================================================================='
-Write-Host ("[INFO] Local file  : {0}" -f $Script)
-Write-Host ("[INFO] Target      : {0}" -f $Target)
-Write-Host ("[INFO] SSH port    : {0}" -f $Port)
-Write-Host ("[INFO] Remote file : {0}" -f $RemoteFile)
-Write-Host ("[INFO] Payload     : {0} / APT resolver {1}" -f $Payload,$Resolver)
-Write-Host ("[INFO] SSH auth    : {0}" -f $(if($SshPassword){'password auto-input'}else{'interactive / SSH key'}))
-Write-Host ("[INFO] sudo auth   : {0}" -f $(if($SudoPassword){'password auto-input'}else{'interactive / NOPASSWD'}))
-Write-Host '[INFO] Host key    : verification disabled'
+Write-ElkBanner 'neutral' 'ELK Remote Auto Deploy - Windows OpenSSH v2.9.3 sudo-hotfix5'
+Write-Elk 'INFO' ("Local file  : {0}" -f $Script)
+Write-Elk 'INFO' ("Target      : {0}" -f $Target)
+Write-Elk 'INFO' ("SSH port    : {0}" -f $Port)
+Write-Elk 'INFO' ("Remote file : {0}" -f $RemoteFile)
+Write-Elk 'INFO' ("Payload     : {0} / APT resolver {1}" -f $Payload,$Resolver)
+Write-Elk 'INFO' ("SSH auth    : {0}" -f $(if($SshPassword){'password auto-input'}else{'interactive / SSH key'}))
+Write-Elk 'INFO' ("sudo auth   : {0}" -f $(if($SudoPassword){'password auto-input'}else{'interactive / NOPASSWD'}))
+Write-Elk 'INFO' 'Host key    : verification disabled'
 Write-Host
 
 $askExe = $null
@@ -366,17 +457,17 @@ try {
     $tempUpload = Join-Path $env:TEMP ("elk-oneclick-upload-{0}.sh" -f ([Guid]::NewGuid().ToString('N')))
     [IO.File]::WriteAllText($tempUpload,$raw,(New-Object Text.UTF8Encoding($false)))
 
-    Write-Host '[1/3] Uploading sanitized installer with SCP...'
+    Write-ElkStep '[1/3] Uploading sanitized installer with SCP...'
     if ($SshPassword) { Write-Host '      SSH password: automatic' } else { Write-Host '      SSH password may be requested.' }
     & $scpExe @Common -P $Port $tempUpload ($Target + ':' + $RemoteFile)
     $rc = $LASTEXITCODE
     if ($rc -ne 0) { throw "SCP upload failed. Exit code: $rc" }
-    Write-Host '[OK] SCP upload completed. Deployment passwords were not copied to Ubuntu.'
+    Write-Elk 'OK' 'SCP upload completed. Deployment passwords were not copied to Ubuntu.'
 
-    if ($AutoInstall -ne 'true') { Write-Host '[OK] Upload completed. Auto-install is disabled.'; exit 0 }
+    if ($AutoInstall -ne 'true') { Write-Elk 'OK' 'Upload completed. Auto-install is disabled.'; exit 0 }
 
     Write-Host
-    Write-Host '[2/3] Starting detached install job on Ubuntu...'
+    Write-ElkStep '[2/3] Starting detached install job on Ubuntu...'
     if ($SudoPassword) { Write-Host '      SSH/sudo passwords: automatic' } else { Write-Host '      sudo password may be requested.' }
     $inner = "systemctl stop $Unit 2>/dev/null || true; systemctl reset-failed $Unit 2>/dev/null || true; rm -f $ConsoleLog; install -o root -g root -m 600 /dev/null $ConsoleLog; systemd-run --unit=elk-oneclick-install --description='ELK One-Click Installer' --property=Type=oneshot --property=RemainAfterExit=yes --property=TimeoutStartSec=infinity --property=StandardOutput=append:$ConsoleLog --property=StandardError=append:$ConsoleLog --no-block /bin/bash '$RemoteFile' --local-install"
     $rc = Invoke-SshRoot $sshExe $Common $Port $Target $inner $SudoPassword
@@ -385,45 +476,34 @@ try {
       exit 255
     }
     if ($rc -ne 0) { throw "Could not start detached install job. Exit code: $rc" }
-    Write-Host ("[OK] Detached install job started: {0}" -f $Unit)
+    Write-Elk 'OK' ("Detached install job started: {0}" -f $Unit)
   }
 
   Write-Host
-  Write-Host '[3/3] Monitoring remote install progress...'
+  Write-ElkStep '[3/3] Monitoring remote install progress...'
   Write-Host '      The install job continues independently from this SSH session.'
-  $monitor = 'LOG=' + "'$ConsoleLog'" + '; UNIT=' + "'$Unit'" + '; touch "$LOG"; tail -n +1 -F "$LOG" & TPID=$!; while :; do STATE=$(systemctl show -p ActiveState --value "$UNIT" 2>/dev/null || echo unknown); SUB=$(systemctl show -p SubState --value "$UNIT" 2>/dev/null || echo unknown); if [ "$STATE" = failed ] || [ "$SUB" = exited ] || [ "$STATE" = inactive ] || [ "$STATE" = unknown ]; then break; fi; sleep 2; done; kill "$TPID" 2>/dev/null || true; wait "$TPID" 2>/dev/null || true; RC=$(systemctl show -p ExecMainStatus --value "$UNIT" 2>/dev/null || echo 1); echo; echo "[REMOTE] state=$STATE/$SUB exit=$RC"; exit ${RC:-1}'
+  $monitor = New-RemoteMonitorScript -LogPath $ConsoleLog -UnitName $Unit -ColorMode (Get-RemoteColorMode) -LibGzB64 (Get-ColorLibGzB64)
   $rc = Invoke-SshRoot $sshExe $Common $Port $Target $monitor $SudoPassword
   Write-Host
   if ($rc -eq 0) {
     if ($RemoveAfter -eq 'true') {
-      Write-Host '[INFO] Removing remote installer after successful health check...'
+      Write-Elk 'INFO' 'Removing remote installer after successful health check...'
       & $sshExe @Common -T -p $Port $Target ("rm -f '" + $RemoteFile.Replace("'","") + "'")
-      if ($LASTEXITCODE -eq 0) { Write-Host '[OK] Remote installer removed.' }
+      if ($LASTEXITCODE -eq 0) { Write-Elk 'OK' 'Remote installer removed.' }
       else { Write-Warning 'Remote installer cleanup failed. Installation itself succeeded.' }
     }
-    Write-Host '=============================================================================='
-    Write-Host '[OK] ELK installation and post-install health check completed successfully.'
-    Write-Host '[INFO] Logs:'
-    Write-Host ('       ' + $ConsoleLog)
-    Write-Host '       /var/log/elk-auto-install.log'
-    Write-Host '       /var/log/elk-post-install-check.log'
-    Write-Host '=============================================================================='
+    Write-ElkBanner 'ok' 'ELK installation and post-install health check completed successfully.' @('Logs:', ('  ' + $ConsoleLog), '  /var/log/elk-auto-install.log', '  /var/log/elk-post-install-check.log')
     exit 0
   }
   if ($rc -eq 255) {
     Write-Warning 'Monitoring SSH disconnected. The Ubuntu install may still be running. Run run-remote-deploy.cmd --status later.'
     exit 0
   }
-  Write-Host '=============================================================================='
-  Write-Host ("[ERROR] ELK installation finished with an error. Remote exit code: {0}" -f $rc)
-  Write-Host ('        ' + $ConsoleLog)
-  Write-Host '        /var/log/elk-auto-install.log'
-  Write-Host '        /var/log/elk-post-install-check.log'
-  Write-Host '=============================================================================='
+  Write-ElkBanner 'fail' ("ELK installation finished with an error. Remote exit code: {0}" -f $rc) @('Logs:', ('  ' + $ConsoleLog), '  /var/log/elk-auto-install.log', '  /var/log/elk-post-install-check.log', 'Next: read the last lines above, fix the cause and run the same installer again (re-running is safe).')
   exit $rc
 }
 catch {
-  Write-Host ('[ERROR] ' + $_.Exception.Message) -ForegroundColor Red
+  Write-Elk 'ERROR' $_.Exception.Message
   exit 1
 }
 finally {

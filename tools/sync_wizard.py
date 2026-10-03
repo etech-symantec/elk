@@ -23,6 +23,7 @@ EMBEDDED = {
     'elk-health-monitor.sh':      '_internal/core/elk-health-monitor.sh',
     'elk-ops.sh':                 '_internal/core/elk-ops.sh',
     'elk-patch.sh':               '_internal/core/elk-patch.sh',
+    'elk-color.sh':               '_internal/core/elk-color.sh',
     'proxysg-lib.sh':             '_internal/core/proxysg-lib.sh',
     'log-ingest-manager.sh':      '_internal/core/log-ingest-manager.sh',
     'custom-filter.example.conf': '_internal/examples/custom-filter.example.conf',
