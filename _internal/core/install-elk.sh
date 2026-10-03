@@ -2201,6 +2201,11 @@ if [[ -f "$SCRIPT_DIR/elk-patch.sh" && -f "$SCRIPT_DIR/proxysg-lib.sh" ]]; then
   if [[ -s "$SCRIPT_DIR/custom-pipeline.conf" ]]; then install -m 644 "$SCRIPT_DIR/custom-pipeline.conf" /usr/local/lib/elk-auto/custom-pipeline.conf; else rm -f /usr/local/lib/elk-auto/custom-pipeline.conf; fi
   log "부분 패치 도구 설치: /usr/local/sbin/elk-patch  (예: sudo elk-patch --list)"
 fi
+# v2.9.4: 서버 정기점검 리포트 (읽기 전용). 사용법: sudo elk-report   /  sudo elk-report --list
+if [[ -f "$SCRIPT_DIR/elk-report.sh" ]]; then
+  install -m 755 "$SCRIPT_DIR/elk-report.sh" /usr/local/sbin/elk-report
+  log "정기점검 리포트 도구 설치: /usr/local/sbin/elk-report  (예: sudo elk-report)"
+fi
 
 # ----------------------------- snapshots -----------------------------
 overall_progress 91 "Snapshot / SLM 구성"

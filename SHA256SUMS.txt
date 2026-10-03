@@ -3,12 +3,13 @@
 9bf5a67e7daae742b6e27b788bbccf51cc59735a88bf7bf688f3ce68062f2af5  ./_internal/core/elk-health-monitor.sh
 24cce110aea0e41cd724dbd05e62f380417a514894875edab9ce19b9745cf74d  ./_internal/core/elk-ops.sh
 90911c85aa3d45f8b45681dc86cd17049e09e6da9d71161236ef81c082424377  ./_internal/core/elk-patch.sh
-6248c24c2e5ba5edfb385aa2172fb8af0824ec146078c4f7d44c278ed98e7617  ./_internal/core/install-elk.sh
+f27d1c679af86e868f3e1f6cfdb1a9800fc724cdb71eaf4c5be1e0b33d9b5a82  ./_internal/core/elk-report.sh
+87bde0b90feab2e118715c481eb337bd468fc0d62941e97a7a6e4e22258458b6  ./_internal/core/install-elk.sh
 d3236c3007e7fae32ab3e1de0af160253fe42a961664bf6a028e55be4dfbde2c  ./_internal/core/log-ingest-manager.sh
 5f6f5e2d9a15975b43b87e32d7dbeea2754a5d134d896e645c493ebe54c73de4  ./_internal/core/proxysg-lib.sh
 839868055b922824a0e04123584d4dce7f93b47f5b6e251d4bbcd07e2f5d8c99  ./_internal/core/proxysg-log-filter.conf
 211edd85f8ba405b117938aea7bbf2794a3caed7fd38e54caf40663563e00f37  ./_internal/core/proxysg-log-process.sh
-9c62f0701476a0807630d62531f2cbfaec60bae289aff8b5582c93de15df1049  ./_internal/docs/CHANGELOG.md
+08e45fd03844a8bc29f7ea783836500d8f27e525470799d7fb8f9e231b297acb  ./_internal/docs/CHANGELOG.md
 47be5254601bf0ca98f0b905974598b875eb988503d7408bb6ef5b1e7ba866e7  ./_internal/docs/INSTALL_STEP_MAPPING.md
 5261df5d2b36b68ea16b684e5d403b46bafffda3545f73e7995ad488eae98064  ./_internal/docs/README.md
 9a01d9f6f8cc52966858dd108f387e869880f8280bf8a5a45d161deeb3f4782c  ./_internal/docs/VERSION
@@ -21,5 +22,5 @@ d616a730797498e868886aed81410513ee291fef2be73f66baad6af394c3bbcd  ./_internal/ex
 40f283f1d2eae015a41c97e121d96ccbb064b8214e374c3298b63ef1cd147a0d  ./_internal/tools/open-config-gui.cmd
 a3a2f775905dd44e8cf46efc8b1371e67de91f7e6a9495c2133ae2bf19a84ab3  ./_internal/tools/open-config-gui.sh
 a23bcc3924f2c044876ca2c98e19093029051c5c5e608bf73a1619d00f2beb04  ./_internal/tools/run-remote-deploy.ps1
-7b951ffade9ccfc0161bf2d844c9ff259b968290f63ee5a341bd394ab33d0de9  ./config-wizard.html
+a0c96af41fcb3fc3efc4ede1776c4eff930d9d3d50aac924ee36146c07e7b833  ./config-wizard.html
 89018ec01b9b4fb61ab8788e9153acb55f4d2c215e933d21d96efa658d91e5c2  ./run-remote-deploy.cmd

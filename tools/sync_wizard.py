@@ -24,6 +24,7 @@ EMBEDDED = {
     'elk-ops.sh':                 '_internal/core/elk-ops.sh',
     'elk-patch.sh':               '_internal/core/elk-patch.sh',
     'elk-color.sh':               '_internal/core/elk-color.sh',
+    'elk-report.sh':              '_internal/core/elk-report.sh',
     'proxysg-lib.sh':             '_internal/core/proxysg-lib.sh',
     'log-ingest-manager.sh':      '_internal/core/log-ingest-manager.sh',
     'custom-filter.example.conf': '_internal/examples/custom-filter.example.conf',
@@ -34,6 +35,7 @@ PATCH_GZ = {
     'elk-patch.sh':            '_internal/core/elk-patch.sh',
     'proxysg-lib.sh':          '_internal/core/proxysg-lib.sh',
     'proxysg-log-filter.conf': '_internal/core/proxysg-log-filter.conf',
+    'elk-report.sh':           '_internal/core/elk-report.sh',
 }
 # ZIP에만 들어가는 파일: 저장소 경로 -> 권한(8진수 문자열)
 EXTRA = {
