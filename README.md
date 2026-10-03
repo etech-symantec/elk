@@ -16,8 +16,8 @@ Config Wizard 단독 주소는 `https://etech-symantec.github.io/elk/config-wiza
 1. **ELK 자동 구성**을 엽니다.
 2. 1~9단계에서 설정을 확인하고, 10단계(자동 전송 및 설치)에 Ubuntu 서버 주소와 SSH 계정을 입력합니다.
 3. 11단계(검증 및 완료)에서 오류가 없는지 확인한 뒤 아래 중 하나를 받습니다.
-   - **자동 실행 파일 (.cmd)** — 더블클릭하면 임시 폴더에 자동으로 풀고 `run-remote-deploy`까지 실행합니다. 끝나면(또는 오류가 나면) 결과가 노란 글씨로 표시되고 창이 유지되며, 임시 폴더는 자동으로 삭제됩니다. (`ELK_KEEP_TEMP=1`을 설정하면 유지, 다시 연결하려면 `elk-auto-install-v2.9.3.cmd --status`)
-   - **ZIP 전체 다운로드** — 직접 풀어서 `run-remote-deploy.cmd`를 실행합니다. (Ubuntu에서 직접 설치: `sudo bash elk-oneclick-install-v2.9.3.sh --local-install`)
+   - **자동 실행 파일 (.cmd)** — 더블클릭하면 임시 폴더에 자동으로 풀고 `run-remote-deploy`까지 실행합니다. 끝나면(또는 오류가 나면) 결과가 노란 글씨로 표시되고 창이 유지되며, 임시 폴더는 자동으로 삭제됩니다. (`ELK_KEEP_TEMP=1`을 설정하면 유지, 다시 연결하려면 `elk-auto-install-v2.9.4.cmd --status`)
+   - **ZIP 전체 다운로드** — 직접 풀어서 `run-remote-deploy.cmd`를 실행합니다. (Ubuntu에서 직접 설치: `sudo bash elk-oneclick-install-v2.9.4.sh --local-install`)
 
 > Wizard는 브라우저 안에서만 동작합니다. 입력한 값(비밀번호 포함)은 서버로 전송되지 않고, 다운로드한 ZIP에만 들어갑니다.
 
@@ -60,11 +60,11 @@ SHA256SUMS.txt                     패키지 파일 체크섬
 
 상단 메뉴 **`점검`** 에서 서버 정기점검에 쓰는 **추천 항목**과 **한 줄 점검 명령**을 볼 수 있습니다. (빠른 설정 · 고급 설정 · 패치 · **점검**)
 
-1. **점검 항목과 명령** — 매일 / 주 1회 / 월 1회로 나눈 **하나의 표**입니다. 항목마다 "왜 확인하나 · 정상 기준 · 점검 명령(한 줄, 복사 버튼)"이 있습니다. 명령은 현재 설정값(폴더·인덱스 이름·포트·Cloud 사용 여부)에 맞춰 만들어지고, 쓰지 않는 기능(ProxySG 로그 처리 스크립트, 스냅샷, FTP)의 행은 "해당 없음"으로 표시됩니다.
+1. **점검 항목과 명령** — 매일 / 주 1회 / 월 1회로 나눈 **하나의 표**입니다. 항목마다 두 줄로, **윗줄**에 "점검 항목 · 왜 확인하나 · 정상 기준", **아랫줄**에 "점검 명령(한 줄) + 복사 버튼"이 있습니다. 명령이 길어도 기본은 **2줄까지만** 보이고(끝은 `…`), 더 길면 `펼치기` 버튼으로 전체를 볼 수 있습니다. (복사는 접혀 있어도 항상 전체 명령을 복사합니다) 명령은 현재 설정값(폴더·인덱스 이름·포트·Cloud 사용 여부)에 맞춰 만들어지고, 쓰지 않는 기능(ProxySG 로그 처리 스크립트, 스냅샷, FTP)의 행은 "해당 없음"으로 표시됩니다.
    - 매일: 서비스 상태 · 클러스터 상태 · 마지막 로그 시각(로그 파일 / Indices) · 처리 대기 파일 · 처리 스크립트 오류 · 디스크(파일시스템)
    - 주 1회: 디스크(로그 파일 main/ssl/cloud, Indices main/ssl/cloud) · 인덱스 용량 추세 · CPU Usage · Memory Usage · JVM Heap · ILM 오류/보존기간 · Logstash 오류 로그 · 시간 동기화
    - 월 1회: Ubuntu / Elastic(Elasticsearch) / Logstash / Kibana Version · 서버 Uptime · OS 업데이트·재부팅 · 인증서 만료일 · 스냅샷 · FTP 계정
-2. **한 번에 점검(리포트)** — 위 항목을 읽기 쉬운 색 리포트로 한 번에 출력합니다.
+2. **한 번에 점검(리포트)** — 위 항목을 읽기 쉬운 색 리포트로 한 번에 출력합니다. 점검 항목 선택은 3열로 보입니다. (창이 좁으면 2열/1열)
 
 | 방법 | 명령 | 언제 |
 |---|---|---|
@@ -158,6 +158,19 @@ Ubuntu Server를 LVM으로 설치하면 디스크 일부만 루트(/)에 할당�
 - Elasticsearch/Kibana는 재시작하지 않습니다. (Logstash만, 파이프라인을 바꿨을 때)
 - 설치기는 서버에 `/usr/local/sbin/elk-patch` 와 `/usr/local/lib/elk-auto/` 를 남깁니다. `sudo elk-patch --list`로 패치 가능한 항목을 볼 수 있습니다.
 - 이전 이름(`GUIDE_*`)으로 설치된 서버는 먼저 새 설치 파일로 한 번 재설치한 뒤 패치하세요.
+
+## 버전 올리기 (관리자)
+
+버전의 기준은 `_internal/docs/VERSION` 한 곳입니다. Wizard 제목·상단 표기, 다운로드 파일 이름(`elk-oneclick-install-vX.Y.Z.sh`, `elk-auto-install-vX.Y.Z.cmd`, `elk-auto-installer-vX.Y.Z.zip`), 설치기 시작 로그, `elk-patch`/`elk-report`의 `--version`, Windows 배포 스크립트, README의 파일 이름이 모두 이 값을 따라야 합니다.
+
+```bash
+python3 tools/check_version.py              # 표기가 모두 같은지 검사 (CI에서도 실행)
+python3 tools/check_version.py --set 2.9.5  # 한 번에 올림 (CHANGELOG 맨 위에 새 제목도 추가)
+python3 tools/sync_wizard.py                # Wizard 내장 사본/체크섬 갱신
+```
+
+- 서버에 설치된 도구의 버전: `elk-patch --version`, `elk-report --version` (설치 로그 맨 앞에도 `ELK Auto Installer vX.Y.Z`가 남습니다)
+- 이전 버전 이름으로 만든 One-Click SH(`…-v2.9.3.sh`)도 `run-remote-deploy`가 계속 찾아 씁니다.
 
 ## 기본값 바꾸기 (관리자)
 

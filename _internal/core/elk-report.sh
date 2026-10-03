@@ -5,7 +5,7 @@
 #   sudo bash elk-report.sh               # 같은 도구를 파일로 실행
 #   sudo elk-report --only sys,ver,disk   # 일부 항목만
 #   sudo elk-report --list                # 점검 항목 목록
-#   옵션: --only a,b  --skip a,b  --env FILE  --stale-hours N(기본 36)  --no-color | --color=always|never|auto  --self-delete
+#   옵션: --only a,b  --skip a,b  --env FILE  --stale-hours N(기본 36)  --no-color | --color=always|never|auto  --self-delete  --version
 #
 # 항목:  sys(Ubuntu·Uptime) ver(Elastic/Logstash/Kibana 버전) cpu mem disk(파일시스템·로그 폴더·인덱스 용량)
 #        last(마지막 로그 시각: 파일·인덱스) svc(서비스) es(클러스터 상태) ingest(수집·처리 상태) cert(인증서) os(업데이트·장애)
@@ -16,6 +16,7 @@ set -uo pipefail
 export LC_ALL=C.UTF-8 2>/dev/null || export LC_ALL=en_US.UTF-8 2>/dev/null || true
 
 REPORT_VERSION="1"
+ELK_AUTO_VERSION="2.9.4"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 ONLY=""; SKIP=""; STALE_H="${ELK_STALE_HOURS:-36}"; COLOR_MODE="${ELK_COLOR:-auto}"; SELF_DELETE=0
 ALL_SECTIONS=(sys ver cpu mem disk last svc es ingest cert os)
@@ -47,6 +48,7 @@ while [[ $# -gt 0 ]]; do
     --color=*) COLOR_MODE="${1#--color=}"; shift ;;
     --self-delete) SELF_DELETE=1; shift ;;
     --list) list_sections; exit 0 ;;
+    --version) echo "elk-report (ELK Auto Installer v${ELK_AUTO_VERSION})"; exit 0 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "알 수 없는 옵션: $1  (--help 참고)" >&2; exit 2 ;;
   esac

@@ -12,6 +12,7 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 PATCH_VERSION="1"
+ELK_AUTO_VERSION="2.9.4"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 도구 파일(proxysg-lib.sh 등)은 이 스크립트 옆에 있으면 그것을, 없으면 설치기가 넣어 둔 /usr/local/lib/elk-auto 를 사용
@@ -77,6 +78,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY=1; shift ;;
     -y|--yes) YES=1; shift ;;
     --list) LIST=1; shift ;;
+    --version) echo "elk-patch (ELK Auto Installer v${ELK_AUTO_VERSION})"; exit 0 ;;
     -h|--help) usage; exit 0 ;;
     [A-Z]*=*) ARG_KV+=("$1"); shift ;;
     *) die "알 수 없는 옵션: $1  (--help 참고)" ;;

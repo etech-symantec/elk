@@ -109,6 +109,7 @@ function Get-InstallerPath {
     if ($rp) { return $rp.Path }
   }
   $candidates = @(
+    (Join-Path $PackageRoot 'elk-oneclick-install-v2.9.4.sh'),
     (Join-Path $PackageRoot 'elk-oneclick-install-v2.9.3.sh'),
     (Join-Path $PackageRoot 'elk-oneclick-install-v2.9.2.sh'),
     (Join-Path $PackageRoot 'elk-oneclick-install.sh')
@@ -412,7 +413,7 @@ if (-not $HostName) { throw 'DEPLOY_HOST is empty.' }
 if (-not $User) { throw 'DEPLOY_USER is empty.' }
 if (-not $Port) { $Port = '22' }
 if (-not $RemoteDir) { $RemoteDir = '/home/' + $User }
-if ($Resolver -ne 'v2') { throw 'Old One-Click SH detected. Import it into Config Wizard v2.9.3 and save a new SH.' }
+if ($Resolver -ne 'v2') { throw 'Old One-Click SH detected. Import it into Config Wizard v2.9.4 and save a new SH.' }
 
 $BaseName = [IO.Path]::GetFileName($Script)
 $RemoteDir = $RemoteDir.TrimEnd('/')
@@ -430,7 +431,7 @@ $Common = @(
   '-o','NumberOfPasswordPrompts=3'
 )
 
-Write-ElkBanner 'neutral' 'ELK Remote Auto Deploy - Windows OpenSSH v2.9.3 sudo-hotfix5'
+Write-ElkBanner 'neutral' 'ELK Remote Auto Deploy - Windows OpenSSH v2.9.4'
 Write-Elk 'INFO' ("Local file  : {0}" -f $Script)
 Write-Elk 'INFO' ("Target      : {0}" -f $Target)
 Write-Elk 'INFO' ("SSH port    : {0}" -f $Port)
