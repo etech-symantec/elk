@@ -8,6 +8,7 @@
 # 하는 일: ① 허용된 항목만 검사 → ② elk.env 백업 후 해당 값만 수정 → ③ 영향받는 부분만 적용
 #   cron 시간 · ILM 보존기간 · Logstash pipeline(로그 포맷/Cloud 등) · Index Template 패턴 · Data View · 폴더
 # 하지 않는 일: 패키지 설치, Elasticsearch/Kibana 재시작, 계정/비밀번호 변경, 방화벽 변경 (전체 재설치가 필요한 값은 거절)
+# 이전 버전(2.9.4 미만, 설정 이름 GUIDE_*) 서버: 재설치 없이 실행 시간(cron)·보존기간(ILM)·수신/백업 폴더·Data View 이름만 패치합니다. (--list 의 ★ 항목)
 set -Eeuo pipefail
 IFS=$'\n\t'
 
@@ -62,10 +63,11 @@ ACTION_ORDER=(dirs pipeline cron ilm index dataview)
 usage() { sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 list_keys() {
-  echo "패치할 수 있는 항목:"
+  echo "패치할 수 있는 항목:   (★ = 이전 버전(2.9.4 미만, GUIDE_*)으로 설치한 서버에서도 패치 가능)"
   local k; for k in $(printf '%s\n' "${!KEY_ACTIONS[@]}" | sort); do
     local a="" x acts; IFS=' ' read -ra acts <<<"${KEY_ACTIONS[$k]}"; for x in "${acts[@]}"; do a+="${ACTION_TEXT[$x]}; "; done
-    printf '  %-36s %s\n' "$k" "${a%; }"
+    local star=""; IFS=' ' read -ra acts <<<"${KEY_ACTIONS[$k]}"; local ok=1; for x in "${acts[@]}"; do case "$x" in cron|ilm|dirs|dataview) ;; *) ok=0 ;; esac; done; (( ok )) && star="  ★"
+    printf '  %-36s %s%s\n' "$k" "${a%; }" "$star"
   done
 }
 
@@ -113,9 +115,29 @@ command -v jq >/dev/null 2>&1 || die "jq 가 필요합니다. (설치 시 함께
 # ---------------------------------------------------------------- 현재 설정 읽기
 # shellcheck disable=SC1090
 source "$ENV_FILE"
-if grep -qE '^GUIDE_[A-Z0-9_]+=' "$ENV_FILE" 2>/dev/null && ! grep -qE '^PROXYSG_[A-Z0-9_]+=' "$ENV_FILE" 2>/dev/null; then
-  die "이전 이름(GUIDE_*)으로 설치된 서버입니다. 먼저 새 설치 파일로 한 번 재설치한 뒤 패치하세요."
-fi
+# ---- 이전 버전(2.9.4 미만, 설정 이름이 GUIDE_*) 서버 지원 -----------------------------------------------------------
+# 재설치 없이 쓸 수 있도록 이전 이름(GUIDE_*)을 읽고, 값을 바꿀 때도 설정 파일의 이전 이름 그대로 고친다.
+# 단, 이전 버전의 Logstash 파이프라인은 필드 구성이 달라서(파일 하나의 47개 칼럼을 MAIN/SSL에 함께 사용) 다시 만들지 않는다.
+#   → 이전 버전 서버에서 패치할 수 있는 것: 실행 시간(cron) · 보존기간(ILM) · 수신/백업 폴더 · Data View 이름
+LEGACY=0
+if grep -qE '^GUIDE_[A-Z0-9_]+=' "$ENV_FILE" 2>/dev/null && ! grep -qE '^PROXYSG_[A-Z0-9_]+=' "$ENV_FILE" 2>/dev/null; then LEGACY=1; fi
+legacy_name() {   # PROXYSG_X -> 이전 설정 파일에서 쓰던 이름
+  case "$1" in
+    PROXYSG_FLOW_ENABLED) echo GUIDE_PROXY_FLOW_ENABLED ;;
+    PROXYSG_CSV_FILTER_ENABLED) echo GUIDE_PROXY_CSV_FILTER_ENABLED ;;
+    PROXYSG_*) echo "GUIDE_${1#PROXYSG_}" ;;
+    *) echo "$1" ;;
+  esac
+}
+while IFS= read -r _old; do
+  case "$_old" in
+    GUIDE_PROXY_FLOW_ENABLED) _new="PROXYSG_FLOW_ENABLED" ;;
+    GUIDE_PROXY_CSV_FILTER_ENABLED) _new="PROXYSG_CSV_FILTER_ENABLED" ;;
+    *) _new="PROXYSG_${_old#GUIDE_}" ;;
+  esac
+  if [[ -z "${!_new+x}" ]]; then printf -v "$_new" '%s' "${!_old}"; fi
+done < <(compgen -A variable GUIDE_ || true)
+unset _old _new
 : "${PROXYSG_FLOW_ENABLED:=false}"; : "${PROXYSG_CLOUD_ENABLED:=false}"
 : "${PROXYSG_MAIN_SOURCE_DIR:=/home/main}"; : "${PROXYSG_SSL_SOURCE_DIR:=/home/ssl}"; : "${PROXYSG_CLOUD_SOURCE_DIR:=/home/cloud}"
 : "${PROXYSG_MAIN_BACKUP_DIR:=/home/main_backup}"; : "${PROXYSG_SSL_BACKUP_DIR:=/home/ssl_backup}"; : "${PROXYSG_CLOUD_BACKUP_DIR:=/home/cloud_backup}"
@@ -161,12 +183,19 @@ for k in "${ORDER[@]}"; do
   fi
   msg="$(check_value "$k" "${NEWV[$k]}")"
   if [[ -n "$msg" ]]; then echo "[거절] $k : $msg" >&2; bad=1; continue; fi
+  if (( LEGACY )); then
+    IFS=' ' read -ra _la <<<"${KEY_ACTIONS[$k]}"; _lok=1
+    for a in "${_la[@]}"; do case "$a" in cron|ilm|dirs|dataview) ;; *) _lok=0 ;; esac; done
+    if (( ! _lok )); then echo "[거절] $k : 이전 버전(2.9.4 미만)으로 설치된 서버에서는 패치할 수 없는 항목입니다. (Logstash 파이프라인을 다시 만드는 항목은 이전 버전과 필드 구성이 달라 바꾸지 않습니다. 새 설치 파일로 재설치가 필요합니다)" >&2; bad=1; continue; fi
+    if ! grep -q "^$(legacy_name "$k")=" "$ENV_FILE"; then echo "[거절] $k : 이 서버의 설정 파일에 없는 항목입니다. (이전 버전 설치에는 없는 항목)" >&2; bad=1; continue; fi
+  fi
   IFS=' ' read -ra _acts <<<"${KEY_ACTIONS[$k]}"; for a in "${_acts[@]}"; do ACTIONS[$a]=1; done
 done
 (( bad )) && die "잘못된 항목이 있어 아무것도 바꾸지 않았습니다."
 
 # ---------------------------------------------------------------- 변경 내용 표시
 cur() { local n="$1"; printf '%s' "${!n-}"; }
+(( LEGACY )) && echo "※ 이전 버전(2.9.4 미만, GUIDE_*)으로 설치된 서버입니다. 설정 파일의 이전 이름을 그대로 수정하고, Logstash 파이프라인은 건드리지 않습니다."
 echo "=== 적용 예정 변경 ($ENV_FILE) ==="
 changed=0
 for k in "${ORDER[@]}"; do
@@ -188,6 +217,7 @@ cp -p "$ENV_FILE" "$BK/elk.env"
 log "백업: $BK"
 set_env_value() {
   local key="$1" val="$2" esc line tmp
+  if (( LEGACY )); then key="$(legacy_name "$key")"; fi
   esc="${val//\'/\'\\\'\'}"; line="${key}='${esc}'"
   tmp="$(mktemp)"
   NEWLINE="$line" awk -v k="$key" 'BEGIN{line=ENVIRON["NEWLINE"];done=0} $0 ~ ("^" k "=") {if(!done){print line;done=1};next} {print} END{if(!done)print line}' "$ENV_FILE" >"$tmp"
@@ -273,7 +303,8 @@ act_pipeline() {
 }
 act_cron() {
   istrue "$PROXYSG_FLOW_ENABLED" || { log "로그 처리 스크립트가 꺼져 있어 cron 작업은 건너뜁니다."; return 0; }
-  local f="$CRON_DIR/elk-proxysg-log-process"
+  local f="$CRON_DIR/elk-proxysg-log-process" lf="$CRON_DIR/elk-guide-log-process"
+  if [[ ! -e "$f" && -e "$lf" ]]; then f="$lf"; log "이전 버전의 cron 파일을 그대로 수정합니다: $f"; fi
   [[ -e "$f" ]] || warn "기존 cron 파일이 없어 새로 만듭니다: $f"
   mkdir -p "$CRON_DIR"
   cat >"$f.new" <<EOF_PATCH_CRON

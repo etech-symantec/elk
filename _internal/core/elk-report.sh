@@ -91,6 +91,19 @@ if [[ -f "$ENV_FILE" ]]; then
 else
   ENV_MISSING=1
 fi
+# ---- 이전 버전(2.9.4 미만) 서버: 설정 이름이 GUIDE_* 인 elk.env 도 읽는다. (재설치 없이 점검 도구만 추가한 서버를 위해)
+LEGACY_ENV=0
+if grep -qE '^GUIDE_[A-Z0-9_]+=' "$ENV_FILE" 2>/dev/null && ! grep -qE '^PROXYSG_[A-Z0-9_]+=' "$ENV_FILE" 2>/dev/null; then LEGACY_ENV=1; fi
+while IFS= read -r _old; do
+  case "$_old" in
+    GUIDE_PROXY_FLOW_ENABLED) _new="PROXYSG_FLOW_ENABLED" ;;
+    GUIDE_PROXY_CSV_FILTER_ENABLED) _new="PROXYSG_CSV_FILTER_ENABLED" ;;
+    *) _new="PROXYSG_${_old#GUIDE_}" ;;
+  esac
+  if [[ -z "${!_new+x}" ]]; then printf -v "$_new" '%s' "${!_old}"; fi
+done < <(compgen -A variable GUIDE_ || true)
+unset _old _new
+[[ "${LOGSTASH_PROFILE:-}" == "proxysg_guide" ]] && LOGSTASH_PROFILE="proxysg"
 tf() { [[ "${1,,}" =~ ^(1|true|yes|y|on)$ ]]; }
 : "${STATE_DIR:=/root/.elk-auto-installer}"; : "${SECRETS_FILE:=${STATE_DIR}/secrets.env}"
 : "${ES_HTTP_PORT:=9200}"; : "${ELASTIC_USERNAME:=elastic}"; : "${ES_SECURITY_ENABLED:=true}"; : "${ES_PATH_DATA:=/var/lib/elasticsearch}"
@@ -138,6 +151,7 @@ NOW="$(date +%s)"
 
 # ---------------------------------------------------------------- 머리말
 printf '%s%s%s\n' "$H" " ELK 정기점검 리포트  $(hostname) · $(date '+%Y-%m-%d %H:%M:%S') " "$R"
+(( LEGACY_ENV )) && printf '  %s· 이전 버전(2.9.4 미만, GUIDE_*) 설정 파일을 읽어 점검합니다.%s\n' "$D" "$R"
 [[ -n "${ENV_MISSING:-}" ]] && printf '  %s⚠ elk.env 를 찾지 못해 기본값으로 점검합니다: %s%s\n' "$Y" "$ENV_FILE" "$R"
 (( HAVE_JQ )) || printf '  %s⚠ jq 가 없어 Elasticsearch 항목은 건너뜁니다. (sudo apt-get install -y jq)%s\n' "$Y" "$R"
 
@@ -319,8 +333,9 @@ fi
 if want ingest; then
   section "수집·처리 상태"
   if tf "$PROXYSG_FLOW_ENABLED"; then
-    cf=/etc/cron.d/elk-proxysg-log-process
-    if [[ -f "${ELK_CRON_FILE:-$cf}" ]]; then row ok "처리 스크립트 cron" "$(grep -v '^[#A-Z]' "${ELK_CRON_FILE:-$cf}" | head -1 | awk '{print $1,$2,$3,$4,$5}')  (${ELK_CRON_FILE:-$cf})"; else row crit "처리 스크립트 cron" "cron 파일이 없습니다: $cf"; fi
+    cf="${ELK_CRON_FILE:-}"
+    if [[ -z "$cf" ]]; then for _c in /etc/cron.d/elk-proxysg-log-process /etc/cron.d/elk-guide-log-process; do if [[ -f "$_c" ]]; then cf="$_c"; break; fi; done; fi
+    if [[ -n "$cf" && -f "$cf" ]]; then row ok "처리 스크립트 cron" "$(grep -v '^[#A-Z]' "$cf" | head -1 | awk '{print $1,$2,$3,$4,$5}')  ($cf)"; else row crit "처리 스크립트 cron" "cron 파일이 없습니다: ${cf:-/etc/cron.d/elk-proxysg-log-process} (이전 버전은 /etc/cron.d/elk-guide-log-process)"; fi
     if [[ -f "$PROXYSG_PROCESS_LOG" ]]; then
       lt="$(grep -E '^\[[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]{8}\]' "$PROXYSG_PROCESS_LOG" | tail -1 | sed -E 's/^\[([^]]+)\].*/\1/')"; ec="$(tail -n 500 "$PROXYSG_PROCESS_LOG" | grep -c ' ERROR' || true)"; wc_="$(tail -n 500 "$PROXYSG_PROCESS_LOG" | grep -c ' WARNING' || true)"
       row info "처리 로그 마지막 기록" "${lt:-없음}  ($PROXYSG_PROCESS_LOG)"
