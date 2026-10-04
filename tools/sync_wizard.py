@@ -8,7 +8,7 @@ Wizard는 (1) 생성하는 단일 설치 파일(.sh)과 (2) 다운로드하는 Z
   python3 tools/sync_wizard.py --check    # 갱신이 필요하면 종료코드 1 (CI에서 사용)
   python3 tools/sync_wizard.py --extract-js out.js   # Wizard의 <script>를 파일로 추출(문법 검사용)
 """
-import argparse, base64, gzip, hashlib, json, sys
+import argparse, base64, gzip, hashlib, json, re, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -98,6 +98,19 @@ def find_obj(text, start_token):
     return j, k + 1
 
 
+BUILD_RE = re.compile(r"(const WIZARD_BUILD=')([0-9a-f]{8}|BUILDSTAMP)(')")
+
+
+def stamp(text):
+    """Wizard 파일의 '빌드 번호'를 계산해 넣는다. (파일 내용 − 번호 자리의 sha256 앞 8자리 → 내용이 바뀌면 번호도 바뀐다)
+    화면 왼쪽 아래에 표시되어, 수정본을 올렸는데 예전 화면이 보이는지(캐시/미반영) 바로 확인할 수 있다."""
+    if not BUILD_RE.search(text):
+        raise SystemExit('config-wizard.html 에 const WIZARD_BUILD 가 없습니다.')
+    base = BUILD_RE.sub(r"\1BUILDSTAMP\3", text)
+    h = hashlib.sha256(base.encode('utf-8')).hexdigest()[:8]
+    return BUILD_RE.sub(lambda m: m.group(1) + h + m.group(3), base)
+
+
 def build(text):
     # 1) 단일 설치 파일에 내장되는 파일
     j, k = find_obj(text, 'const EMBEDDED_FILES=')
@@ -117,7 +130,7 @@ def build(text):
     z = text.index('/*PKG-END*/')
     extra = {p: {'b64': b64(p), 'mode': m} for p, m in EXTRA.items()}
     text = text[:a] + 'const PACKAGE_EXTRA=' + dumps(extra) + ';' + text[z:]
-    return text
+    return stamp(text)
 
 
 def sums():
@@ -139,7 +152,6 @@ def main():
     a = ap.parse_args()
     cur = WIZ.read_text(encoding='utf-8')
     if a.extract_js:
-        import re
         Path(a.extract_js).write_text(re.search(r'<script>(.*?)</script>', cur, re.S).group(1), encoding='utf-8')
         return 0
     new = build(cur)

@@ -1150,7 +1150,8 @@ function showView(v){
 // ELK 자동 구성(config-wizard.html): 처음 열 때 iframe에 불러오고, 화면 높이에 맞춥니다.
 function openWizardFrame(){
   const f = document.getElementById('wizard-frame');
-  if(f && !f.getAttribute('src')) f.setAttribute('src', f.dataset.src);
+  // 주소 뒤에 현재 시각을 붙여 항상 최신 파일을 받습니다. (브라우저가 iframe 안의 예전 Wizard를 캐시로 계속 보여 주는 것을 막기 위함)
+  if(f && !f.getAttribute('src')) f.setAttribute('src', f.dataset.src + (f.dataset.src.indexOf('?') < 0 ? '?' : '&') + 'v=' + Date.now());
   fitWizardFrame();
 }
 function fitWizardFrame(){
