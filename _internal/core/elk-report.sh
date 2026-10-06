@@ -66,17 +66,62 @@ if (( USE_COLOR )); then
   R=$'\033[0m'; B=$'\033[1m'; D=$'\033[2m'; G=$'\033[1;92m'; Y=$'\033[93m'; X=$'\033[1;91m'; C=$'\033[96m'; H=$'\033[1;97;44m'
 else R=""; B=""; D=""; G=""; Y=""; X=""; C=""; H=""; fi
 N_OK=0; N_WARN=0; N_CRIT=0
-dw() { # display width (Korean = 2 columns)
-  local s="$1" i ch o w=0; for ((i=0;i<${#s};i++)); do ch="${s:i:1}"; printf -v o '%d' "'$ch" 2>/dev/null || o=0; if (( o >= 4352 )); then w=$((w+2)); else w=$((w+1)); fi; done; printf '%s' "$w"
+# 화면 폭: 터미널 폭(80~120). 파이프/파일로 저장할 때는 100. (ELK_REPORT_COLS=숫자 로 지정 가능)
+COLS="${ELK_REPORT_COLS:-}"
+if ! [[ "$COLS" =~ ^[0-9]+$ ]]; then
+  if [[ -t 1 ]]; then COLS="$(tput cols 2>/dev/null || echo 100)"; else COLS=100; fi
+  [[ "$COLS" =~ ^[0-9]+$ ]] || COLS=100
+fi
+(( COLS < 80 )) && COLS=80; (( COLS > 120 )) && COLS=120
+LABW=26; VCOL=$((2+2+LABW+2)); VAVAIL=$((COLS-VCOL-1)); (( VAVAIL < 40 )) && VAVAIL=40
+SEC_NAME=(); SEC_ST=(); CUR_IDX=-1; ISS_ST=(); ISS_SEC=(); ISS_LB=(); ISS_VAL=()
+dwv() { # 화면 폭을 DW 에 저장 (한글·전각 = 2칸, 나머지 = 1칸)
+  local s="$1" i o; DW=0
+  for ((i=0;i<${#s};i++)); do
+    printf -v o '%d' "'${s:i:1}" 2>/dev/null || o=0
+    if (( (o>=4352 && o<=4447) || (o>=11904 && o<=42191) || (o>=44032 && o<=55203) || (o>=63744 && o<=64255) || (o>=65040 && o<=65049) || (o>=65072 && o<=65135) || (o>=65280 && o<=65376) || (o>=65504 && o<=65510) )); then DW=$((DW+2)); else DW=$((DW+1)); fi
+  done
 }
-pad() { local s="$1" n="$2" w; w="$(dw "$s")"; printf '%s' "$s"; (( w < n )) && printf '%*s' $((n-w)) ''; return 0; }
-section() { printf '\n%s▌ %s%s\n' "$B$C" "$1" "$R"; }
-row() { # status label value
-  local st="$1" label="$2" val="$3" g c
-  case "$st" in ok) g="✔"; c="$G"; N_OK=$((N_OK+1)) ;; warn) g="⚠"; c="$Y"; N_WARN=$((N_WARN+1)) ;; crit) g="✖"; c="$X"; N_CRIT=$((N_CRIT+1)) ;; *) g="·"; c="$D" ;; esac
-  printf '  %s%s%s %s%s%s  %s\n' "$c" "$g" "$R" "$B" "$(pad "$label" 28)" "$R" "$val"
+dw() { dwv "$1"; printf '%s' "$DW"; }
+pad() { local s="$1" n="$2"; dwv "$s"; printf '%s' "$s"; (( DW < n )) && printf '%*s' $((n-DW)) ''; return 0; }
+wrapv() { # 긴 문장을 공백 기준으로 줄바꿈해 WL 배열에 저장: wrapv "문장" 폭
+  local text="$1" avail="$2" word cur="" cw=0 ww; local -a words=()
+  WL=(); read -ra words <<<"$text"
+  for word in "${words[@]}"; do
+    dwv "$word"; ww=$DW
+    if [[ -z "$cur" ]]; then cur="$word"; cw=$ww
+    elif (( cw + 1 + ww <= avail )); then cur+=" $word"; cw=$((cw+1+ww))
+    else WL+=("$cur"); cur="$word"; cw=$ww; fi
+  done
+  [[ -n "$cur" ]] && WL+=("$cur")
+  return 0
 }
-sub() { printf '      %s%s%s\n' "$D" "$1" "$R"; }
+heading() { # ━━ 제목 ━━━━━━━━ (화면 폭에 맞춤)
+  local t="$1" fill bar; dwv "$t"; fill=$((COLS-DW-4)); (( fill < 4 )) && fill=4
+  printf -v bar '%*s' "$fill" ''; bar="${bar// /━}"
+  printf '\n%s━━ %s %s%s\n' "$B$C" "$t" "$bar" "$R"
+}
+section() { SEC_NAME+=("${1%%  *}"); SEC_ST+=(0); CUR_IDX=$((${#SEC_NAME[@]}-1)); heading "$1"; }
+group() { printf '  %s▸ %s%s' "$B" "$1" "$R"; [[ -n "${2:-}" ]] && printf '  %s%s%s' "$D" "$2" "$R"; printf '\n'; }
+mark() { (( CUR_IDX >= 0 )) && (( $1 > SEC_ST[CUR_IDX] )) && SEC_ST[CUR_IDX]=$1; return 0; }
+row() { # status label value  — 라벨 칸 고정, 긴 값은 값 칸에 맞춰 줄바꿈, 주의/이상은 라벨 색 강조
+  local st="$1" label="$2" val="$3" g c lc="$B" lw i
+  case "$st" in
+    ok)   g="✔"; c="$G"; N_OK=$((N_OK+1)); mark 0 ;;
+    warn) g="⚠"; c="$Y"; lc="$B$Y"; N_WARN=$((N_WARN+1)); mark 1; ISS_ST+=(warn); ISS_SEC+=("${SEC_NAME[CUR_IDX]:-}"); ISS_LB+=("$label"); ISS_VAL+=("$val") ;;
+    crit) g="✖"; c="$X"; lc="$B$X"; N_CRIT=$((N_CRIT+1)); mark 2; ISS_ST+=(crit); ISS_SEC+=("${SEC_NAME[CUR_IDX]:-}"); ISS_LB+=("$label"); ISS_VAL+=("$val") ;;
+    *)    g="·"; c="$D" ;;
+  esac
+  dwv "$label"; lw=$DW; wrapv "$val" "$VAVAIL"
+  if (( lw > LABW )); then
+    printf '  %s%s%s %s%s%s\n' "$c" "$g" "$R" "$lc" "$label" "$R"
+    for ((i=0;i<${#WL[@]};i++)); do printf '%*s%s\n' "$VCOL" '' "${WL[i]}"; done
+  else
+    printf '  %s%s%s %s%s%*s%s  %s\n' "$c" "$g" "$R" "$lc" "$label" $((LABW-lw)) '' "$R" "${WL[0]:-}"
+    for ((i=1;i<${#WL[@]};i++)); do printf '%*s%s\n' "$VCOL" '' "${WL[i]}"; done
+  fi
+}
+sub() { local i; wrapv "$1" $((VAVAIL-2)); for ((i=0;i<${#WL[@]};i++)); do if (( i == 0 )); then printf '%*s%s↳ %s%s\n' "$VCOL" '' "$D" "${WL[i]}" "$R"; else printf '%*s%s  %s%s\n' "$VCOL" '' "$D" "${WL[i]}" "$R"; fi; done; }
 bytes_h() { awk -v b="${1:-0}" 'BEGIN{split("B KB MB GB TB PB",u," ");i=1;while(b>=1024&&i<6){b/=1024;i++}; if(i==1)printf "%d%s",b,u[i]; else printf "%.1f%s",b,u[i]}'; }
 num_h() { awk -v n="${1:-0}" 'BEGIN{s=sprintf("%d",n);o="";while(length(s)>3){o="," substr(s,length(s)-2) o;s=substr(s,1,length(s)-3)};print s o}'; }
 age_h() { local s="${1:-0}"; if (( s < 0 )); then s=0; fi; if (( s < 3600 )); then printf '%d분 전' $((s/60)); elif (( s < 172800 )); then printf '%d시간 전' $((s/3600)); else printf '%d일 전' $((s/86400)); fi; }
@@ -150,7 +195,12 @@ dir_stat() { # dir -> "count bytes newest_epoch oldest_epoch"
 NOW="$(date +%s)"
 
 # ---------------------------------------------------------------- 머리말
-printf '%s%s%s\n' "$H" " ELK 정기점검 리포트  $(hostname) · $(date '+%Y-%m-%d %H:%M:%S') " "$R"
+kv() { printf '  %s%s%s %s\n' "$D" "$(pad "$1" 8)" "$R" "$2"; }
+_t=" ELK 정기점검 리포트"; dwv "$_t"; printf '\n%s%s%*s%s\n' "$H" "$_t" $(( COLS > DW ? COLS-DW : 0 )) '' "$R"
+kv "서버" "$(hostname)    ·    $(date '+%Y-%m-%d %H:%M:%S %Z')"
+kv "버전" "ELK Auto Installer v${ELK_AUTO_VERSION}    ·    환경파일 ${ENV_FILE}"
+kv "범례" "${G}✔ 정상${R}   ${Y}⚠ 주의${R}   ${X}✖ 이상${R}   ${D}· 정보${R}"
+unset _t
 (( LEGACY_ENV )) && printf '  %s· 이전 버전(2.9.4 미만, GUIDE_*) 설정 파일을 읽어 점검합니다.%s\n' "$D" "$R"
 [[ -n "${ENV_MISSING:-}" ]] && printf '  %s⚠ elk.env 를 찾지 못해 기본값으로 점검합니다: %s%s\n' "$Y" "$ENV_FILE" "$R"
 (( HAVE_JQ )) || printf '  %s⚠ jq 가 없어 Elasticsearch 항목은 건너뜁니다. (sudo apt-get install -y jq)%s\n' "$Y" "$R"
@@ -244,7 +294,7 @@ if want disk; then
     (( pc >= 85 )) && sub "Elasticsearch 는 85% 이상에서 새 샤드 배치를 멈추고, 95%에서 인덱스를 읽기 전용으로 바꿉니다."
   done
   tf "$PROXYSG_FLOW_ENABLED" && {
-    printf '  %s로그 파일 폴더%s  %s(수신 → 처리 → 백업)%s\n' "$B" "$R" "$D" "$R"
+    group "로그 파일 폴더" "(수신 → 처리 → 백업)"
     for t in "${TYPES[@]}"; do
       IFS='|' read -r nm src bak prc _ <<<"$t"; out=""
       for pair in "수신:$src" "처리:$prc" "백업:$bak"; do
@@ -254,7 +304,7 @@ if want disk; then
       row info "로그 $nm" "${out% · }"
     done
   }
-  printf '  %sIndices%s  %s(Elasticsearch 인덱스 용량)%s\n' "$B" "$R" "$D" "$R"
+  group "Indices" "(Elasticsearch 인덱스 용량)"
   if (( HAVE_JQ )) && es_up; then
     for t in "${TYPES[@]}"; do
       IFS='|' read -r nm _ _ _ pfx <<<"$t"
@@ -279,7 +329,7 @@ fi
 # ---------------------------------------------------------------- last
 if want last; then
   section "마지막 로그 시각"
-  printf '  %s로그 파일%s  %s(수신·처리·백업 폴더 중 가장 최근 파일, 기준 %s시간)%s\n' "$B" "$R" "$D" "$STALE_H" "$R"
+  group "로그 파일" "(수신·처리·백업 폴더 중 가장 최근 파일, 기준 ${STALE_H}시간)"
   declare -A FILE_LAST=()
   if tf "$PROXYSG_FLOW_ENABLED"; then
     for t in "${TYPES[@]}"; do
@@ -292,7 +342,7 @@ if want last; then
       row "$st" "로그 파일 $nm" "$(epoch_h "$best")  ($(age_h "$age"))  $f"
     done
   else row info "로그 파일" "ProxySG 로그 처리 스크립트를 쓰지 않아 해당 없음"; fi
-  printf '  %sIndices%s  %s(@timestamp 최댓값)%s\n' "$B" "$R" "$D" "$R"
+  group "Indices" "(@timestamp 최댓값)"
   if (( HAVE_JQ )) && es_up; then
     for t in "${TYPES[@]}"; do
       IFS='|' read -r nm _ _ _ pfx <<<"$t"
@@ -403,8 +453,28 @@ if want os; then
 fi
 
 # ---------------------------------------------------------------- 요약
-printf '\n%s──────────────────────────────────────────────────────────────────────────────%s\n' "$D" "$R"
-printf ' 점검 결과   %s✔ 정상 %d%s   %s⚠ 주의 %d%s   %s✖ 이상 %d%s\n' "$G" "$N_OK" "$R" "$Y" "$N_WARN" "$R" "$X" "$N_CRIT" "$R"
+heading "점검 요약"
+for ((_i=0;_i<${#SEC_NAME[@]};_i++)); do
+  case "${SEC_ST[_i]}" in 0) _g="✔"; _c="$G" ;; 1) _g="⚠"; _c="$Y" ;; *) _g="✖"; _c="$X" ;; esac
+  printf '  %s%s%s %s' "$_c" "$_g" "$R" "$(pad "${SEC_NAME[_i]}" 22)"
+  if (( (_i+1) % 3 == 0 || _i == ${#SEC_NAME[@]}-1 )); then printf '\n'; fi
+done
+printf '\n  %s✔ 정상 %d%s     %s⚠ 주의 %d%s     %s✖ 이상 %d%s\n' "$G" "$N_OK" "$R" "$Y" "$N_WARN" "$R" "$X" "$N_CRIT" "$R"
+if (( ${#ISS_ST[@]} > 0 )); then
+  heading "조치 필요  (이상 ${N_CRIT} · 주의 ${N_WARN})"
+  for _p in crit warn; do
+    for ((_i=0;_i<${#ISS_ST[@]};_i++)); do
+      [[ "${ISS_ST[_i]}" == "$_p" ]] || continue
+      if [[ "$_p" == crit ]]; then _g="✖"; _c="$X"; else _g="⚠"; _c="$Y"; fi
+      printf '  %s%s%s %s%s › %s%s\n' "$_c" "$_g" "$R" "$B" "${ISS_SEC[_i]}" "${ISS_LB[_i]}" "$R"
+      wrapv "${ISS_VAL[_i]}" $((COLS-6))
+      for _l in "${WL[@]}"; do printf '      %s%s%s\n' "$D" "$_l" "$R"; done
+    done
+  done
+else
+  printf '\n  %s✔ 주의·이상 항목이 없습니다. 모든 점검이 정상입니다.%s\n' "$G" "$R"
+fi
+printf '\n'
 (( N_CRIT > 0 )) && exit 2
 (( N_WARN > 0 )) && exit 1
 exit 0
