@@ -71,6 +71,8 @@ window.ELK_DEFAULTS = {
     ES_ENROLLMENT_ENABLED: true,                              // Es Enrollment Enabled  [true | false]
     ES_HTTP_TLS_ENABLED: true,                                // Es Http Tls Enabled  [true | false]
     ES_TRANSPORT_TLS_ENABLED: true,                           // Es Transport Tls Enabled  [true | false]
+    ES_TLS_CA_VALIDITY_DAYS: "7300",                         // Elasticsearch CA 유효기간(일) · 약 20년
+    ES_TLS_CERT_VALIDITY_DAYS: "7300",                       // Elasticsearch HTTP/Transport 인증서 유효기간(일) · 약 20년
     ELASTIC_USERNAME: "elastic",                              // Elasticsearch 관리자 ID
     ES_HEAP_MODE: "fixed",                                  // Elasticsearch Heap 방식  [auto | fixed]
     ES_HEAP_MIN: "2g",                                        // Elasticsearch Xms
@@ -120,7 +122,8 @@ window.ELK_DEFAULTS = {
     NGINX_TLS_CERT_FILE: "/etc/ssl/certs/kibana-selfsigned.crt",  // Nginx Tls Cert File
     NGINX_TLS_KEY_FILE: "/etc/ssl/private/kibana-selfsigned.key",  // Nginx Tls Key File
     NGINX_TLS_CN: "",                                         // 인증서 CN / SAN
-    NGINX_TLS_DAYS: "3650",                                   // Self-Signed 유효기간
+    NGINX_TLS_SYNC_WITH_ES: true,                              // Nginx Self-Signed 유효기간을 Elasticsearch 서버 인증서와 동기화  [true | false]
+    NGINX_TLS_DAYS: "7300",                                   // Self-Signed 유효기간(수동 모드)
     NGINX_TLS_PROTOCOLS: "TLSv1.2 TLSv1.3",                   // Nginx Tls Protocols
     NGINX_TLS_CIPHERS: "HIGH:!aNULL:!MD5",                    // Nginx Tls Ciphers
 

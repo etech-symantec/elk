@@ -97,6 +97,10 @@ unset _old_name _new_name
 : "${ES_ENROLLMENT_ENABLED:=true}"
 : "${ES_HTTP_TLS_ENABLED:=true}"
 : "${ES_TRANSPORT_TLS_ENABLED:=true}"
+# 신규 설치 시 ELK Auto Installer가 최종 교체할 Elasticsearch TLS CA/노드 인증서 유효기간.
+# 7300일 = 약 20년. 기존 인증서가 이미 있는 서버에서는 안전을 위해 자동 재발급하지 않는다.
+: "${ES_TLS_CA_VALIDITY_DAYS:=7300}"
+: "${ES_TLS_CERT_VALIDITY_DAYS:=7300}"
 : "${ELASTIC_USERNAME:=elastic}"
 : "${ELASTIC_PASSWORD:=}"
 : "${ES_HEAP_MODE:=fixed}"
@@ -148,7 +152,9 @@ unset _old_name _new_name
 : "${NGINX_TLS_CERT_FILE:=/etc/ssl/certs/kibana-selfsigned.crt}"
 : "${NGINX_TLS_KEY_FILE:=/etc/ssl/private/kibana-selfsigned.key}"
 : "${NGINX_TLS_CN:=}"
-: "${NGINX_TLS_DAYS:=3650}"
+# Self-Signed Nginx 인증서 기간을 Elasticsearch 서버 인증서 기간과 자동으로 맞춤.
+: "${NGINX_TLS_SYNC_WITH_ES:=true}"
+: "${NGINX_TLS_DAYS:=7300}"
 : "${NGINX_TLS_PROTOCOLS:=TLSv1.2 TLSv1.3}"
 : "${NGINX_TLS_CIPHERS:=HIGH:!aNULL:!MD5}"
 
@@ -814,6 +820,16 @@ validate_env() {
     validate_abs_path "SWAP_FILE_PATH" "$SWAP_FILE_PATH"
     [[ "$SWAP_SIZE_GB" =~ ^[0-9]+$ ]] && (( SWAP_SIZE_GB >= 1 )) || die "SWAP_SIZE_GB는 1 이상의 정수(GB)여야 합니다: $SWAP_SIZE_GB"
   fi
+  [[ "$ES_TLS_CA_VALIDITY_DAYS" =~ ^[0-9]+$ ]] && (( ES_TLS_CA_VALIDITY_DAYS >= 1 && ES_TLS_CA_VALIDITY_DAYS <= 36500 )) \
+    || die "ES_TLS_CA_VALIDITY_DAYS는 1~36500 사이 정수(일)여야 합니다: $ES_TLS_CA_VALIDITY_DAYS"
+  [[ "$ES_TLS_CERT_VALIDITY_DAYS" =~ ^[0-9]+$ ]] && (( ES_TLS_CERT_VALIDITY_DAYS >= 1 && ES_TLS_CERT_VALIDITY_DAYS <= 36500 )) \
+    || die "ES_TLS_CERT_VALIDITY_DAYS는 1~36500 사이 정수(일)여야 합니다: $ES_TLS_CERT_VALIDITY_DAYS"
+  (( ES_TLS_CERT_VALIDITY_DAYS <= ES_TLS_CA_VALIDITY_DAYS )) \
+    || die "ES_TLS_CERT_VALIDITY_DAYS($ES_TLS_CERT_VALIDITY_DAYS)는 CA 유효기간($ES_TLS_CA_VALIDITY_DAYS)보다 길 수 없습니다."
+  [[ "${NGINX_TLS_SYNC_WITH_ES,,}" =~ ^(true|false|1|0|yes|no|on|off)$ ]] || die "NGINX_TLS_SYNC_WITH_ES는 true/false 값이어야 합니다."
+  [[ "$NGINX_TLS_DAYS" =~ ^[0-9]+$ ]] && (( NGINX_TLS_DAYS >= 1 && NGINX_TLS_DAYS <= 36500 )) \
+    || die "NGINX_TLS_DAYS는 1~36500 사이 정수(일)여야 합니다: $NGINX_TLS_DAYS"
+
   validate_port "ES_HTTP_PORT" "$ES_HTTP_PORT"
   validate_port "KIBANA_SERVER_PORT" "$KIBANA_SERVER_PORT"
   if istrue "$INSTALL_FTP_SERVER"; then validate_port "FTP_LISTEN_PORT" "$FTP_LISTEN_PORT"; fi
@@ -914,6 +930,8 @@ if [[ "$RUN_MODE" == "--validate" || "$RUN_MODE" == "validate" ]]; then
   Elasticsearch data: $ES_PATH_DATA
   Server sizing      : RAM ${SERVER_RAM_GB}GB / CPU ${SERVER_CPU_CORES} cores / Disk ${SERVER_DISK_GB}GB
   ES / Logstash heap : ${ES_HEAP_MODE} ${ES_HEAP_MIN}-${ES_HEAP_MAX} / ${LOGSTASH_HEAP_MIN}-${LOGSTASH_HEAP_MAX}
+  ES TLS validity    : CA ${ES_TLS_CA_VALIDITY_DAYS}d / node cert ${ES_TLS_CERT_VALIDITY_DAYS}d (신규 인증서 생성 시)
+  Nginx TLS validity : $(istrue "$NGINX_TLS_SYNC_WITH_ES" && echo "${ES_TLS_CERT_VALIDITY_DAYS}d (ES와 동기화)" || echo "${NGINX_TLS_DAYS}d")
   Swap               : disable=${DISABLE_SWAP} / auto_create=${AUTO_CREATE_SWAP} / ${SWAP_SIZE_GB}GB @ ${SWAP_FILE_PATH} / swappiness=${SYSTEM_SWAPPINESS}
   Index mode         : $INDEX_MODE
   Index match        : $INDEX_MATCH_PATTERN
@@ -1219,6 +1237,88 @@ if istrue "$PROXYSG_FLOW_ENABLED"; then
   chmod "$PROXYSG_DIR_MODE" "${_ps_src[@]}" "${_ps_bak[@]}" "${_ps_prc[@]}"
 fi
 
+# ----------------------------- Elasticsearch managed TLS certificate -----------------------------
+# Elastic의 최초 자동 보안 구성을 이용해 built-in 계정/보안 인덱스를 만든 뒤, 신규 설치에 한해
+# HTTP/Transport 인증서를 지정한 유효기간의 관리형 인증서로 교체한다.
+# CA 개인키는 향후 재발급을 위해 STATE_DIR/pki 아래 root 전용으로 보관한다.
+generate_managed_es_tls() {
+  local certutil="/usr/share/elasticsearch/bin/elasticsearch-certutil"
+  local es_certs="/etc/elasticsearch/certs"
+  local pki_dir="${STATE_DIR}/pki"
+  local tmp tls_bk dns_csv ip_csv short_host fqdn
+  [[ -x "$certutil" ]] || die "elasticsearch-certutil을 찾을 수 없습니다: $certutil"
+  command -v openssl >/dev/null 2>&1 || die "openssl이 필요합니다."
+
+  tmp="$(mktemp -d /tmp/elk-tls.XXXXXX)"
+  mkdir -p "$es_certs" "$pki_dir"
+  chmod 700 "$pki_dir"
+
+  short_host="$(hostname -s 2>/dev/null || hostname 2>/dev/null || true)"
+  fqdn="$(hostname -f 2>/dev/null || true)"
+  dns_csv="$({ printf '%s\n' localhost "$short_host" "$fqdn" "${SYSTEM_HOSTNAME:-}"; } | awk 'NF && !seen[$0]++' | paste -sd, -)"
+  ip_csv="$({ printf '%s\n' 127.0.0.1; hostname -I 2>/dev/null | tr ' ' '\n'; } | awk 'NF && !seen[$0]++' | paste -sd, -)"
+  [[ -n "$dns_csv" ]] || dns_csv="localhost"
+  [[ -n "$ip_csv" ]] || ip_csv="127.0.0.1"
+
+  log "Elasticsearch 관리형 TLS 생성: CA=${ES_TLS_CA_VALIDITY_DAYS}일, 서버 인증서=${ES_TLS_CERT_VALIDITY_DAYS}일"
+  "$certutil" ca --silent \
+    --days "$ES_TLS_CA_VALIDITY_DAYS" \
+    --out "$tmp/elastic-stack-ca.p12" --pass ""
+
+  if istrue "$ES_HTTP_TLS_ENABLED"; then
+    "$certutil" cert --silent \
+      --ca "$tmp/elastic-stack-ca.p12" --ca-pass "" \
+      --days "$ES_TLS_CERT_VALIDITY_DAYS" \
+      --name "${ES_NODE_NAME}" --dns "$dns_csv" --ip "$ip_csv" \
+      --out "$tmp/http.p12" --pass ""
+  fi
+  if istrue "$ES_TRANSPORT_TLS_ENABLED"; then
+    "$certutil" cert --silent \
+      --ca "$tmp/elastic-stack-ca.p12" --ca-pass "" \
+      --days "$ES_TLS_CERT_VALIDITY_DAYS" \
+      --name "${ES_NODE_NAME}-transport" --dns "$dns_csv" --ip "$ip_csv" \
+      --out "$tmp/transport.p12" --pass ""
+  fi
+
+  # PKCS#12 CA에서 trust용 PEM CA만 추출한다.
+  openssl pkcs12 -in "$tmp/elastic-stack-ca.p12" -nokeys -passin pass: 2>/dev/null \
+    | openssl x509 -out "$tmp/http_ca.crt"
+
+  # Elastic 자동 생성 인증서를 되돌릴 수 있도록 보관한다.
+  tls_bk="${BACKUP_DIR}/tls-auto-$(date '+%Y%m%d-%H%M%S')"
+  mkdir -p "$tls_bk"
+  for f in "$ES_CA" "$es_certs/http.p12" "$es_certs/transport.p12"; do
+    [[ -f "$f" ]] && cp -a "$f" "$tls_bk/"
+  done
+
+  install -m 600 "$tmp/elastic-stack-ca.p12" "$pki_dir/elastic-stack-ca.p12"
+  install -m 640 "$tmp/http_ca.crt" "$ES_CA"
+  istrue "$ES_HTTP_TLS_ENABLED" && install -m 640 "$tmp/http.p12" "$es_certs/http.p12"
+  istrue "$ES_TRANSPORT_TLS_ENABLED" && install -m 640 "$tmp/transport.p12" "$es_certs/transport.p12"
+  chown root:elasticsearch "$ES_CA"
+  istrue "$ES_HTTP_TLS_ENABLED" && chown root:elasticsearch "$es_certs/http.p12"
+  istrue "$ES_TRANSPORT_TLS_ENABLED" && chown root:elasticsearch "$es_certs/transport.p12"
+
+  # 새 PKCS#12는 빈 비밀번호로 생성되므로 auto-configuration이 저장한 이전 secure_password를 제거한다.
+  for key in \
+    xpack.security.http.ssl.keystore.secure_password \
+    xpack.security.transport.ssl.keystore.secure_password \
+    xpack.security.transport.ssl.truststore.secure_password; do
+    "/usr/share/elasticsearch/bin/elasticsearch-keystore" remove "$key" >/dev/null 2>&1 || true
+  done
+
+  {
+    echo "generated_at=$(date -Is)"
+    echo "ca_validity_days=${ES_TLS_CA_VALIDITY_DAYS}"
+    echo "cert_validity_days=${ES_TLS_CERT_VALIDITY_DAYS}"
+    openssl x509 -in "$ES_CA" -noout -subject -issuer -dates
+  } >"$pki_dir/validity.txt"
+  chmod 600 "$pki_dir/validity.txt"
+  log "Elasticsearch CA/인증서 교체 완료. CA 개인키: $pki_dir/elastic-stack-ca.p12 (root 전용)"
+  log "CA 만료: $(openssl x509 -in "$ES_CA" -noout -enddate | cut -d= -f2-)"
+  rm -rf "$tmp"
+}
+
 # ----------------------------- Elasticsearch bootstrap -----------------------------
 overall_progress 58 "Elasticsearch 설정 및 Security/TLS 초기화"
 if istrue "$INSTALL_ELASTICSEARCH"; then
@@ -1233,9 +1333,12 @@ EOF_ES_SYSTEMD
   fi
   systemctl daemon-reload
 
-  # 최초 부팅 시 Elastic의 자동 보안 설정/TLS 인증서 생성을 이용
+  # 최초 부팅 시 Elastic의 자동 보안 설정/TLS 인증서 생성을 이용한다.
+  # 신규 설치 여부를 기록해 두었다가 built-in 계정 초기화 후 지정 유효기간 인증서로 교체한다.
+  ES_TLS_FRESH_INSTALL=0
   if [[ ! -f "$ES_CA" && ! -f /etc/elasticsearch/certs/http.p12 ]]; then
-    log "Elasticsearch 최초 시작 - 자동 보안/TLS 생성"
+    ES_TLS_FRESH_INSTALL=1
+    log "Elasticsearch 최초 시작 - 자동 보안/TLS 생성(bootstrap 후 관리형 장기 인증서로 교체)"
     systemctl enable elasticsearch >/dev/null 2>&1 || true
     systemctl start elasticsearch
     if ! wait_for_http_code "https://127.0.0.1:9200" "$ES_CA" '200|401'; then
@@ -1243,7 +1346,11 @@ EOF_ES_SYSTEMD
       die "Elasticsearch 최초 시작 확인 실패"
     fi
   else
-    log "기존 Elasticsearch TLS 구성 감지"
+    log "기존 Elasticsearch TLS 구성 감지 - 인증서는 안전을 위해 자동 재발급하지 않습니다."
+    if [[ -f "$ES_CA" ]]; then
+      _ca_end="$(openssl x509 -in "$ES_CA" -noout -enddate 2>/dev/null | cut -d= -f2- || true)"
+      [[ -n "$_ca_end" ]] && log "현재 Elasticsearch CA 만료: $_ca_end (Wizard 유효기간 값은 신규 인증서 생성 시 적용)"
+    fi
     systemctl start elasticsearch || true
     wait_for_http_code "https://127.0.0.1:9200" "$ES_CA" '200|401' || true
   fi
@@ -1295,6 +1402,13 @@ EOF_ES_SYSTEMD
 
   log "Elasticsearch 서비스 중지 후 운영 설정 적용"
   systemctl stop elasticsearch || true
+
+  # 신규 설치라면 Elastic 자동 생성 인증서를 Wizard에서 지정한 유효기간의 인증서로 교체한다.
+  # 기존 서버 재실행에서는 인증서를 자동 교체하지 않아 현재 trust 관계를 보존한다.
+  if (( ${ES_TLS_FRESH_INSTALL:-0} == 1 )) && istrue "$ES_SECURITY_ENABLED" \
+     && { istrue "$ES_HTTP_TLS_ENABLED" || istrue "$ES_TRANSPORT_TLS_ENABLED"; }; then
+    generate_managed_es_tls
+  fi
 
   # path.data 변경 시 최초 데이터(보안 인덱스 포함) 안전 복사
   if [[ "$ES_PATH_DATA" != "/var/lib/elasticsearch" ]]; then
@@ -1989,6 +2103,10 @@ fi
 # ----------------------------- Nginx reverse proxy -----------------------------
 overall_progress 84 "Nginx HTTPS Reverse Proxy 구성"
 if istrue "$INSTALL_NGINX"; then
+  # 기본은 Elasticsearch 서버 인증서와 같은 유효기간을 사용한다. existing 인증서는 발급기관 정책을 따르므로 이 값이 적용되지 않는다.
+  if istrue "$NGINX_TLS_SYNC_WITH_ES" && [[ "$NGINX_TLS_MODE" == "selfsigned" ]]; then
+    NGINX_TLS_DAYS="$ES_TLS_CERT_VALIDITY_DAYS"
+  fi
   [[ "$NGINX_TLS_MODE" == "selfsigned" || ( -s "$NGINX_TLS_CERT_FILE" && -s "$NGINX_TLS_KEY_FILE" ) ]] || die "Nginx TLS 인증서/키를 찾을 수 없습니다."
   if [[ "$NGINX_TLS_MODE" == "selfsigned" && ( ! -s "$NGINX_TLS_CERT_FILE" || ! -s "$NGINX_TLS_KEY_FILE" ) ]]; then
     _nginx_cn="$NGINX_TLS_CN"
@@ -2001,7 +2119,7 @@ if istrue "$INSTALL_NGINX"; then
       -keyout "$NGINX_TLS_KEY_FILE" -out "$NGINX_TLS_CERT_FILE" \
       -subj "/C=KR/ST=Seoul/L=Seoul/O=IT/CN=${_nginx_cn}" -addext "subjectAltName=${_san}" >/dev/null 2>&1
     chmod 600 "$NGINX_TLS_KEY_FILE"; chmod 644 "$NGINX_TLS_CERT_FILE"
-    log "Nginx self-signed 인증서 생성: CN=$_nginx_cn"
+    log "Nginx self-signed 인증서 생성: CN=$_nginx_cn, 유효기간=${NGINX_TLS_DAYS}일"
   fi
   if istrue "$NGINX_DISABLE_DEFAULT_SITE"; then rm -f /etc/nginx/sites-enabled/default; fi
   cat >/etc/nginx/conf.d/kibana.conf <<EOF_NGINX
@@ -2070,6 +2188,10 @@ if [[ -f "$SCRIPT_DIR/elk-ops.sh" ]]; then
 fi
 if [[ -f "$SCRIPT_DIR/check-elk.sh" ]]; then
   install -m 750 "$SCRIPT_DIR/check-elk.sh" /usr/local/sbin/elk-check
+fi
+if [[ -f "$SCRIPT_DIR/elk-cert-renew.sh" ]]; then
+  install -m 750 "$SCRIPT_DIR/elk-cert-renew.sh" /usr/local/sbin/elk-cert-renew
+  log "인증서 갱신 도구 설치: /usr/local/sbin/elk-cert-renew"
 fi
 
 if istrue "$FILE_INGEST_MANAGER_ENABLED"; then

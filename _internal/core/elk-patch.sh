@@ -3,21 +3,18 @@
 #
 #   sudo bash elk-patch.sh --set patch.env [--lib DIR] [--env /etc/elk-auto/elk.env] [--dry-run] [--yes]
 #   sudo bash elk-patch.sh [옵션] KEY='값' [KEY='값' ...]
-#   bash elk-patch.sh --list            # 패치할 수 있는 항목과 적용 방식  (설치기가 설치한 서버에서는 `sudo elk-patch ...` 로도 실행)
+#   bash elk-patch.sh --list            # 패치할 수 있는 항목과 적용 방식
 #
 # 하는 일: ① 허용된 항목만 검사 → ② elk.env 백업 후 해당 값만 수정 → ③ 영향받는 부분만 적용
-#   cron 시간 · ILM 보존기간 · Logstash pipeline(로그 포맷/Cloud 등) · Index Template 패턴 · Data View · 폴더
-# 하지 않는 일: 패키지 설치, Elasticsearch/Kibana 재시작, 계정/비밀번호 변경, 방화벽 변경 (전체 재설치가 필요한 값은 거절)
-# 이전 버전(2.9.4 미만, 설정 이름 GUIDE_*) 서버: 재설치 없이 실행 시간(cron)·보존기간(ILM)·수신/백업 폴더·Data View 이름만 패치합니다. (--list 의 ★ 항목)
+#   cron 시간 · ILM 보존기간 · Logstash pipeline · Index Template · Data View · 폴더 · TLS 인증서 갱신
+# 인증서 패치는 서비스 재시작/CA 교체가 포함되므로 다른 패치 항목과 분리해서 실행합니다.
+# 하지 않는 일: 패키지 설치, 계정/비밀번호 변경, 방화벽 변경
 set -Eeuo pipefail
 IFS=$'\n\t'
 
 PATCH_VERSION="1"
-ELK_AUTO_VERSION="2.9.4"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
-_SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# 도구 파일(proxysg-lib.sh 등)은 이 스크립트 옆에 있으면 그것을, 없으면 설치기가 넣어 둔 /usr/local/lib/elk-auto 를 사용
-if [[ -f "$_SELF_DIR/proxysg-lib.sh" ]]; then LIB_DIR="$_SELF_DIR"; else LIB_DIR="${ELK_PATCH_LIB_DIR:-/usr/local/lib/elk-auto}"; fi
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CRON_DIR="${ELK_CRON_DIR:-/etc/cron.d}"
 BACKUP_ROOT="${ELK_PATCH_BACKUP_DIR:-/var/backups/elk-auto}"
 LOGSTASH_BIN="${ELK_LOGSTASH_BIN:-/usr/share/logstash/bin/logstash}"
@@ -49,6 +46,8 @@ declare -A KEY_ACTIONS=(
   [PROXYSG_MAIN_INDEX_PREFIX]="pipeline index dataview" [PROXYSG_SSL_INDEX_PREFIX]="pipeline index dataview" [PROXYSG_CLOUD_INDEX_PREFIX]="pipeline index dataview"
   [PROXYSG_CLOUD_ENABLED]="dirs pipeline index dataview"
   [PROXYSG_MAIN_DATA_VIEW_NAME]="dataview" [PROXYSG_SSL_DATA_VIEW_NAME]="dataview" [PROXYSG_CLOUD_DATA_VIEW_NAME]="dataview"
+  [ES_TLS_CA_VALIDITY_DAYS]="certs" [ES_TLS_CERT_VALIDITY_DAYS]="certs"
+  [NGINX_TLS_SYNC_WITH_ES]="certs" [NGINX_TLS_DAYS]="certs" [NGINX_TLS_CN]="certs"
 )
 declare -A ACTION_TEXT=(
   [dirs]="로그 폴더 생성·권한 설정(없는 폴더만 새로 만듦)"
@@ -57,17 +56,17 @@ declare -A ACTION_TEXT=(
   [ilm]="기존 ILM 정책의 삭제(보존기간) 단계만 수정"
   [index]="기존 Index Template의 인덱스 패턴만 수정"
   [dataview]="Kibana Data View 생성/갱신"
+  [certs]="Elasticsearch CA/HTTP/Transport + Nginx Self-Signed 인증서 재발급 (서비스 재시작, 자동 백업/복구)"
 )
-ACTION_ORDER=(dirs pipeline cron ilm index dataview)
+ACTION_ORDER=(certs dirs pipeline cron ilm index dataview)
 
 usage() { sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 list_keys() {
-  echo "패치할 수 있는 항목:   (★ = 이전 버전(2.9.4 미만, GUIDE_*)으로 설치한 서버에서도 패치 가능)"
+  echo "패치할 수 있는 항목:"
   local k; for k in $(printf '%s\n' "${!KEY_ACTIONS[@]}" | sort); do
     local a="" x acts; IFS=' ' read -ra acts <<<"${KEY_ACTIONS[$k]}"; for x in "${acts[@]}"; do a+="${ACTION_TEXT[$x]}; "; done
-    local star=""; IFS=' ' read -ra acts <<<"${KEY_ACTIONS[$k]}"; local ok=1; for x in "${acts[@]}"; do case "$x" in cron|ilm|dirs|dataview) ;; *) ok=0 ;; esac; done; (( ok )) && star="  ★"
-    printf '  %-36s %s%s\n' "$k" "${a%; }" "$star"
+    printf '  %-36s %s\n' "$k" "${a%; }"
   done
 }
 
@@ -80,7 +79,6 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY=1; shift ;;
     -y|--yes) YES=1; shift ;;
     --list) LIST=1; shift ;;
-    --version) echo "elk-patch (ELK Auto Installer v${ELK_AUTO_VERSION})"; exit 0 ;;
     -h|--help) usage; exit 0 ;;
     [A-Z]*=*) ARG_KV+=("$1"); shift ;;
     *) die "알 수 없는 옵션: $1  (--help 참고)" ;;
@@ -93,7 +91,6 @@ declare -A NEWV=(); declare -a ORDER=()
 add_kv() {
   local k="${1%%=*}" v="${1#*=}"
   [[ "$k" =~ ^[A-Z][A-Z0-9_]*$ ]] || die "항목 이름이 올바르지 않습니다: $k"
-  [[ "$v" != *$'\n'* && "$v" != *$'\r'* ]] || die "$k : 값은 한 줄이어야 합니다. (줄바꿈이 들어 있습니다)"
   if [[ "$v" == \'*\' && ${#v} -ge 2 ]]; then v="${v:1:${#v}-2}"; v="${v//\'\\\'\'/\'}"; fi
   [[ -n "${NEWV[$k]+x}" ]] || ORDER+=("$k")
   NEWV[$k]="$v"
@@ -115,29 +112,9 @@ command -v jq >/dev/null 2>&1 || die "jq 가 필요합니다. (설치 시 함께
 # ---------------------------------------------------------------- 현재 설정 읽기
 # shellcheck disable=SC1090
 source "$ENV_FILE"
-# ---- 이전 버전(2.9.4 미만, 설정 이름이 GUIDE_*) 서버 지원 -----------------------------------------------------------
-# 재설치 없이 쓸 수 있도록 이전 이름(GUIDE_*)을 읽고, 값을 바꿀 때도 설정 파일의 이전 이름 그대로 고친다.
-# 단, 이전 버전의 Logstash 파이프라인은 필드 구성이 달라서(파일 하나의 47개 칼럼을 MAIN/SSL에 함께 사용) 다시 만들지 않는다.
-#   → 이전 버전 서버에서 패치할 수 있는 것: 실행 시간(cron) · 보존기간(ILM) · 수신/백업 폴더 · Data View 이름
-LEGACY=0
-if grep -qE '^GUIDE_[A-Z0-9_]+=' "$ENV_FILE" 2>/dev/null && ! grep -qE '^PROXYSG_[A-Z0-9_]+=' "$ENV_FILE" 2>/dev/null; then LEGACY=1; fi
-legacy_name() {   # PROXYSG_X -> 이전 설정 파일에서 쓰던 이름
-  case "$1" in
-    PROXYSG_FLOW_ENABLED) echo GUIDE_PROXY_FLOW_ENABLED ;;
-    PROXYSG_CSV_FILTER_ENABLED) echo GUIDE_PROXY_CSV_FILTER_ENABLED ;;
-    PROXYSG_*) echo "GUIDE_${1#PROXYSG_}" ;;
-    *) echo "$1" ;;
-  esac
-}
-while IFS= read -r _old; do
-  case "$_old" in
-    GUIDE_PROXY_FLOW_ENABLED) _new="PROXYSG_FLOW_ENABLED" ;;
-    GUIDE_PROXY_CSV_FILTER_ENABLED) _new="PROXYSG_CSV_FILTER_ENABLED" ;;
-    *) _new="PROXYSG_${_old#GUIDE_}" ;;
-  esac
-  if [[ -z "${!_new+x}" ]]; then printf -v "$_new" '%s' "${!_old}"; fi
-done < <(compgen -A variable GUIDE_ || true)
-unset _old _new
+if grep -qE '^GUIDE_[A-Z0-9_]+=' "$ENV_FILE" 2>/dev/null && ! grep -qE '^PROXYSG_[A-Z0-9_]+=' "$ENV_FILE" 2>/dev/null; then
+  die "이전 이름(GUIDE_*)으로 설치된 서버입니다. 먼저 새 설치 파일로 한 번 재설치한 뒤 패치하세요."
+fi
 : "${PROXYSG_FLOW_ENABLED:=false}"; : "${PROXYSG_CLOUD_ENABLED:=false}"
 : "${PROXYSG_MAIN_SOURCE_DIR:=/home/main}"; : "${PROXYSG_SSL_SOURCE_DIR:=/home/ssl}"; : "${PROXYSG_CLOUD_SOURCE_DIR:=/home/cloud}"
 : "${PROXYSG_MAIN_BACKUP_DIR:=/home/main_backup}"; : "${PROXYSG_SSL_BACKUP_DIR:=/home/ssl_backup}"; : "${PROXYSG_CLOUD_BACKUP_DIR:=/home/cloud_backup}"
@@ -152,7 +129,9 @@ unset _old _new
 : "${PROXYSG_ILM_POLICY_NAME:=proxy-retention-policy}"; : "${PROXYSG_INDEX_TEMPLATE_NAME:=proxy-index-template}"
 : "${INDEX_PREFIX:=network-log}"; : "${INDEX_DATE_PATTERN:=YYYY.MM.dd}"; : "${INDEX_TEMPLATE_NAME:=${INDEX_PREFIX}-template}"; : "${ILM_POLICY_NAME:=${INDEX_PREFIX}-ilm}"
 : "${ILM_DELETE_ENABLED:=true}"; : "${ILM_DELETE_MIN_AGE:=90d}"
-: "${ES_SECURITY_ENABLED:=true}"; : "${ES_HTTP_TLS_ENABLED:=true}"; : "${ES_HTTP_PORT:=9200}"; : "${ELASTIC_USERNAME:=elastic}"
+: "${ES_SECURITY_ENABLED:=true}"; : "${ES_HTTP_TLS_ENABLED:=true}"; : "${ES_TRANSPORT_TLS_ENABLED:=true}"; : "${ES_HTTP_PORT:=9200}"; : "${ELASTIC_USERNAME:=elastic}"
+: "${ES_TLS_CA_VALIDITY_DAYS:=7300}"; : "${ES_TLS_CERT_VALIDITY_DAYS:=7300}"; : "${ES_DISCOVERY_MODE:=single-node}"
+: "${INSTALL_NGINX:=false}"; : "${NGINX_TLS_MODE:=selfsigned}"; : "${NGINX_TLS_SYNC_WITH_ES:=true}"; : "${NGINX_TLS_DAYS:=7300}"; : "${NGINX_TLS_CN:=}"
 : "${KIBANA_SERVER_PORT:=5601}"; : "${KIBANA_CREATE_DATA_VIEW:=true}"; : "${KIBANA_DATA_VIEW_TIME_FIELD:=@timestamp}"; : "${KIBANA_DATA_VIEW_ALLOW_NO_INDEX:=true}"
 : "${LOGSTASH_PROFILE:=generic}"; : "${LOGSTASH_PIPELINE_FILE:=/etc/logstash/conf.d/10-main.conf}"; : "${LOGSTASH_ES_HOST:=}"
 : "${FTP_USER:=elkftp}"; : "${FTP_GROUP:=logstash}"; : "${INSTALL_LOGSTASH:=true}"
@@ -165,7 +144,7 @@ check_value() {
   case "$k" in
     PROXYSG_PROCESS_CRON) [[ "$v" =~ ^[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+$ ]] && [[ "$v" =~ ^[0-9*/,[:space:]-]+$ ]] || echo "cron은 5개 필드여야 합니다. 예: 0 3 * * *  (매분: * * * * *)" ;;
     ILM_DELETE_MIN_AGE) [[ "$v" =~ ^[0-9]+(ms|s|m|h|d|w)$ ]] || echo "보존기간 형식이 올바르지 않습니다. 예: 90d" ;;
-    ILM_DELETE_ENABLED|PROXYSG_CSV_FILTER_ENABLED|PROXYSG_CLOUD_ENABLED) [[ "${v,,}" =~ ^(true|false)$ ]] || echo "true 또는 false 여야 합니다." ;;
+    ILM_DELETE_ENABLED|PROXYSG_CSV_FILTER_ENABLED|PROXYSG_CLOUD_ENABLED|NGINX_TLS_SYNC_WITH_ES) [[ "${v,,}" =~ ^(true|false)$ ]] || echo "true 또는 false 여야 합니다." ;;
     PROXYSG_*_LOG_FORMAT) [[ -n "${v//[[:space:]]/}" ]] || { echo "비어 있을 수 없습니다."; return; }; [[ "$v" =~ ^[A-Za-z0-9_.:()[:space:]-]+$ ]] || echo "허용되지 않는 문자가 있습니다. (영문/숫자, - _ . : ( ) 와 공백만)" ;;
     PROXYSG_*_INDEX_PREFIX) [[ "$v" =~ ^[a-z0-9][a-z0-9._-]*$ ]] || echo "소문자·숫자·-·_·. 만 쓰고 영문/숫자로 시작해야 합니다. 예: proxy-main" ;;
     PROXYSG_*_DATA_VIEW_NAME) [[ -n "${v//[[:space:]]/}" ]] || echo "비어 있을 수 없습니다." ;;
@@ -173,29 +152,32 @@ check_value() {
     PROXYSG_FILE_GLOB) [[ "$v" =~ ^[A-Za-z0-9_.*?-]+$ ]] || echo "파일 패턴에 허용되지 않는 문자가 있습니다. 예: *.log.gz" ;;
     PROXYSG_LOGSTASH_DISCOVER_INTERVAL|PROXYSG_LOGSTASH_MAX_OPEN_FILES) [[ "$v" =~ ^[0-9]+$ && "$v" -ge 1 ]] || echo "1 이상의 숫자여야 합니다." ;;
     INDEX_DATE_PATTERN) [[ "$v" =~ ^[A-Za-z.\-_]+$ ]] || echo "날짜 형식이 올바르지 않습니다. 예: YYYY.MM.dd" ;;
+    ES_TLS_CA_VALIDITY_DAYS|ES_TLS_CERT_VALIDITY_DAYS|NGINX_TLS_DAYS) [[ "$v" =~ ^[0-9]+$ && "$v" -ge 1 && "$v" -le 36500 ]] || echo "1~36500 사이 정수(일)여야 합니다." ;;
+    NGINX_TLS_CN) [[ "$v" != *[[:space:]]* ]] || echo "CN/SAN에는 공백을 사용할 수 없습니다." ;;
   esac
 }
 declare -A ACTIONS=()
 bad=0
 for k in "${ORDER[@]}"; do
   if [[ -z "${KEY_ACTIONS[$k]+x}" ]]; then
-    echo "[거절] $k : 부분 패치를 지원하지 않는 항목입니다. (포트·계정·Heap·인증서 등은 전체 재설치가 필요합니다)" >&2; bad=1; continue
+    echo "[거절] $k : 부분 패치를 지원하지 않는 항목입니다. (포트·계정·Heap 등은 별도 작업이 필요합니다)" >&2; bad=1; continue
   fi
   msg="$(check_value "$k" "${NEWV[$k]}")"
   if [[ -n "$msg" ]]; then echo "[거절] $k : $msg" >&2; bad=1; continue; fi
-  if (( LEGACY )); then
-    IFS=' ' read -ra _la <<<"${KEY_ACTIONS[$k]}"; _lok=1
-    for a in "${_la[@]}"; do case "$a" in cron|ilm|dirs|dataview) ;; *) _lok=0 ;; esac; done
-    if (( ! _lok )); then echo "[거절] $k : 이전 버전(2.9.4 미만)으로 설치된 서버에서는 패치할 수 없는 항목입니다. (Logstash 파이프라인을 다시 만드는 항목은 이전 버전과 필드 구성이 달라 바꾸지 않습니다. 새 설치 파일로 재설치가 필요합니다)" >&2; bad=1; continue; fi
-    if ! grep -q "^$(legacy_name "$k")=" "$ENV_FILE"; then echo "[거절] $k : 이 서버의 설정 파일에 없는 항목입니다. (이전 버전 설치에는 없는 항목)" >&2; bad=1; continue; fi
-  fi
   IFS=' ' read -ra _acts <<<"${KEY_ACTIONS[$k]}"; for a in "${_acts[@]}"; do ACTIONS[$a]=1; done
 done
 (( bad )) && die "잘못된 항목이 있어 아무것도 바꾸지 않았습니다."
+# 인증서 기간의 상호 관계도 새 값 기준으로 검사한다.
+_ca_days="${NEWV[ES_TLS_CA_VALIDITY_DAYS]:-${ES_TLS_CA_VALIDITY_DAYS}}"
+_cert_days="${NEWV[ES_TLS_CERT_VALIDITY_DAYS]:-${ES_TLS_CERT_VALIDITY_DAYS}}"
+[[ "$_ca_days" =~ ^[0-9]+$ && "$_cert_days" =~ ^[0-9]+$ ]] || die "인증서 유효기간 값이 올바르지 않습니다."
+(( _cert_days <= _ca_days )) || die "Elasticsearch 서버 인증서 기간($_cert_days)은 CA 기간($_ca_days)보다 길 수 없습니다."
+if [[ -n "${ACTIONS[certs]+x}" && ${#ACTIONS[@]} -gt 1 ]]; then
+  die "인증서 갱신 패치는 서비스 재시작/CA 교체가 포함되므로 다른 패치 항목과 분리해서 단독으로 생성·실행하세요."
+fi
 
 # ---------------------------------------------------------------- 변경 내용 표시
 cur() { local n="$1"; printf '%s' "${!n-}"; }
-(( LEGACY )) && echo "※ 이전 버전(2.9.4 미만, GUIDE_*)으로 설치된 서버입니다. 설정 파일의 이전 이름을 그대로 수정하고, Logstash 파이프라인은 건드리지 않습니다."
 echo "=== 적용 예정 변경 ($ENV_FILE) ==="
 changed=0
 for k in "${ORDER[@]}"; do
@@ -217,7 +199,6 @@ cp -p "$ENV_FILE" "$BK/elk.env"
 log "백업: $BK"
 set_env_value() {
   local key="$1" val="$2" esc line tmp
-  if (( LEGACY )); then key="$(legacy_name "$key")"; fi
   esc="${val//\'/\'\\\'\'}"; line="${key}='${esc}'"
   tmp="$(mktemp)"
   NEWLINE="$line" awk -v k="$key" 'BEGIN{line=ENVIRON["NEWLINE"];done=0} $0 ~ ("^" k "=") {if(!done){print line;done=1};next} {print} END{if(!done)print line}' "$ENV_FILE" >"$tmp"
@@ -226,7 +207,7 @@ set_env_value() {
 restore_env() { cp -p "$BK/elk.env" "$ENV_FILE"; }
 for k in "${ORDER[@]}"; do set_env_value "$k" "${NEWV[$k]}"; printf -v "$k" '%s' "${NEWV[$k]}"; done
 chmod 600 "$ENV_FILE"
-log "elk.env 수정 완료: $(IFS=' '; printf '%s' "${ORDER[*]}")"
+log "elk.env 수정 완료: ${ORDER[*]}"
 
 # ---------------------------------------------------------------- ES / Kibana 접속
 ES_LOCAL_URL=""
@@ -256,6 +237,18 @@ ok_()   { OK_LIST+=("$1"); log "완료: $1"; }
 fail_() { FAIL_LIST+=("$1"); warn "실패: $1"; }
 
 # ---------------------------------------------------------------- 동작들
+act_certs() {
+  local tool="$LIB_DIR/elk-cert-renew.sh"
+  [[ -f "$tool" ]] || { fail_ "인증서 갱신 도구 없음: $tool"; return 0; }
+  log "인증서 갱신 실행 (CA 교체 시 Kibana/Logstash trust도 함께 갱신)"
+  if bash "$tool" --env "$ENV_FILE" --all --yes; then
+    ok_ "TLS 인증서 갱신"
+  else
+    restore_env
+    fail_ "TLS 인증서 갱신 실패 (elk.env는 이전 값으로 복구)"
+    return 0
+  fi
+}
 act_dirs() {
   istrue "$PROXYSG_FLOW_ENABLED" || { log "로그 처리 스크립트가 꺼져 있어 폴더 작업은 건너뜁니다."; return 0; }
   local src=("$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR") bak=("$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR") prc=("$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR") d
@@ -303,8 +296,7 @@ act_pipeline() {
 }
 act_cron() {
   istrue "$PROXYSG_FLOW_ENABLED" || { log "로그 처리 스크립트가 꺼져 있어 cron 작업은 건너뜁니다."; return 0; }
-  local f="$CRON_DIR/elk-proxysg-log-process" lf="$CRON_DIR/elk-guide-log-process"
-  if [[ ! -e "$f" && -e "$lf" ]]; then f="$lf"; log "이전 버전의 cron 파일을 그대로 수정합니다: $f"; fi
+  local f="$CRON_DIR/elk-proxysg-log-process"
   [[ -e "$f" ]] || warn "기존 cron 파일이 없어 새로 만듭니다: $f"
   mkdir -p "$CRON_DIR"
   cat >"$f.new" <<EOF_PATCH_CRON
