@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-# ELK Auto Installer v2.9.2 (keystore + kibana-token hotfix)
+# ELK Auto Installer v2.9.4
 # Target: Ubuntu 22.04 / 24.04, Elastic Stack 9.x
 # Usage: sudo bash install-elk.sh ./elk.env
 
@@ -55,21 +55,13 @@ unset _old_name _new_name
 : "${SYSTEM_HOSTNAME:=elk01}"
 : "${TIMEZONE:=Asia/Seoul}"
 : "${ENABLE_NTP:=true}"
-# 서버 스펙/자동 사이징 메타데이터 (Wizard가 권장값 계산에 사용; 설치기에서도 기록용으로 유지)
-: "${SERVER_RAM_GB:=8}"
-: "${SERVER_CPU_CORES:=4}"
-: "${SERVER_DISK_GB:=100}"
-: "${AUTO_RESOURCE_SIZING:=true}"
-
-# Swap 정책
-# DISABLE_SWAP=true  : Elastic 공식 권장에 맞춰 swap 비활성화
-# DISABLE_SWAP=false : swap 사용 허용. AUTO_CREATE_SWAP=true이면 활성 swap이 없을 때 SWAP_FILE_PATH를 생성
-: "${DISABLE_SWAP:=false}"
-: "${AUTO_CREATE_SWAP:=true}"
-: "${SWAP_FILE_PATH:=/swapfile}"
-: "${SWAP_SIZE_GB:=2}"
+: "${DISABLE_SWAP:=true}"
+: "${SWAP_CREATE_IF_NONE:=true}"      # DISABLE_SWAP=false 이고 swap 이 하나도 없을 때 swap 파일을 만든다 (안전망, swappiness 1)
+: "${SWAP_SIZE_GB:=0}"                # 0 = 메모리의 절반 (최소 2GB, 최대 8GB)
+: "${SWAP_FILE:=/swapfile}"
 : "${VM_MAX_MAP_COUNT:=1048576}"
 : "${SYSTEM_SWAPPINESS:=1}"
+: "${OS_EXTEND_ROOT_LVM:=true}"
 : "${INSTALL_LOG:=/var/log/elk-auto-install.log}"
 : "${STATE_DIR:=/root/.elk-auto-installer}"
 : "${SECRETS_FILE:=${STATE_DIR}/secrets.env}"
@@ -97,15 +89,11 @@ unset _old_name _new_name
 : "${ES_ENROLLMENT_ENABLED:=true}"
 : "${ES_HTTP_TLS_ENABLED:=true}"
 : "${ES_TRANSPORT_TLS_ENABLED:=true}"
-# 신규 설치 시 ELK Auto Installer가 최종 교체할 Elasticsearch TLS CA/노드 인증서 유효기간.
-# 7300일 = 약 20년. 기존 인증서가 이미 있는 서버에서는 안전을 위해 자동 재발급하지 않는다.
-: "${ES_TLS_CA_VALIDITY_DAYS:=7300}"
-: "${ES_TLS_CERT_VALIDITY_DAYS:=7300}"
 : "${ELASTIC_USERNAME:=elastic}"
 : "${ELASTIC_PASSWORD:=}"
-: "${ES_HEAP_MODE:=fixed}"
-: "${ES_HEAP_MIN:=2g}"
-: "${ES_HEAP_MAX:=2g}"
+: "${ES_HEAP_MODE:=auto}"
+: "${ES_HEAP_MIN:=16g}"
+: "${ES_HEAP_MAX:=16g}"
 : "${ES_BOOTSTRAP_MEMORY_LOCK:=false}"
 : "${ES_LIMIT_NOFILE:=65535}"
 : "${ES_LIMIT_NPROC:=4096}"
@@ -152,9 +140,11 @@ unset _old_name _new_name
 : "${NGINX_TLS_CERT_FILE:=/etc/ssl/certs/kibana-selfsigned.crt}"
 : "${NGINX_TLS_KEY_FILE:=/etc/ssl/private/kibana-selfsigned.key}"
 : "${NGINX_TLS_CN:=}"
-# Self-Signed Nginx 인증서 기간을 Elasticsearch 서버 인증서 기간과 자동으로 맞춤.
-: "${NGINX_TLS_SYNC_WITH_ES:=true}"
 : "${NGINX_TLS_DAYS:=7300}"
+: "${ES_CA_DAYS:=7300}"                 # Elasticsearch CA 인증서 유효기간(일) — 7300일 = 20년
+: "${ES_CERT_DAYS:=7300}"               # Elasticsearch 서버(HTTP·transport) 인증서 유효기간(일) — CA 보다 길 수 없음
+: "${ES_TLS_REISSUE:=true}"             # 처음 시작할 때 자동 생성된 인증서(약 2~3년)를 위 기간으로 다시 발급
+: "${ES_CERT_EXTRA_SANS:=}"             # 서버 인증서에 더 넣을 이름/IP (쉼표)
 : "${NGINX_TLS_PROTOCOLS:=TLSv1.2 TLSv1.3}"
 : "${NGINX_TLS_CIPHERS:=HIGH:!aNULL:!MD5}"
 
@@ -164,9 +154,9 @@ unset _old_name _new_name
 : "${LOGSTASH_PIPELINE_ID:=main}"
 : "${LOGSTASH_PIPELINE_FILE:=/etc/logstash/conf.d/10-main.conf}"
 : "${LOGSTASH_PROFILE:=generic}"
-: "${LOGSTASH_HEAP_MIN:=1g}"
-: "${LOGSTASH_HEAP_MAX:=1g}"
-: "${LOGSTASH_PIPELINE_WORKERS:=2}"
+: "${LOGSTASH_HEAP_MIN:=2g}"
+: "${LOGSTASH_HEAP_MAX:=2g}"
+: "${LOGSTASH_PIPELINE_WORKERS:=0}"
 : "${LOGSTASH_PIPELINE_BATCH_SIZE:=125}"
 : "${LOGSTASH_PIPELINE_BATCH_DELAY:=50}"
 : "${LOGSTASH_CONFIG_RELOAD_AUTOMATIC:=true}"
@@ -301,7 +291,7 @@ unset _old_name _new_name
 : "${FILE_INGEST_MIN_AGE_SECONDS:=60}"
 : "${FILE_INGEST_MAX_FILES_PER_RUN:=20}"
 : "${FILE_INGEST_MAX_SOURCE_FILE_BYTES:=0}"
-: "${FILE_INGEST_MIN_STAGING_FREE_GB:=5}"
+: "${FILE_INGEST_MIN_STAGING_FREE_GB:=20}"
 : "${FILE_INGEST_DEDUPE_MODE:=content_sha256}"
 : "${FILE_INGEST_DUPLICATE_ACTION:=archive}"
 : "${FILE_INGEST_PLAIN_BACKUP_COMPRESSION:=zstd}"
@@ -382,6 +372,7 @@ unset _old_name _new_name
 
 : "${UFW_MANAGE:=false}"
 : "${UFW_ENABLE_IF_INACTIVE:=false}"
+: "${UFW_ADD_RULES_IF_ACTIVE:=true}"
 : "${UFW_KIBANA_ALLOWED_CIDRS:=}"
 : "${UFW_NGINX_ALLOWED_CIDRS:=}"
 : "${UFW_ELASTICSEARCH_ALLOWED_CIDRS:=}"
@@ -409,14 +400,59 @@ if [[ -t 1 ]]; then
   fi
 fi
 
-exec > >(tee -a "$INSTALL_LOG") 2>&1
+# >>> elk-color-wiring (start)
+# v2.9.4: 화면 출력만 색을 입힌다. 로그 파일($INSTALL_LOG)에는 색 없는 글자만 남는다.
+#   ELK_COLOR=auto(기본: 터미널일 때만)|always|never, NO_COLOR=1 이면 끔
+if [[ -f "$SCRIPT_DIR/elk-color.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$SCRIPT_DIR/elk-color.sh"
+else
+  ELK_COLOR_ON=0
+  elk_color_init() { :; }
+  elk_paint_stream() { cat; }
+  elk_legend() { :; }
+  elk_banner() { local kind="$1" title="$2" bar g=""; shift 2; [[ "$kind" == ok ]] && g="✔ "; [[ "$kind" == fail ]] && g="✖ "; bar="$(printf '%*s' 79 '')"; if [[ "$kind" == fail ]]; then bar="${bar// /!}"; else bar="${bar// /=}"; fi; echo "$bar"; echo " ${g}${title}"; local l; for l in "$@"; do echo " $l"; done; echo "$bar"; }
+fi
+elk_color_init
+elk_legend          # 색 안내는 화면에만 한 번 보여 준다(로그 파일에는 남기지 않음)
+if (( ELK_COLOR_ON )); then
+  exec > >(tee -a "$INSTALL_LOG" | elk_paint_stream) 2>&1
+  ELK_STREAM_PAINTED=1
+else
+  exec > >(tee -a "$INSTALL_LOG") 2>&1
+fi
+# <<< elk-color-wiring (end)
 
 # ----------------------------- helpers -----------------------------
 _ts() { date '+%Y-%m-%d %H:%M:%S'; }
 log()  { echo "[$(_ts)] [INFO] $*"; }
 warn() { echo "[$(_ts)] [WARN] $*"; }
-die()  { echo "[$(_ts)] [ERROR] $*" >&2; exit 1; }
+die()  { _ELK_LAST_ERROR="$*"; echo "[$(_ts)] [ERROR] $*" >&2; exit 1; }
+ok_msg() { echo "[$(_ts)] [OK] $*"; }
 istrue() { [[ "${1,,}" =~ ^(1|true|yes|y|on)$ ]]; }
+
+# >>> elk-fail-banner (start)
+# v2.9.4: 설치가 중간에 끝나면(die 또는 예상 못 한 명령 실패) 빨간 실패 상자로 원인/로그 위치/다음 조치를 보여 준다.
+ELK_DONE=0; _ELK_LAST_ERROR=""; _ELK_ERR_CMD=""; _ELK_ERR_LINE=""; _ELK_ERR_FN=""
+trap '_ELK_ERR_LINE="$LINENO"; _ELK_ERR_CMD="$BASH_COMMAND"; _ELK_ERR_FN="${FUNCNAME[*]:-}"' ERR
+_elk_on_exit() {
+  local rc="$1" why=""
+  trap - EXIT ERR
+  if (( rc != 0 && ELK_DONE == 0 )); then
+    why="$_ELK_LAST_ERROR"
+    if [[ -z "$why" ]]; then
+      local fn="${_ELK_ERR_FN//$'\n'/ }"; fn="${fn//$'\t'/ }"; fn="${fn// / ← }"; fn="${fn% ← main}"; [[ "$fn" == "main" ]] && fn=""
+      why="명령 실패: ${_ELK_ERR_CMD:-알 수 없음} (install-elk.sh ${_ELK_ERR_LINE:-?}번째 줄${fn:+, 함수 $fn})"
+    fi
+    elk_banner fail "ELK 설치 실패 (종료 코드 $rc)" "원인: ${why:0:300}" "로그: $INSTALL_LOG" "다음 조치: 위 [ERROR] 줄과 바로 앞 로그를 확인한 뒤 같은 설치 파일을 다시 실행하세요. (다시 실행해도 안전합니다)"
+    sleep 0.4
+  elif (( ELK_DONE == 1 )); then
+    sleep 0.4
+  fi
+  exit "$rc"
+}
+trap '_elk_on_exit $?' EXIT
+# <<< elk-fail-banner (end)
 
 
 progress_tty() {
@@ -646,6 +682,7 @@ wait_for_http_code() {
 }
 
 ES_CA="/etc/elasticsearch/certs/http_ca.crt"
+ES_TLS_PEM=false
 # 실행 중인 Elasticsearch 프로토콜은 설치/재실행 상태에 따라 달라질 수 있어 자동 탐지한다.
 ES_LOCAL_URL="https://127.0.0.1:${ES_HTTP_PORT}"
 
@@ -813,29 +850,16 @@ validate_env() {
 
   validate_abs_path "ES_PATH_DATA" "$ES_PATH_DATA"
   validate_abs_path "ES_PATH_LOGS" "$ES_PATH_LOGS"
-  [[ "$SERVER_RAM_GB" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "SERVER_RAM_GB는 숫자(GB)여야 합니다: $SERVER_RAM_GB"
-  [[ "$SERVER_CPU_CORES" =~ ^[0-9]+$ ]] && (( SERVER_CPU_CORES >= 1 )) || die "SERVER_CPU_CORES는 1 이상의 정수여야 합니다: $SERVER_CPU_CORES"
-  [[ "$SERVER_DISK_GB" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "SERVER_DISK_GB는 숫자(GB)여야 합니다: $SERVER_DISK_GB"
-  if ! istrue "$DISABLE_SWAP" && istrue "$AUTO_CREATE_SWAP"; then
-    validate_abs_path "SWAP_FILE_PATH" "$SWAP_FILE_PATH"
-    [[ "$SWAP_SIZE_GB" =~ ^[0-9]+$ ]] && (( SWAP_SIZE_GB >= 1 )) || die "SWAP_SIZE_GB는 1 이상의 정수(GB)여야 합니다: $SWAP_SIZE_GB"
-  fi
-  [[ "$ES_TLS_CA_VALIDITY_DAYS" =~ ^[0-9]+$ ]] && (( ES_TLS_CA_VALIDITY_DAYS >= 1 && ES_TLS_CA_VALIDITY_DAYS <= 36500 )) \
-    || die "ES_TLS_CA_VALIDITY_DAYS는 1~36500 사이 정수(일)여야 합니다: $ES_TLS_CA_VALIDITY_DAYS"
-  [[ "$ES_TLS_CERT_VALIDITY_DAYS" =~ ^[0-9]+$ ]] && (( ES_TLS_CERT_VALIDITY_DAYS >= 1 && ES_TLS_CERT_VALIDITY_DAYS <= 36500 )) \
-    || die "ES_TLS_CERT_VALIDITY_DAYS는 1~36500 사이 정수(일)여야 합니다: $ES_TLS_CERT_VALIDITY_DAYS"
-  (( ES_TLS_CERT_VALIDITY_DAYS <= ES_TLS_CA_VALIDITY_DAYS )) \
-    || die "ES_TLS_CERT_VALIDITY_DAYS($ES_TLS_CERT_VALIDITY_DAYS)는 CA 유효기간($ES_TLS_CA_VALIDITY_DAYS)보다 길 수 없습니다."
-  [[ "${NGINX_TLS_SYNC_WITH_ES,,}" =~ ^(true|false|1|0|yes|no|on|off)$ ]] || die "NGINX_TLS_SYNC_WITH_ES는 true/false 값이어야 합니다."
-  [[ "$NGINX_TLS_DAYS" =~ ^[0-9]+$ ]] && (( NGINX_TLS_DAYS >= 1 && NGINX_TLS_DAYS <= 36500 )) \
-    || die "NGINX_TLS_DAYS는 1~36500 사이 정수(일)여야 합니다: $NGINX_TLS_DAYS"
-
   validate_port "ES_HTTP_PORT" "$ES_HTTP_PORT"
   validate_port "KIBANA_SERVER_PORT" "$KIBANA_SERVER_PORT"
   if istrue "$INSTALL_FTP_SERVER"; then validate_port "FTP_LISTEN_PORT" "$FTP_LISTEN_PORT"; fi
 
   case "$INDEX_MODE" in daily|rollover|plain) ;; *) die "INDEX_MODE은 daily/rollover/plain 중 하나여야 합니다." ;; esac
   case "$ES_HEAP_MODE" in auto|fixed) ;; *) die "ES_HEAP_MODE은 auto 또는 fixed여야 합니다." ;; esac
+for _d in ES_CA_DAYS ES_CERT_DAYS NGINX_TLS_DAYS; do [[ "${!_d}" =~ ^[0-9]+$ && "${!_d}" -ge 1 && "${!_d}" -le 36500 ]] || die "$_d 는 1~36500 사이의 일수여야 합니다. (예: 7300 = 20년) 현재: ${!_d}"; done
+(( ES_CERT_DAYS <= ES_CA_DAYS )) || die "ES_CERT_DAYS(${ES_CERT_DAYS})는 ES_CA_DAYS(${ES_CA_DAYS})보다 길 수 없습니다."
+[[ "$SWAP_SIZE_GB" =~ ^[0-9]+$ ]] || die "SWAP_SIZE_GB 는 0(자동) 또는 GB 단위 숫자여야 합니다."
+[[ "$SWAP_FILE" == /* ]] || die "SWAP_FILE 은 절대경로여야 합니다."
   case "$ES_DISCOVERY_MODE" in single-node|multi-node) ;; *) die "ES_DISCOVERY_MODE은 single-node 또는 multi-node여야 합니다." ;; esac
   case "$LOGSTASH_PROFILE" in generic|proxysg) ;; *) die "LOGSTASH_PROFILE은 generic 또는 proxysg여야 합니다." ;; esac
   case "$NGINX_TLS_MODE" in selfsigned|existing) ;; *) die "NGINX_TLS_MODE은 selfsigned/existing 중 하나여야 합니다." ;; esac
@@ -928,11 +952,6 @@ if [[ "$RUN_MODE" == "--validate" || "$RUN_MODE" == "validate" ]]; then
   Elastic version    : ${ELASTIC_VERSION:-latest}
   Cluster / Node     : $ES_CLUSTER_NAME / $ES_NODE_NAME
   Elasticsearch data: $ES_PATH_DATA
-  Server sizing      : RAM ${SERVER_RAM_GB}GB / CPU ${SERVER_CPU_CORES} cores / Disk ${SERVER_DISK_GB}GB
-  ES / Logstash heap : ${ES_HEAP_MODE} ${ES_HEAP_MIN}-${ES_HEAP_MAX} / ${LOGSTASH_HEAP_MIN}-${LOGSTASH_HEAP_MAX}
-  ES TLS validity    : CA ${ES_TLS_CA_VALIDITY_DAYS}d / node cert ${ES_TLS_CERT_VALIDITY_DAYS}d (신규 인증서 생성 시)
-  Nginx TLS validity : $(istrue "$NGINX_TLS_SYNC_WITH_ES" && echo "${ES_TLS_CERT_VALIDITY_DAYS}d (ES와 동기화)" || echo "${NGINX_TLS_DAYS}d")
-  Swap               : disable=${DISABLE_SWAP} / auto_create=${AUTO_CREATE_SWAP} / ${SWAP_SIZE_GB}GB @ ${SWAP_FILE_PATH} / swappiness=${SYSTEM_SWAPPINESS}
   Index mode         : $INDEX_MODE
   Index match        : $INDEX_MATCH_PATTERN
   Template patterns  : $INDEX_TEMPLATE_PATTERNS
@@ -947,11 +966,51 @@ if [[ "$RUN_MODE" == "--validate" || "$RUN_MODE" == "validate" ]]; then
   File ingest mgr    : $FILE_INGEST_MANAGER_ENABLED / $FILE_INGEST_SOURCE_DIRS
   Backup compression : $FILE_INGEST_PLAIN_BACKUP_COMPRESSION
   Health monitor     : $HEALTH_MONITOR_ENABLED / $HEALTH_MONITOR_INTERVAL
+  Root LVM extend    : $OS_EXTEND_ROOT_LVM
+  Swap               : disable=$DISABLE_SWAP create_if_none=$SWAP_CREATE_IF_NONE size_gb=$SWAP_SIZE_GB (0=auto) swappiness=$SYSTEM_SWAPPINESS memory_lock=$ES_BOOTSTRAP_MEMORY_LOCK
+  TLS cert days      : ES CA $ES_CA_DAYS / ES server $ES_CERT_DAYS / Nginx $NGINX_TLS_DAYS (ES reissue: $ES_TLS_REISSUE)
+  UFW manage         : $UFW_MANAGE (add rules if UFW already active: $UFW_ADD_RULES_IF_ACTIVE)
 VALID
   exit 0
 fi
 
+
+# ---- v2.9.4: Ubuntu 설치 때 LVM 볼륨 그룹에 남아 있는 공간을 루트(/)에 모두 할당 ---------------------------
+# Ubuntu Server 기본 LVM 설치는 디스크 일부만 루트 LV에 할당합니다. (나머지는 VG의 미할당 공간으로 남음)
+# 수동 명령:  sudo lvextend -l +100%FREE -r /dev/mapper/ubuntu--vg-ubuntu--lv
+# 안전 규칙: 루트(/)가 일반 LVM 볼륨일 때만 확장하고, LVM이 아니거나 thin 볼륨이거나 남는 공간이 없으면 건너뜁니다.
+#            확장이 실패해도 설치는 계속합니다(경고만). 이미 모두 할당된 서버에서 다시 실행해도 아무 일도 하지 않습니다.
+extend_root_lvm() {
+  local IFS=' '
+  local src fstype info vg lv attr free_b size_before size_after
+  if ! istrue "${OS_EXTEND_ROOT_LVM:-true}"; then log "루트 디스크 자동 확장: 사용 안 함 (OS_EXTEND_ROOT_LVM=false)"; return 0; fi
+  command -v findmnt >/dev/null 2>&1 || { log "루트 디스크 확장 건너뜀: findmnt 명령이 없습니다."; return 0; }
+  src="$(findmnt -n -o SOURCE / 2>/dev/null || true)"; fstype="$(findmnt -n -o FSTYPE / 2>/dev/null || true)"
+  if [[ -z "$src" || "$src" != /dev/* ]]; then log "루트 디스크 확장 건너뜀: 루트 장치를 확인할 수 없습니다. (${src:-unknown})"; return 0; fi
+  if ! command -v lvs >/dev/null 2>&1 || ! command -v vgs >/dev/null 2>&1 || ! command -v lvextend >/dev/null 2>&1; then
+    log "루트 디스크 확장 건너뜀: LVM 도구(lvm2)가 없습니다. (LVM 구성이 아닌 서버)"; return 0
+  fi
+  info="$(lvs --noheadings --separator '|' -o vg_name,lv_name,lv_attr "$src" 2>/dev/null | tr -d ' ' | head -n1 || true)"
+  if [[ -z "$info" || "$info" != *"|"*"|"* ]]; then log "루트 디스크 확장 건너뜀: 루트(/)가 LVM 볼륨이 아닙니다. (장치 $src, 파일시스템 ${fstype:-?})"; return 0; fi
+  vg="${info%%|*}"; lv="${info#*|}"; attr="${lv#*|}"; lv="${lv%%|*}"
+  if [[ "${attr:0:1}" == "V" || "${attr:0:1}" == "t" ]]; then log "루트 디스크 확장 건너뜀: thin 볼륨은 자동 확장 대상이 아닙니다. ($vg/$lv)"; return 0; fi
+  free_b="$(vgs --noheadings --units b --nosuffix -o vg_free "$vg" 2>/dev/null | tr -d ' ' | head -n1 || true)"
+  if [[ ! "$free_b" =~ ^[0-9]+$ ]]; then warn "루트 디스크 확장 건너뜀: VG 여유 공간을 읽을 수 없습니다. ($vg)"; return 0; fi
+  if (( free_b < 4194304 )); then log "루트 디스크 확장 불필요: VG($vg)에 남는 공간이 없습니다. (이미 모두 할당됨)"; return 0; fi
+  size_before="$(lvs --noheadings --units g --nosuffix -o lv_size "$src" 2>/dev/null | tr -d ' ' | head -n1 || true)"
+  log "루트 LV 확장: $src  (VG $vg 여유 $(( free_b / 1048576 )) MiB 전부 할당, 파일시스템 ${fstype:-?} 함께 확장)"
+  if lvextend -l +100%FREE -r "$src"; then
+    size_after="$(lvs --noheadings --units g --nosuffix -o lv_size "$src" 2>/dev/null | tr -d ' ' | head -n1 || true)"
+    log "루트 LV 확장 완료: ${size_before:-?} GiB → ${size_after:-?} GiB"
+  else
+    warn "루트 LV 확장에 실패했습니다. 설치는 계속합니다. 직접 실행: sudo lvextend -l +100%FREE -r $src"
+  fi
+  return 0
+}
+
 # ----------------------------- OS -----------------------------
+ELK_AUTO_VERSION="2.9.4"
+log "ELK Auto Installer v${ELK_AUTO_VERSION}"
 log "환경파일: $ENV_FILE"
 log "설치 로그: $INSTALL_LOG"
 
@@ -960,6 +1019,8 @@ log "설치 로그: $INSTALL_LOG"
 source /etc/os-release
 [[ "${ID:-}" == "ubuntu" ]] || warn "Ubuntu가 아닌 OS입니다: ${PRETTY_NAME:-unknown}. 설치는 계속하지만 검증 범위 밖입니다."
 log "OS: ${PRETTY_NAME:-unknown}"
+
+extend_root_lvm
 
 if istrue "$SET_HOSTNAME"; then
   log "Hostname 설정: $SYSTEM_HOSTNAME"
@@ -980,40 +1041,40 @@ vm.swappiness=${SYSTEM_SWAPPINESS}
 SYSCTL
 sysctl --system >/dev/null
 
+# swap 파일: 메모리가 갑자기 모자랄 때 OOM-killer 가 Elasticsearch 를 죽이지 않도록 하는 "안전망" (swappiness 1 이라 평소에는 거의 쓰지 않는다)
+ensure_swap() {
+  local f="$SWAP_FILE" mem_kb mem_gb size_gb avail_kb need_kb dir
+  if swapon --show --noheadings 2>/dev/null | grep -q .; then log "swap 이 이미 켜져 있어 그대로 사용합니다: $(swapon --show --noheadings 2>/dev/null | awk '{printf "%s(%s) ",$1,$3}')"; return 0; fi
+  if command -v systemd-detect-virt >/dev/null 2>&1 && systemd-detect-virt -c -q 2>/dev/null; then warn "컨테이너(LXC/Docker) 안에서는 swap 파일을 만들 수 없어 건너뜁니다."; return 0; fi
+  if [[ -e "$f" ]]; then warn "swap 파일 경로에 이미 파일이 있어 덮어쓰지 않습니다: $f"; return 0; fi
+  mem_kb="$(awk '/^MemTotal:/{print $2}' /proc/meminfo)"; mem_gb=$(( (mem_kb + 1048575) / 1048576 ))
+  size_gb="$SWAP_SIZE_GB"
+  if (( size_gb == 0 )); then size_gb=$(( (mem_gb + 1) / 2 )); (( size_gb < 2 )) && size_gb=2; (( size_gb > 8 )) && size_gb=8; fi
+  dir="$(dirname "$f")"; mkdir -p "$dir"
+  avail_kb="$(df -Pk "$dir" 2>/dev/null | awk 'NR==2{print $4}')"; need_kb=$(( size_gb * 1048576 + 1048576 ))
+  if [[ -n "$avail_kb" ]] && (( avail_kb < need_kb )); then warn "swap 파일 공간이 부족해(필요 약 $((size_gb+1))GB, 여유 $((avail_kb/1048576))GB) swap 을 만들지 않습니다: $dir"; return 0; fi
+  if ! fallocate -l "${size_gb}G" "$f" 2>/dev/null; then
+    dd if=/dev/zero of="$f" bs=1M count=$(( size_gb * 1024 )) status=none 2>/dev/null || { warn "swap 파일을 만들지 못했습니다: $f"; rm -f "$f"; return 0; }
+  fi
+  chmod 600 "$f"
+  if mkswap "$f" >/dev/null 2>&1 && swapon "$f" 2>/dev/null; then
+    if [[ -f /etc/fstab ]] && ! grep -qE "^[[:space:]]*${f//\//\\/}[[:space:]]" /etc/fstab; then
+      cp -a /etc/fstab "$BACKUP_DIR/fstab.$(date '+%Y%m%d-%H%M%S').bak"
+      printf '%s none swap sw 0 0\n' "$f" >>/etc/fstab
+    fi
+    log "swap 파일 생성·활성화: $f (${size_gb}GB, 메모리 ${mem_gb}GB 기준), vm.swappiness=${SYSTEM_SWAPPINESS}"
+  else
+    warn "swap 파일을 켜지 못했습니다(파일시스템이 swap 파일을 지원하지 않을 수 있음): $f"; rm -f "$f"
+  fi
+}
 if istrue "$DISABLE_SWAP"; then
-  log "Swap 비활성화 (Elastic 공식 권장 모드)"
   swapoff -a || true
   if [[ -f /etc/fstab ]]; then
     cp -a /etc/fstab "$BACKUP_DIR/fstab.$(date '+%Y%m%d-%H%M%S').bak"
     sed -ri '/^[[:space:]]*[^#].*[[:space:]]swap[[:space:]]/ s/^/# ELK-AUTO disabled swap: /' /etc/fstab
   fi
-else
-  log "Swap 사용 허용 (vm.swappiness=${SYSTEM_SWAPPINESS})"
-  if istrue "$AUTO_CREATE_SWAP"; then
-    # 이미 활성 swap이 있으면 그대로 사용하고, 없을 때만 전용 swapfile을 만든다.
-    if [[ -z "$(swapon --show=NAME --noheadings 2>/dev/null | awk 'NF{print;exit}')" ]]; then
-      if [[ -e "$SWAP_FILE_PATH" ]]; then
-        _swap_type="$(blkid -p -s TYPE -o value "$SWAP_FILE_PATH" 2>/dev/null || true)"
-        [[ "$_swap_type" == "swap" ]] || die "SWAP_FILE_PATH가 이미 존재하지만 swap 파일이 아닙니다: $SWAP_FILE_PATH"
-        log "기존 swap 파일 재사용: $SWAP_FILE_PATH"
-      else
-        log "긴급용 swap 파일 생성: ${SWAP_FILE_PATH} (${SWAP_SIZE_GB}GB)"
-        if ! fallocate -l "${SWAP_SIZE_GB}G" "$SWAP_FILE_PATH" 2>/dev/null; then
-          dd if=/dev/zero of="$SWAP_FILE_PATH" bs=1M count=$((SWAP_SIZE_GB*1024)) status=progress
-        fi
-        chmod 600 "$SWAP_FILE_PATH"
-        mkswap "$SWAP_FILE_PATH" >/dev/null
-      fi
-      chmod 600 "$SWAP_FILE_PATH"
-      swapon "$SWAP_FILE_PATH"
-    else
-      log "기존 활성 swap을 유지합니다: $(swapon --show=NAME,SIZE --noheadings | xargs)"
-    fi
-    if [[ -f /etc/fstab ]] && ! grep -Fq "$SWAP_FILE_PATH none swap" /etc/fstab; then
-      cp -a /etc/fstab "$BACKUP_DIR/fstab.$(date '+%Y%m%d-%H%M%S').bak"
-      printf '%s none swap sw 0 0\n' "$SWAP_FILE_PATH" >> /etc/fstab
-    fi
-  fi
+elif istrue "$SWAP_CREATE_IF_NONE"; then
+  ensure_swap
 fi
 
 export http_proxy="$HTTP_PROXY" https_proxy="$HTTPS_PROXY" no_proxy="$NO_PROXY"
@@ -1237,91 +1298,13 @@ if istrue "$PROXYSG_FLOW_ENABLED"; then
   chmod "$PROXYSG_DIR_MODE" "${_ps_src[@]}" "${_ps_bak[@]}" "${_ps_prc[@]}"
 fi
 
-# ----------------------------- Elasticsearch managed TLS certificate -----------------------------
-# Elastic의 최초 자동 보안 구성을 이용해 built-in 계정/보안 인덱스를 만든 뒤, 신규 설치에 한해
-# HTTP/Transport 인증서를 지정한 유효기간의 관리형 인증서로 교체한다.
-# CA 개인키는 향후 재발급을 위해 STATE_DIR/pki 아래 root 전용으로 보관한다.
-generate_managed_es_tls() {
-  local certutil="/usr/share/elasticsearch/bin/elasticsearch-certutil"
-  local es_certs="/etc/elasticsearch/certs"
-  local pki_dir="${STATE_DIR}/pki"
-  local tmp tls_bk dns_csv ip_csv short_host fqdn
-  [[ -x "$certutil" ]] || die "elasticsearch-certutil을 찾을 수 없습니다: $certutil"
-  command -v openssl >/dev/null 2>&1 || die "openssl이 필요합니다."
-
-  tmp="$(mktemp -d /tmp/elk-tls.XXXXXX)"
-  mkdir -p "$es_certs" "$pki_dir"
-  chmod 700 "$pki_dir"
-
-  short_host="$(hostname -s 2>/dev/null || hostname 2>/dev/null || true)"
-  fqdn="$(hostname -f 2>/dev/null || true)"
-  dns_csv="$({ printf '%s\n' localhost "$short_host" "$fqdn" "${SYSTEM_HOSTNAME:-}"; } | awk 'NF && !seen[$0]++' | paste -sd, -)"
-  ip_csv="$({ printf '%s\n' 127.0.0.1; hostname -I 2>/dev/null | tr ' ' '\n'; } | awk 'NF && !seen[$0]++' | paste -sd, -)"
-  [[ -n "$dns_csv" ]] || dns_csv="localhost"
-  [[ -n "$ip_csv" ]] || ip_csv="127.0.0.1"
-
-  log "Elasticsearch 관리형 TLS 생성: CA=${ES_TLS_CA_VALIDITY_DAYS}일, 서버 인증서=${ES_TLS_CERT_VALIDITY_DAYS}일"
-  "$certutil" ca --silent \
-    --days "$ES_TLS_CA_VALIDITY_DAYS" \
-    --out "$tmp/elastic-stack-ca.p12" --pass ""
-
-  if istrue "$ES_HTTP_TLS_ENABLED"; then
-    "$certutil" cert --silent \
-      --ca "$tmp/elastic-stack-ca.p12" --ca-pass "" \
-      --days "$ES_TLS_CERT_VALIDITY_DAYS" \
-      --name "${ES_NODE_NAME}" --dns "$dns_csv" --ip "$ip_csv" \
-      --out "$tmp/http.p12" --pass ""
-  fi
-  if istrue "$ES_TRANSPORT_TLS_ENABLED"; then
-    "$certutil" cert --silent \
-      --ca "$tmp/elastic-stack-ca.p12" --ca-pass "" \
-      --days "$ES_TLS_CERT_VALIDITY_DAYS" \
-      --name "${ES_NODE_NAME}-transport" --dns "$dns_csv" --ip "$ip_csv" \
-      --out "$tmp/transport.p12" --pass ""
-  fi
-
-  # PKCS#12 CA에서 trust용 PEM CA만 추출한다.
-  openssl pkcs12 -in "$tmp/elastic-stack-ca.p12" -nokeys -passin pass: 2>/dev/null \
-    | openssl x509 -out "$tmp/http_ca.crt"
-
-  # Elastic 자동 생성 인증서를 되돌릴 수 있도록 보관한다.
-  tls_bk="${BACKUP_DIR}/tls-auto-$(date '+%Y%m%d-%H%M%S')"
-  mkdir -p "$tls_bk"
-  for f in "$ES_CA" "$es_certs/http.p12" "$es_certs/transport.p12"; do
-    [[ -f "$f" ]] && cp -a "$f" "$tls_bk/"
-  done
-
-  install -m 600 "$tmp/elastic-stack-ca.p12" "$pki_dir/elastic-stack-ca.p12"
-  install -m 640 "$tmp/http_ca.crt" "$ES_CA"
-  istrue "$ES_HTTP_TLS_ENABLED" && install -m 640 "$tmp/http.p12" "$es_certs/http.p12"
-  istrue "$ES_TRANSPORT_TLS_ENABLED" && install -m 640 "$tmp/transport.p12" "$es_certs/transport.p12"
-  chown root:elasticsearch "$ES_CA"
-  istrue "$ES_HTTP_TLS_ENABLED" && chown root:elasticsearch "$es_certs/http.p12"
-  istrue "$ES_TRANSPORT_TLS_ENABLED" && chown root:elasticsearch "$es_certs/transport.p12"
-
-  # 새 PKCS#12는 빈 비밀번호로 생성되므로 auto-configuration이 저장한 이전 secure_password를 제거한다.
-  for key in \
-    xpack.security.http.ssl.keystore.secure_password \
-    xpack.security.transport.ssl.keystore.secure_password \
-    xpack.security.transport.ssl.truststore.secure_password; do
-    "/usr/share/elasticsearch/bin/elasticsearch-keystore" remove "$key" >/dev/null 2>&1 || true
-  done
-
-  {
-    echo "generated_at=$(date -Is)"
-    echo "ca_validity_days=${ES_TLS_CA_VALIDITY_DAYS}"
-    echo "cert_validity_days=${ES_TLS_CERT_VALIDITY_DAYS}"
-    openssl x509 -in "$ES_CA" -noout -subject -issuer -dates
-  } >"$pki_dir/validity.txt"
-  chmod 600 "$pki_dir/validity.txt"
-  log "Elasticsearch CA/인증서 교체 완료. CA 개인키: $pki_dir/elastic-stack-ca.p12 (root 전용)"
-  log "CA 만료: $(openssl x509 -in "$ES_CA" -noout -enddate | cut -d= -f2-)"
-  rm -rf "$tmp"
-}
-
 # ----------------------------- Elasticsearch bootstrap -----------------------------
 overall_progress 58 "Elasticsearch 설정 및 Security/TLS 초기화"
 if istrue "$INSTALL_ELASTICSEARCH"; then
+  if istrue "$ES_BOOTSTRAP_MEMORY_LOCK" && command -v systemd-detect-virt >/dev/null 2>&1 && systemd-detect-virt -c -q 2>/dev/null; then
+    warn "컨테이너(LXC/Docker) 안에서는 memory lock 이 막혀 Elasticsearch 가 시작하지 못할 수 있어 ES_BOOTSTRAP_MEMORY_LOCK 을 false 로 바꿔 진행합니다."
+    ES_BOOTSTRAP_MEMORY_LOCK=false
+  fi
   mkdir -p /etc/systemd/system/elasticsearch.service.d
   cat >/etc/systemd/system/elasticsearch.service.d/override.conf <<EOF_ES_SYSTEMD
 [Service]
@@ -1333,12 +1316,9 @@ EOF_ES_SYSTEMD
   fi
   systemctl daemon-reload
 
-  # 최초 부팅 시 Elastic의 자동 보안 설정/TLS 인증서 생성을 이용한다.
-  # 신규 설치 여부를 기록해 두었다가 built-in 계정 초기화 후 지정 유효기간 인증서로 교체한다.
-  ES_TLS_FRESH_INSTALL=0
+  # 최초 부팅 시 Elastic의 자동 보안 설정/TLS 인증서 생성을 이용
   if [[ ! -f "$ES_CA" && ! -f /etc/elasticsearch/certs/http.p12 ]]; then
-    ES_TLS_FRESH_INSTALL=1
-    log "Elasticsearch 최초 시작 - 자동 보안/TLS 생성(bootstrap 후 관리형 장기 인증서로 교체)"
+    log "Elasticsearch 최초 시작 - 자동 보안/TLS 생성"
     systemctl enable elasticsearch >/dev/null 2>&1 || true
     systemctl start elasticsearch
     if ! wait_for_http_code "https://127.0.0.1:9200" "$ES_CA" '200|401'; then
@@ -1346,11 +1326,7 @@ EOF_ES_SYSTEMD
       die "Elasticsearch 최초 시작 확인 실패"
     fi
   else
-    log "기존 Elasticsearch TLS 구성 감지 - 인증서는 안전을 위해 자동 재발급하지 않습니다."
-    if [[ -f "$ES_CA" ]]; then
-      _ca_end="$(openssl x509 -in "$ES_CA" -noout -enddate 2>/dev/null | cut -d= -f2- || true)"
-      [[ -n "$_ca_end" ]] && log "현재 Elasticsearch CA 만료: $_ca_end (Wizard 유효기간 값은 신규 인증서 생성 시 적용)"
-    fi
+    log "기존 Elasticsearch TLS 구성 감지"
     systemctl start elasticsearch || true
     wait_for_http_code "https://127.0.0.1:9200" "$ES_CA" '200|401' || true
   fi
@@ -1403,11 +1379,29 @@ EOF_ES_SYSTEMD
   log "Elasticsearch 서비스 중지 후 운영 설정 적용"
   systemctl stop elasticsearch || true
 
-  # 신규 설치라면 Elastic 자동 생성 인증서를 Wizard에서 지정한 유효기간의 인증서로 교체한다.
-  # 기존 서버 재실행에서는 인증서를 자동 교체하지 않아 현재 trust 관계를 보존한다.
-  if (( ${ES_TLS_FRESH_INSTALL:-0} == 1 )) && istrue "$ES_SECURITY_ENABLED" \
-     && { istrue "$ES_HTTP_TLS_ENABLED" || istrue "$ES_TRANSPORT_TLS_ENABLED"; }; then
-    generate_managed_es_tls
+  # v2.9.4: 자동 생성된 인증서(CA 약 3년, 서버 약 2년)를 설정한 기간(기본 20년)으로 다시 발급한다. 같은 CA 키를 쓰므로 CA 를 믿는 곳은 그대로 동작한다.
+  ES_TLS_PEM=false
+  if istrue "$ES_SECURITY_ENABLED" && istrue "$ES_HTTP_TLS_ENABLED" && istrue "$ES_TLS_REISSUE"; then
+    if [[ -f "$SCRIPT_DIR/elk-tls-lib.sh" ]]; then
+      # shellcheck disable=SC1091
+      source "$SCRIPT_DIR/elk-tls-lib.sh"
+      export TLS_CERT_DIR=/etc/elasticsearch/certs TLS_CA_DAYS="$ES_CA_DAYS" TLS_CERT_DAYS="$ES_CERT_DAYS" TLS_EXTRA_SANS="$ES_CERT_EXTRA_SANS" TLS_NEW_CA_OK=1 TLS_ES_GROUP=elasticsearch
+      _need=1
+      if [[ -s /etc/elasticsearch/certs/pem/http.crt && -s /etc/elasticsearch/certs/pem/ca.crt ]]; then
+        _l_cert="$(tls_days_left /etc/elasticsearch/certs/pem/http.crt 2>/dev/null || echo 0)"; _l_ca="$(tls_days_left /etc/elasticsearch/certs/pem/ca.crt 2>/dev/null || echo 0)"
+        if (( _l_cert >= ES_CERT_DAYS - 30 && _l_ca >= ES_CA_DAYS - 30 )) && tls_verify_es_set 2>/dev/null; then _need=0; log "Elasticsearch 인증서가 이미 충분히 깁니다(서버 ${_l_cert}일 / CA ${_l_ca}일 남음). 그대로 사용합니다."; ES_TLS_PEM=true; fi
+      fi
+      if (( _need )); then
+        if tls_es_reissue && tls_verify_es_set; then
+          ES_TLS_PEM=true
+          log "Elasticsearch 인증서 발급 완료 (방식 $TLS_RESULT_MODE): CA ${ES_CA_DAYS}일 / 서버 ${ES_CERT_DAYS}일 — /etc/elasticsearch/certs/pem"
+        else
+          warn "Elasticsearch 인증서를 다시 발급하지 못해 자동 생성된 기본 인증서를 그대로 사용합니다: ${TLS_ERR:-알 수 없는 오류}"
+        fi
+      fi
+    else
+      warn "elk-tls-lib.sh 가 없어 Elasticsearch 인증서를 다시 발급하지 않습니다. (자동 생성된 기본 인증서 사용)"
+    fi
   fi
 
   # path.data 변경 시 최초 데이터(보안 인덱스 포함) 안전 복사
@@ -1457,13 +1451,15 @@ EOF_ES_SYSTEMD
       echo "xpack.security.enrollment.enabled: ${ES_ENROLLMENT_ENABLED}"
       echo "xpack.security.http.ssl.enabled: ${ES_HTTP_TLS_ENABLED}"
       if istrue "$ES_HTTP_TLS_ENABLED"; then
-        echo "xpack.security.http.ssl.keystore.path: certs/http.p12"
+        if [[ "$ES_TLS_PEM" == true ]]; then tls_yml_pem_lines true false; else echo "xpack.security.http.ssl.keystore.path: certs/http.p12"; fi
       fi
       echo "xpack.security.transport.ssl.enabled: ${ES_TRANSPORT_TLS_ENABLED}"
       if istrue "$ES_TRANSPORT_TLS_ENABLED"; then
         echo "xpack.security.transport.ssl.verification_mode: certificate"
-        echo "xpack.security.transport.ssl.keystore.path: certs/transport.p12"
-        echo "xpack.security.transport.ssl.truststore.path: certs/transport.p12"
+        if [[ "$ES_TLS_PEM" == true ]]; then tls_yml_pem_lines false true; else
+          echo "xpack.security.transport.ssl.keystore.path: certs/transport.p12"
+          echo "xpack.security.transport.ssl.truststore.path: certs/transport.p12"
+        fi
       fi
     fi
     [[ -n "$ES_DISK_WATERMARK_LOW" ]] && echo "cluster.routing.allocation.disk.watermark.low: \"${ES_DISK_WATERMARK_LOW}\""
@@ -2103,10 +2099,6 @@ fi
 # ----------------------------- Nginx reverse proxy -----------------------------
 overall_progress 84 "Nginx HTTPS Reverse Proxy 구성"
 if istrue "$INSTALL_NGINX"; then
-  # 기본은 Elasticsearch 서버 인증서와 같은 유효기간을 사용한다. existing 인증서는 발급기관 정책을 따르므로 이 값이 적용되지 않는다.
-  if istrue "$NGINX_TLS_SYNC_WITH_ES" && [[ "$NGINX_TLS_MODE" == "selfsigned" ]]; then
-    NGINX_TLS_DAYS="$ES_TLS_CERT_VALIDITY_DAYS"
-  fi
   [[ "$NGINX_TLS_MODE" == "selfsigned" || ( -s "$NGINX_TLS_CERT_FILE" && -s "$NGINX_TLS_KEY_FILE" ) ]] || die "Nginx TLS 인증서/키를 찾을 수 없습니다."
   if [[ "$NGINX_TLS_MODE" == "selfsigned" && ( ! -s "$NGINX_TLS_CERT_FILE" || ! -s "$NGINX_TLS_KEY_FILE" ) ]]; then
     _nginx_cn="$NGINX_TLS_CN"
@@ -2119,7 +2111,7 @@ if istrue "$INSTALL_NGINX"; then
       -keyout "$NGINX_TLS_KEY_FILE" -out "$NGINX_TLS_CERT_FILE" \
       -subj "/C=KR/ST=Seoul/L=Seoul/O=IT/CN=${_nginx_cn}" -addext "subjectAltName=${_san}" >/dev/null 2>&1
     chmod 600 "$NGINX_TLS_KEY_FILE"; chmod 644 "$NGINX_TLS_CERT_FILE"
-    log "Nginx self-signed 인증서 생성: CN=$_nginx_cn, 유효기간=${NGINX_TLS_DAYS}일"
+    log "Nginx self-signed 인증서 생성: CN=$_nginx_cn"
   fi
   if istrue "$NGINX_DISABLE_DEFAULT_SITE"; then rm -f /etc/nginx/sites-enabled/default; fi
   cat >/etc/nginx/conf.d/kibana.conf <<EOF_NGINX
@@ -2188,10 +2180,6 @@ if [[ -f "$SCRIPT_DIR/elk-ops.sh" ]]; then
 fi
 if [[ -f "$SCRIPT_DIR/check-elk.sh" ]]; then
   install -m 750 "$SCRIPT_DIR/check-elk.sh" /usr/local/sbin/elk-check
-fi
-if [[ -f "$SCRIPT_DIR/elk-cert-renew.sh" ]]; then
-  install -m 750 "$SCRIPT_DIR/elk-cert-renew.sh" /usr/local/sbin/elk-cert-renew
-  log "인증서 갱신 도구 설치: /usr/local/sbin/elk-cert-renew"
 fi
 
 if istrue "$FILE_INGEST_MANAGER_ENABLED"; then
@@ -2280,6 +2268,23 @@ EOF_HEALTH_ROTATE
 fi
 systemctl daemon-reload
 
+# ----------------------------- partial patch tool -----------------------------
+# v2.9.4: 설치 후 일부 값만 바꿔 적용하는 도구를 서버에 남겨 둔다. (사용법: sudo elk-patch --list)
+if [[ -f "$SCRIPT_DIR/elk-patch.sh" && -f "$SCRIPT_DIR/proxysg-lib.sh" ]]; then
+  install -d -m 755 /usr/local/lib/elk-auto
+  install -m 755 "$SCRIPT_DIR/elk-patch.sh" /usr/local/sbin/elk-patch
+  install -m 644 "$SCRIPT_DIR/proxysg-lib.sh" /usr/local/lib/elk-auto/proxysg-lib.sh
+  [[ -f "$SCRIPT_DIR/elk-tls-lib.sh" ]] && install -m 644 "$SCRIPT_DIR/elk-tls-lib.sh" /usr/local/lib/elk-auto/elk-tls-lib.sh
+  if [[ -f "$SCRIPT_DIR/proxysg-log-filter.conf" ]]; then install -m 644 "$SCRIPT_DIR/proxysg-log-filter.conf" /usr/local/lib/elk-auto/proxysg-log-filter.conf; fi
+  if [[ -s "$SCRIPT_DIR/custom-pipeline.conf" ]]; then install -m 644 "$SCRIPT_DIR/custom-pipeline.conf" /usr/local/lib/elk-auto/custom-pipeline.conf; else rm -f /usr/local/lib/elk-auto/custom-pipeline.conf; fi
+  log "부분 패치 도구 설치: /usr/local/sbin/elk-patch  (예: sudo elk-patch --list)"
+fi
+# v2.9.4: 서버 정기점검 리포트 (읽기 전용). 사용법: sudo elk-report   /  sudo elk-report --list
+if [[ -f "$SCRIPT_DIR/elk-report.sh" ]]; then
+  install -m 755 "$SCRIPT_DIR/elk-report.sh" /usr/local/sbin/elk-report
+  log "정기점검 리포트 도구 설치: /usr/local/sbin/elk-report  (예: sudo elk-report)"
+fi
+
 # ----------------------------- snapshots -----------------------------
 overall_progress 91 "Snapshot / SLM 구성"
 if istrue "$INSTALL_ELASTICSEARCH" && istrue "$SNAPSHOT_REPO_ENABLED"; then
@@ -2332,49 +2337,73 @@ fi
 
 # ----------------------------- firewall -----------------------------
 overall_progress 95 "UFW 방화벽 구성"
+# v2.9.4: UFW 규칙 추가는 두 경우에 한다.
+#   1) UFW_MANAGE=true                          : ufw 설치 → 규칙 추가 → (UFW_ENABLE_IF_INACTIVE 이면) 활성화  (예전과 같음)
+#   2) UFW_MANAGE=false 이지만 UFW 가 "이미 켜져 있고" UFW_ADD_RULES_IF_ACTIVE=true : 설치한 서비스에 필요한 포트만 허용 규칙으로 추가
+#      → UFW 를 설치/활성화/비활성화하거나 기본 정책·기존 규칙을 바꾸지 않는다. (켜져 있는 방화벽 때문에 Kibana/FTP 등에 접속이 안 되는 것을 막기 위함)
+# 규칙 하나가 실패해도(잘못된 대역 등) 설치는 계속하고 경고만 남긴다.
+UFW_RULES_ADDED=0; UFW_RULES_FAILED=0
 ufw_allow_list() {
-  local csv="$1" port="$2" proto="${3:-tcp}" item
-  [[ -n "$csv" ]] || return 0
-  IFS=',' read -ra arr <<< "$csv"
+  local csv="$1" port="$2" proto="${3:-tcp}" what="${4:-}" item
+  if [[ -z "${csv//[[:space:]]/}" ]]; then warn "UFW 허용 대역이 비어 있어 ${what:+$what }${port}/${proto} 규칙을 추가하지 않았습니다. (해당 서비스에 외부에서 접속할 수 없습니다)"; return 0; fi
+  local -a arr; IFS=',' read -ra arr <<< "$csv"
   for item in "${arr[@]}"; do
     item="$(echo "$item" | xargs)"
     [[ -n "$item" ]] || continue
-    ufw allow from "$item" to any port "$port" proto "$proto" >/dev/null
+    if [[ "${item,,}" == "any" || "${item,,}" == "anywhere" ]]; then
+      if LC_ALL=C ufw allow to any port "$port" proto "$proto" >/dev/null 2>&1; then UFW_RULES_ADDED=$((UFW_RULES_ADDED+1)); log "UFW 허용: 모든 주소 → ${what:+$what }${port}/${proto}"; else UFW_RULES_FAILED=$((UFW_RULES_FAILED+1)); warn "UFW 규칙 추가 실패: any → ${port}/${proto}"; fi
+    elif LC_ALL=C ufw allow from "$item" to any port "$port" proto "$proto" >/dev/null 2>&1; then
+      UFW_RULES_ADDED=$((UFW_RULES_ADDED+1)); log "UFW 허용: ${item} → ${what:+$what }${port}/${proto}"
+    else
+      UFW_RULES_FAILED=$((UFW_RULES_FAILED+1)); warn "UFW 규칙 추가 실패(허용 대역 형식을 확인하세요): ${item} → ${port}/${proto}"
+    fi
   done
+  return 0
 }
+ufw_apply_rules() {
+  local item
+  if istrue "$INSTALL_NGINX"; then
+    ufw_allow_list "$UFW_NGINX_ALLOWED_CIDRS" "$NGINX_HTTP_PORT" tcp "Nginx HTTP"
+    ufw_allow_list "$UFW_NGINX_ALLOWED_CIDRS" "$NGINX_HTTPS_PORT" tcp "Nginx HTTPS"
+  else
+    ufw_allow_list "$UFW_KIBANA_ALLOWED_CIDRS" "$KIBANA_SERVER_PORT" tcp "Kibana"
+  fi
+  ufw_allow_list "$UFW_ELASTICSEARCH_ALLOWED_CIDRS" "$ES_HTTP_PORT" tcp "Elasticsearch"
+  if istrue "$LS_TCP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_TCP_PORT" tcp "Logstash TCP"; fi
+  if istrue "$LS_UDP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_UDP_PORT" udp "Logstash UDP"; fi
+  if istrue "$LS_SYSLOG_ENABLED"; then
+    ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_SYSLOG_PORT" tcp "Logstash Syslog"
+    ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_SYSLOG_PORT" udp "Logstash Syslog"
+  fi
+  if istrue "$LS_BEATS_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_BEATS_PORT" tcp "Logstash Beats"; fi
+  if istrue "$LS_HTTP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_HTTP_PORT" tcp "Logstash HTTP"; fi
+  if istrue "$INSTALL_FTP_SERVER"; then
+    ufw_allow_list "$UFW_FTP_ALLOWED_CIDRS" "$FTP_LISTEN_PORT" tcp "FTP"
+    if istrue "$FTP_PASV_ENABLE" && [[ "$FTP_PASV_MIN_PORT" != "$FTP_PASV_MAX_PORT" ]]; then
+      ufw_allow_list "$UFW_FTP_ALLOWED_CIDRS" "${FTP_PASV_MIN_PORT}:${FTP_PASV_MAX_PORT}" tcp "FTP 패시브"
+    elif istrue "$FTP_PASV_ENABLE"; then
+      ufw_allow_list "$UFW_FTP_ALLOWED_CIDRS" "$FTP_PASV_MIN_PORT" tcp "FTP 패시브"
+    fi
+  fi
+  if (( UFW_RULES_FAILED > 0 )); then warn "UFW 허용 규칙: ${UFW_RULES_ADDED}개 추가, ${UFW_RULES_FAILED}개 실패"; else log "UFW 허용 규칙 ${UFW_RULES_ADDED}개 적용 완료"; fi
+}
+ufw_is_active() { command -v ufw >/dev/null 2>&1 && LC_ALL=C ufw status 2>/dev/null | grep -q '^Status: active'; }
 
 if istrue "$UFW_MANAGE"; then
   apt_install_progress "UFW" ufw
-  if istrue "$INSTALL_NGINX"; then
-    ufw_allow_list "$UFW_NGINX_ALLOWED_CIDRS" "$NGINX_HTTP_PORT" tcp
-    ufw_allow_list "$UFW_NGINX_ALLOWED_CIDRS" "$NGINX_HTTPS_PORT" tcp
-  else
-    ufw_allow_list "$UFW_KIBANA_ALLOWED_CIDRS" "$KIBANA_SERVER_PORT" tcp
-  fi
-  ufw_allow_list "$UFW_ELASTICSEARCH_ALLOWED_CIDRS" "$ES_HTTP_PORT" tcp
-  if istrue "$LS_TCP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_TCP_PORT" tcp; fi
-  if istrue "$LS_UDP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_UDP_PORT" udp; fi
-  if istrue "$LS_SYSLOG_ENABLED"; then
-    ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_SYSLOG_PORT" tcp
-    ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_SYSLOG_PORT" udp
-  fi
-  if istrue "$LS_BEATS_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_BEATS_PORT" tcp; fi
-  if istrue "$LS_HTTP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_HTTP_PORT" tcp; fi
-  if istrue "$INSTALL_FTP_SERVER"; then
-    ufw_allow_list "$UFW_FTP_ALLOWED_CIDRS" "$FTP_LISTEN_PORT" tcp
-    if istrue "$FTP_PASV_ENABLE" && [[ "$FTP_PASV_MIN_PORT" != "$FTP_PASV_MAX_PORT" ]]; then
-      IFS=',' read -ra ftp_cidrs <<< "$UFW_FTP_ALLOWED_CIDRS"
-      for item in "${ftp_cidrs[@]}"; do
-        item="$(echo "$item" | xargs)"; [[ -n "$item" ]] || continue
-        ufw allow from "$item" to any port "${FTP_PASV_MIN_PORT}:${FTP_PASV_MAX_PORT}" proto tcp >/dev/null
-      done
-    elif istrue "$FTP_PASV_ENABLE"; then
-      ufw_allow_list "$UFW_FTP_ALLOWED_CIDRS" "$FTP_PASV_MIN_PORT" tcp
-    fi
-  fi
-  if istrue "$UFW_ENABLE_IF_INACTIVE" && ufw status | grep -q 'Status: inactive'; then
+  ufw_apply_rules
+  if istrue "$UFW_ENABLE_IF_INACTIVE" && LC_ALL=C ufw status | grep -q 'Status: inactive'; then
     ufw --force enable
   fi
+elif istrue "$UFW_ADD_RULES_IF_ACTIVE" && ufw_is_active; then
+  log "UFW가 이미 켜져 있습니다. (UFW_MANAGE=false) 설치한 서비스에 필요한 포트만 허용 규칙으로 추가합니다. UFW의 활성 상태·기본 정책·기존 규칙은 바꾸지 않습니다."
+  ufw_apply_rules
+elif ! istrue "$UFW_ADD_RULES_IF_ACTIVE"; then
+  log "UFW 규칙을 건드리지 않습니다. (UFW_MANAGE=false, UFW_ADD_RULES_IF_ACTIVE=false) UFW를 쓰는 서버라면 필요한 포트를 직접 허용하세요."
+elif command -v ufw >/dev/null 2>&1; then
+  log "UFW가 꺼져 있어 방화벽 규칙을 추가하지 않습니다. (UFW_MANAGE=false)"
+else
+  log "UFW가 설치되어 있지 않아 방화벽 규칙을 추가하지 않습니다. (UFW_MANAGE=false)"
 fi
 
 # ----------------------------- health & data view -----------------------------
@@ -2455,7 +2484,7 @@ server_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
 cat <<RESULT
 
 ===============================================================================
- ELK Auto Installer 완료
+ ✔ ELK 설치 완료
 ===============================================================================
  Hostname              : $(hostname)
  Elasticsearch         : $(systemctl is-active elasticsearch 2>/dev/null || echo n/a)
@@ -2510,4 +2539,5 @@ if istrue "$LS_BEATS_ENABLED"; then echo " Logstash Beats Input   : ${server_ip}
 if istrue "$LS_HTTP_ENABLED"; then echo " Logstash HTTP Input    : ${server_ip}:${LS_HTTP_PORT}"; fi
 
 echo
-log "완료"
+ELK_DONE=1
+ok_msg "ELK 설치가 모두 완료되었습니다. (로그: $INSTALL_LOG)"

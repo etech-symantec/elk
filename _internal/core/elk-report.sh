@@ -213,7 +213,19 @@ if want mem; then
   if (( total > 0 )); then mp=$(( 100*used/total )); else mp=0; fi
   if (( mp >= 95 )); then st=crit; elif (( mp >= 85 )); then st=warn; else st=ok; fi
   row "$st" "Memory Usage" "${mp}%  (사용 $(bytes_h "$used") / 전체 $(bytes_h "$total") · 사용 가능 $(bytes_h "$avail"))"
-  if (( swt == 0 )); then row ok "Swap" "사용 안 함 (Elasticsearch 권장 설정)"; elif (( swu > 0 )); then row warn "Swap" "사용 중 $(bytes_h "$swu") / $(bytes_h "$swt") — Elasticsearch 성능에 좋지 않습니다."; else row warn "Swap" "활성화되어 있음 ($(bytes_h "$swt")) — Elasticsearch 는 swap 을 끄는 것을 권장합니다."; fi
+  sw_pct=0; (( swt > 0 )) && sw_pct=$(( 100*swu/swt ))
+  swn="$(cat "${ELK_SWAPPINESS_FILE:-/proc/sys/vm/swappiness}" 2>/dev/null || sysctl -n vm.swappiness 2>/dev/null || echo '?')"
+  mlock="?"; if (( HAVE_JQ )) && es_up; then mlock="$(es "/_nodes?filter_path=nodes.*.process.mlockall" | jq -r '[.nodes[]?.process.mlockall]|if length==0 then "?" else (all|tostring) end' 2>/dev/null || echo '?')"; fi
+  case "$mlock" in true) mlk="memory_lock 켜짐" ;; false) mlk="memory_lock 꺼짐" ;; *) mlk="memory_lock 확인 불가" ;; esac
+  if (( swt == 0 )); then
+    row info "Swap" "사용 안 함 — 메모리가 갑자기 모자라면 OOM 으로 Elasticsearch 가 종료될 수 있습니다. (권장: swap 파일 + vm.swappiness=1 + bootstrap.memory_lock)"
+  elif [[ "$swn" =~ ^[0-9]+$ ]] && (( swn > 10 )); then
+    row warn "Swap" "$(bytes_h "$swt") (사용 $(bytes_h "$swu")) · vm.swappiness=${swn} — Elasticsearch 서버는 1 을 권장합니다. (sysctl vm.swappiness=1)"
+  elif (( sw_pct >= 25 )); then
+    row warn "Swap" "$(bytes_h "$swt") 중 ${sw_pct}% 사용 중($(bytes_h "$swu")) — 메모리가 부족해 swap 을 쓰고 있습니다. Heap/메모리 증설을 검토하세요."
+  else
+    row ok "Swap" "$(bytes_h "$swt") (사용 $(bytes_h "$swu")) · 안전망으로 켜져 있음 · vm.swappiness=${swn} · ${mlk}"
+  fi
   top="$(ps -eo comm=,pmem= --sort=-pmem 2>/dev/null | head -3 | awk '{printf "%s%s %s%%",(NR>1?", ":""),$1,$2}')"; [[ -n "$top" ]] && sub "상위 프로세스: $top"
 fi
 
@@ -366,10 +378,16 @@ cert_days() { local f="$1" e; e="$(openssl x509 -enddate -noout -in "$f" 2>/dev/
 if want cert; then
   section "인증서 만료일"
   any=0
-  for pair in "Elasticsearch CA:$CA" "Nginx:$( tf "$INSTALL_NGINX" && echo "$NGINX_TLS_CERT_FILE" || echo "")"; do
+  for pair in "Elasticsearch CA:$CA" "Elasticsearch 서버(pem):/etc/elasticsearch/certs/pem/http.crt" "Elasticsearch transport(pem):/etc/elasticsearch/certs/pem/transport.crt" "Nginx:$( tf "$INSTALL_NGINX" && echo "$NGINX_TLS_CERT_FILE" || echo "")"; do
     lab="${pair%%:*}"; f="${pair#*:}"; [[ -n "$f" && -f "$f" ]] || continue; any=1
     if dd_="$(cert_days "$f")"; then if (( dd_ < 7 )); then st=crit; elif (( dd_ < 30 )); then st=warn; else st=ok; fi; row "$st" "인증서 $lab" "만료까지 ${dd_}일  ($f)"; else row warn "인증서 $lab" "읽을 수 없음 ($f)"; fi
   done
+  if command -v openssl >/dev/null 2>&1 && [[ "$URL" == https://* ]]; then
+    served="$(echo | timeout 8 openssl s_client -connect "127.0.0.1:${ES_HTTP_PORT}" -servername localhost 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || true)"
+    if [[ -n "$served" ]]; then any=1; sd=$(( ( $(date -d "$served" +%s) - NOW ) / 86400 )); if (( sd < 7 )); then st=crit; elif (( sd < 30 )); then st=warn; else st=ok; fi; row "$st" "인증서 Elasticsearch(제공 중)" "만료까지 ${sd}일  (지금 9200 포트가 실제로 내보내는 인증서)"
+      (( sd < 30 )) && sub "연장: sudo elk-patch ES_CA_DAYS=7300 ES_CERT_DAYS=7300   (20년, Elasticsearch 를 한 번 재시작합니다)"
+    fi
+  fi
   (( any )) || row info "인증서" "점검할 인증서 파일이 없습니다."
 fi
 

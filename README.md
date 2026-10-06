@@ -97,6 +97,54 @@ PC에서 서버로 파일을 보낼 수 없을 때(SSH/SCP 불가, 폐쇄망, �
 - 서버에서 다시 실행: `sudo bash ~/elk-oneclick-install-v2.9.4.sh --local-install` (검증만 `--validate`, 점검 `--check`)
 - 이렇게 만든 스크립트도 Wizard의 "기존 SH 불러오기"로 `elk.env` 값을 다시 불러올 수 있습니다. (수정한 스크립트·필터 파일 내용은 압축되어 있어 불러오지 않습니다)
 
+## 서버 스펙으로 권장값 자동 입력 · Swap
+
+빠른 설정·고급 설정의 **1단계 맨 위**에서 서버 사양(CPU 코어 수, 메모리 GB, 데이터 디스크 GB는 선택)을 적으면 관련 설정이 **자동으로 채워집니다**. 4코어·8GB / 8코어·16GB / 16코어·32GB / 32코어·64GB 빠른 선택 버튼도 있습니다. 한 서버에 Elasticsearch + Logstash + Kibana(+Nginx·FTP)를 함께 올리는 구성 기준입니다.
+
+| 설정 | 권장값 (규칙) | 예: 8코어 · 16GB |
+|---|---|---|
+| Elasticsearch Heap (Xms = Xmx, 고정) | 메모리의 약 37%, 최대 30g | 6g |
+| Logstash Heap | 4GB↓ 512m · 16GB↓ 1g · 64GB↓ 2g · 그 이상 4g | 1g |
+| Logstash Pipeline Workers | 코어 수 (최대 16) | 8 |
+| Logstash Batch Size | 125 (코어 8·메모리 16GB 이상 250, 코어 16·메모리 32GB 이상 500) | 250 |
+| Logstash 영구 큐 | 디스크 100GB↓ 1gb · 500GB↓ 4gb · 그 이상 8gb (디스크를 적었을 때) | 8gb |
+| Swap | **켬**(끄지 않음) + 없으면 swap 파일 생성, 크기는 메모리의 절반(2~8GB), `vm.swappiness=1` | 8GB |
+| `bootstrap.memory_lock` | 메모리 8GB 이상이면 켬 (컨테이너에서는 설치기가 자동으로 끔) | 켬 |
+| 샤드 / 복제본 | 1 / 0 (서버 한 대) | 1 / 0 |
+
+- 채워진 값은 해당 단계에서 **직접 고칠 수 있고**, 스펙을 다시 바꿔도 **직접 고친 값은 덮어쓰지 않습니다.** (표에 "직접 수정함"으로 표시) `모두 권장값으로 되돌리기`로 한꺼번에 되돌릴 수 있습니다.
+- 메모리 8GB 미만, CPU 4코어 미만, 디스크 200GB 미만이면 경고가 나옵니다. 보관기간(ILM)과 일 로그량에 따른 디스크 크기는 로그량에 달려 있어 계산하지 않으니 **리소스 계산기**를 쓰세요.
+- **Swap을 켜는 이유**: Elastic 은 swap 을 끄도록 권장하지만, 한 서버에 여러 서비스를 올리면 메모리가 갑자기 모자랄 때 OOM-killer 가 Elasticsearch 를 종료할 수 있습니다. 그래서 swap 파일을 **안전망**으로 두고(`vm.swappiness=1`이라 평소엔 거의 안 씀), `bootstrap.memory_lock`으로 Elasticsearch Heap 은 swap 으로 밀려나지 않게 고정합니다. 컨테이너(LXC/Docker)에서는 swap 파일도 memory lock 도 막혀 있을 수 있어 설치기가 건너뜁니다.
+- 관련 설정: `DISABLE_SWAP`(기본 **false**로 변경), `SWAP_CREATE_IF_NONE`(true), `SWAP_SIZE_GB`(0=자동), `SWAP_FILE`(/swapfile), `SYSTEM_SWAPPINESS`(1), `ES_BOOTSTRAP_MEMORY_LOCK`. 이미 swap 이 있으면 그대로 쓰고, 파일 공간이 부족하거나 파일시스템이 지원하지 않으면 만들지 않고 경고만 남깁니다.
+- `elk-report`의 Swap 항목은 "켜져 있음"을 정상으로 보고 `swappiness`, `memory_lock`, 사용률(25% 이상이면 주의)로 판단합니다.
+
+## TLS 인증서 20년 (Elasticsearch CA · 서버 · Nginx)
+
+Elasticsearch 가 처음 시작할 때 자동으로 만드는 인증서는 CA 약 3년, 서버 약 2년이라 시간이 지나면 만료됩니다. 설치기는 이를 **기본 20년(7300일)** 으로 다시 발급합니다.
+
+| 설정 | 기본 | 설명 |
+|---|---|---|
+| `ES_CA_DAYS` | 7300 | Elasticsearch CA 인증서 유효기간(일) |
+| `ES_CERT_DAYS` | 7300 | HTTP·transport 서버 인증서 유효기간. CA 보다 길 수 없음 (CA 보다 하루 먼저 끝남) |
+| `NGINX_TLS_DAYS` | 7300 (이전 3650) | Nginx 자체 서명 인증서 |
+| `ES_TLS_REISSUE` | true | 끄면 Elasticsearch 기본 인증서를 그대로 사용 |
+| `ES_CERT_EXTRA_SANS` | (비움) | 서버 인증서에 더 넣을 이름/IP (쉼표) |
+
+- **같은 CA 키**로 CA 인증서를 새 유효기간으로 다시 만들고 그 CA 로 서버 인증서를 서명하므로, CA 를 믿는 Kibana·Logstash·클라이언트는 그대로 동작합니다. 서버 인증서의 주소(SAN)는 기존 것을 이어받고 localhost·127.0.0.1·이 서버의 이름/IP 를 더합니다.
+- 결과는 `/etc/elasticsearch/certs/pem/`(PEM)에 저장되고 `elasticsearch.yml`이 그 파일을 가리킵니다. CA 개인키(`pem/ca.key`)는 root 만 읽을 수 있고(600), 기존 `http.p12`는 그대로 남습니다.
+- 이미 충분히 긴 인증서가 있으면(재설치) 건드리지 않고, 더 짧게 줄이지도 않습니다. **재발급에 실패해도 설치는 멈추지 않고** 기본 인증서를 그대로 씁니다.
+- Wizard: 빠른 설정 2단계(`ES_CA_DAYS`, `ES_CERT_DAYS`)와 4단계(`NGINX_TLS_DAYS`), 고급 설정 3·5A번에서 바꿀 수 있습니다.
+
+### 이미 설치된 서버: 패치로 연장 · 갱신
+**패치** 페이지의 **"TLS 인증서 유효기간 (연장 · 갱신)"** 그룹에서 `ES_CA_DAYS`, `ES_CERT_DAYS`, `NGINX_TLS_DAYS`를 고르면 됩니다. **값이 같아도 체크하면 지금 새로 발급**합니다. 짧은 명령 예: `sudo elk-patch ES_CA_DAYS=7300 ES_CERT_DAYS=7300 NGINX_TLS_DAYS=7300`
+
+- **Elasticsearch**: 인증서 백업 → 같은 CA 키로 다시 발급(자동 보안 설정의 `http.p12` 안에 있는 CA 키를 사용, 없으면 거절) → `elasticsearch.yml` 을 PEM 설정으로 → **Elasticsearch 를 한 번 재시작(수십 초)** → 서버가 새 인증서를 실제로 내보내는지 일련번호로 확인. 실패하면 인증서와 yml 을 **자동으로 되돌립니다.** Kibana/Logstash 의 CA 사본도 새 파일로 갱신하지만 같은 CA 키라 지금 그대로 동작하고, 다음 재시작 때 새 파일을 읽습니다.
+- **Nginx**: 자체 서명 인증서를 같은 키·같은 주소로 갱신 → `nginx -t` → reload. 직접 발급받은 인증서(`NGINX_TLS_MODE=existing`)는 거절합니다. 브라우저에 이전 인증서를 직접 등록해 두었다면 새 인증서를 다시 등록해야 합니다.
+- 이전 버전(`GUIDE_*`) 서버에서도 인증서 항목은 쓸 수 있습니다. (도구 설치: 점검·패치 페이지의 "이전 버전 서버" 카드)
+- 사용자가 직접 만든 인증서(CA 개인키 없음)나 들여쓰기(중첩) 형식 yml(Elasticsearch 자동 설정 그대로)은 **자동으로 고치지 않고 이유를 알려 줍니다.**
+- 여러 노드 클러스터는 노드마다 실행해야 합니다.
+- `elk-report`는 CA·서버(PEM)·transport 인증서 파일과 **지금 9200 포트가 실제로 내보내는 인증서**의 만료일을 점검하고, 30일 미만이면 연장 명령을 안내합니다.
+
 ## 2.9.4 이전에 설치한 서버에 재설치 없이 점검·패치 추가
 
 예전 설치 파일(2.9.3 이하, 설정 이름이 `GUIDE_*`)로 이미 운영 중인 서버도 **재설치 없이** 점검(`elk-report`)과 패치(`elk-patch`)를 쓸 수 있습니다.
@@ -112,7 +160,7 @@ PC에서 서버로 파일을 보낼 수 없을 때(SSH/SCP 불가, 폐쇄망, �
 | | 이전 버전 서버 |
 |---|---|
 | **점검** (`elk-report`) | **모든 항목** 사용 가능 (`GUIDE_*` 이름, 예전 cron 파일 `/etc/cron.d/elk-guide-log-process`, 예전 처리 스크립트·로그 이름을 인식) |
-| **패치** (`elk-patch`) — 가능 | 실행 시간(`PROXYSG_PROCESS_CRON`) · 보존기간(`ILM_DELETE_*`) · 수신/백업 폴더 · Data View 이름 (`elk-patch --list` 의 ★). 설정 파일의 **예전 이름(`GUIDE_*`) 그대로** 수정하고, 예전 cron 파일을 그대로 고칩니다. |
+| **패치** (`elk-patch`) — 가능 | 실행 시간(`PROXYSG_PROCESS_CRON`) · 보존기간(`ILM_DELETE_*`) · 수신/백업 폴더 · Data View 이름 · TLS 인증서 유효기간 (`elk-patch --list` 의 ★). 설정 파일의 **예전 이름(`GUIDE_*`) 그대로** 수정하고, 예전 cron 파일을 그대로 고칩니다. |
 | **패치** — 거절 | 로그 형식 · 인덱스 이름(접두어) · 파일 패턴 · 처리 폴더 · 날짜 형식 · CSV 필터 · Cloud 등 **Logstash 파이프라인을 다시 만드는 항목**. 아무것도 바꾸지 않고 이유를 알려 줍니다. |
 
 - **왜 파이프라인 항목은 안 되나요?** 예전 설치의 파이프라인은 칼럼 47개짜리 목록 하나를 MAIN과 SSL에 함께 썼습니다. 지금 패치 도구는 MAIN(42개)·SSL(40개)을 따로 정의해서 만들기 때문에, 예전 서버에서 다시 만들면 필드 이름이 달라져 **이미 쌓인 데이터와 새 데이터의 필드가 어긋납니다.** 그래서 이런 항목은 새 설치 파일로 재설치할 때 함께 바꾸세요.

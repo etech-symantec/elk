@@ -40,14 +40,7 @@ window.ELK_DEFAULTS = {
     SYSTEM_HOSTNAME: "elk01",                                 // System Hostname
     TIMEZONE: "Asia/Seoul",                                   // Timezone
     ENABLE_NTP: true,                                         // Enable Ntp  [true | false]
-    SERVER_RAM_GB: "8",                                       // 서버 RAM(GB) - Wizard 자동 사이징
-    SERVER_CPU_CORES: "4",                                    // 서버 CPU Core - Wizard 자동 사이징
-    SERVER_DISK_GB: "100",                                    // 서버 Disk(GB) - Wizard 자동 사이징
-    AUTO_RESOURCE_SIZING: true,                               // 서버 스펙 기반 권장값 자동 적용
-    DISABLE_SWAP: false,                                      // Swap 완전 비활성화  [true | false]
-    AUTO_CREATE_SWAP: true,                                  // 활성 Swap이 없으면 Swapfile 자동 생성
-    SWAP_FILE_PATH: "/swapfile",                              // 자동 생성 Swapfile 경로
-    SWAP_SIZE_GB: "2",                                        // 긴급용 Swap 크기(GB)
+    DISABLE_SWAP: false,                                       // Disable Swap  [true | false]
     VM_MAX_MAP_COUNT: "1048576",                              // Vm Max Map Count
     SYSTEM_SWAPPINESS: "1",                                   // System Swappiness
     INSTALL_LOG: "/var/log/elk-auto-install.log",             // Install Log
@@ -71,12 +64,10 @@ window.ELK_DEFAULTS = {
     ES_ENROLLMENT_ENABLED: true,                              // Es Enrollment Enabled  [true | false]
     ES_HTTP_TLS_ENABLED: true,                                // Es Http Tls Enabled  [true | false]
     ES_TRANSPORT_TLS_ENABLED: true,                           // Es Transport Tls Enabled  [true | false]
-    ES_TLS_CA_VALIDITY_DAYS: "7300",                         // Elasticsearch CA 유효기간(일) · 약 20년
-    ES_TLS_CERT_VALIDITY_DAYS: "7300",                       // Elasticsearch HTTP/Transport 인증서 유효기간(일) · 약 20년
     ELASTIC_USERNAME: "elastic",                              // Elasticsearch 관리자 ID
-    ES_HEAP_MODE: "fixed",                                  // Elasticsearch Heap 방식  [auto | fixed]
-    ES_HEAP_MIN: "2g",                                        // Elasticsearch Xms
-    ES_HEAP_MAX: "2g",                                        // Elasticsearch Xmx
+    ES_HEAP_MODE: "auto",                                     // Elasticsearch Heap 방식  [auto | fixed]
+    ES_HEAP_MIN: "16g",                                       // Elasticsearch Xms
+    ES_HEAP_MAX: "16g",                                       // Elasticsearch Xmx
     ES_BOOTSTRAP_MEMORY_LOCK: false,                          // Es Bootstrap Memory Lock  [true | false]
     ES_LIMIT_NOFILE: "65535",                                 // Es Limit Nofile
     ES_LIMIT_NPROC: "4096",                                   // Es Limit Nproc
@@ -122,8 +113,7 @@ window.ELK_DEFAULTS = {
     NGINX_TLS_CERT_FILE: "/etc/ssl/certs/kibana-selfsigned.crt",  // Nginx Tls Cert File
     NGINX_TLS_KEY_FILE: "/etc/ssl/private/kibana-selfsigned.key",  // Nginx Tls Key File
     NGINX_TLS_CN: "",                                         // 인증서 CN / SAN
-    NGINX_TLS_SYNC_WITH_ES: true,                              // Nginx Self-Signed 유효기간을 Elasticsearch 서버 인증서와 동기화  [true | false]
-    NGINX_TLS_DAYS: "7300",                                   // Self-Signed 유효기간(수동 모드)
+    NGINX_TLS_DAYS: "7300",                                   // Self-Signed 유효기간
     NGINX_TLS_PROTOCOLS: "TLSv1.2 TLSv1.3",                   // Nginx Tls Protocols
     NGINX_TLS_CIPHERS: "HIGH:!aNULL:!MD5",                    // Nginx Tls Ciphers
 
@@ -134,9 +124,9 @@ window.ELK_DEFAULTS = {
     LOGSTASH_PIPELINE_ID: "main",                             // Logstash Pipeline Id
     LOGSTASH_PIPELINE_FILE: "/etc/logstash/conf.d/logstash.conf",  // Logstash 파이프라인 설정 파일(.conf) 경로
     LOGSTASH_PROFILE: "proxysg",                        // Logstash Pipeline 프로필  [generic | proxysg]
-    LOGSTASH_HEAP_MIN: "1g",                                 // Logstash Xms
-    LOGSTASH_HEAP_MAX: "1g",                                 // Logstash Xmx
-    LOGSTASH_PIPELINE_WORKERS: "2",                           // Logstash Pipeline Workers
+    LOGSTASH_HEAP_MIN: "2g",                                  // Logstash Xms
+    LOGSTASH_HEAP_MAX: "2g",                                  // Logstash Xmx
+    LOGSTASH_PIPELINE_WORKERS: "0",                           // Logstash Pipeline Workers
     LOGSTASH_PIPELINE_BATCH_SIZE: "125",                      // Logstash Pipeline Batch Size
     LOGSTASH_PIPELINE_BATCH_DELAY: "50",                      // Logstash Pipeline Batch Delay
     LOGSTASH_CONFIG_RELOAD_AUTOMATIC: true,                   // Logstash Config Reload Automatic  [true | false]
@@ -291,7 +281,7 @@ window.ELK_DEFAULTS = {
 
     // ───── 고급 설정 18단계 · 파일 수집 - 처리 옵션 ─────
     FILE_INGEST_MAX_SOURCE_FILE_BYTES: "0",                   // File Ingest Max Source File Bytes
-    FILE_INGEST_MIN_STAGING_FREE_GB: "5",                    // File Ingest Min Staging Free Gb
+    FILE_INGEST_MIN_STAGING_FREE_GB: "20",                    // File Ingest Min Staging Free Gb
     FILE_INGEST_DEDUPE_MODE: "content_sha256",                // File Ingest Dedupe Mode  [content_sha256 | metadata | none]
     FILE_INGEST_DUPLICATE_ACTION: "archive",                  // File Ingest Duplicate Action  [archive | delete | leave]
     FILE_INGEST_PLAIN_BACKUP_COMPRESSION: "zstd",             // File Ingest Plain Backup Compression  [zstd | gzip | xz | none]
@@ -386,6 +376,35 @@ window.ELK_DEFAULTS = {
     APT_PROGRESS_ENABLED: true,                               // APT 다운로드/설치 상세 진행률  [true | false]
     APT_RETRIES: "10",                                        // APT 다운로드 재시도 횟수
     APT_CONNECT_TIMEOUT: "30",                                // APT 연결 타임아웃(초)
+
+
+    // ───── 새로 추가된 항목 (tools/gen_defaults.py) ─────
+    PROXYSG_CLOUD_ENABLED: false,                             // Cloud 로그 처리 사용  [true | false]
+    PROXYSG_CLOUD_SOURCE_DIR: "/home/cloud",                  // Cloud FTP 수신 폴더
+    PROXYSG_CLOUD_BACKUP_DIR: "/home/cloud_backup",           // Cloud 원본 백업 폴더
+    PROXYSG_CLOUD_PROCESS_DIR: "/home/cloud_process",         // Cloud Logstash 처리 폴더
+    PROXYSG_CLOUD_SINCEDB: "/var/lib/logstash/sincedb-cloud",  // Cloud sincedb 파일
+    PROXYSG_CLOUD_LOG_FORMAT: "cs-method cs-user-domain cs-x-requested-with x-rs-ocsp-error cs-icap-error-details c-ip-version x-cs-ocsp-error sc-status x-action-result x-client-device-id x-rs-certificate-hostname-categories s-action x-rs-certificate-hostname-threat-risk x-bluecoat-reference-ids cs-bytes x-rs-connection-negotiated-ssl-version rs-icap-status x-bluecoat-reference-id x-cs-connection-negotiated-cipher-size c-port x-bluecoat-request-tenant-id sc-bytes x-bluecoat-placeholder x-rs-connection-negotiated-cipher cs-uri-port x-client-agent-sw cs-threat-risk x-cs-connection-negotiated-ssl-version r-supplier-country cs-user-agent x-bluecoat-application-operation x-file-details r-ip cs-icap-status cs-host x-client-device-name cs-uri-path sc-filter-result x-request-origin rs-icap-error-details x-cs-certificate-subject x-virus-id date x-bluecoat-location-name cs-uri-query x-cs-client-ip-country x-rs-certificate-validate-status x-client-os cs-categories x-icap-respmod-header(X-ICAP-Metadata) x-exception-id x-bluecoat-access-type x-data-leak-detected cs-uri-extension time-taken x-client-device-type x-cs-public-ip x-data-types x-bluecoat-transaction-uuid x-bluecoat-application-name cs-uri-scheme x-rs-certificate-hostname x-cs-connection-negotiated-cipher rs-content-type x-client-agent-type cs-userdn x-rs-certificate-observed-errors r-ip-version x-symc-inspected s-ip x-icap-reqmod-header(X-ICAP-Metadata) cs-auth-groups time x-client-agent-ip x-rs-connection-negotiated-cipher-size",  // Cloud 로그 포맷 (ELFF 필드 순서)
+    PROXYSG_CLOUD_INDEX_PREFIX: "proxy-cloud",                // Cloud 인덱스 Prefix
+    PROXYSG_CLOUD_DATA_VIEW_NAME: "cloud",                    // Cloud Data View 이름
+
+
+    // ───── 새로 추가된 항목 (tools/gen_defaults.py) ─────
+    OS_EXTEND_ROOT_LVM: true,                                 // 설치 전 루트(/) 디스크 자동 확장 (LVM)  [true | false]
+
+
+    // ───── 새로 추가된 항목 (tools/gen_defaults.py) ─────
+    UFW_ADD_RULES_IF_ACTIVE: true,                            // 이미 켜진 UFW에 필요한 포트 허용 추가  [true | false]
+
+
+    // ───── 새로 추가된 항목 (tools/gen_defaults.py) ─────
+    SWAP_CREATE_IF_NONE: true,                                // swap 이 없으면 swap 파일 만들기  [true | false]
+    SWAP_SIZE_GB: "0",                                        // swap 파일 크기(GB, 0=자동)
+    SWAP_FILE: "/swapfile",                                   // swap 파일 경로
+    ES_CA_DAYS: "7300",                                       // Elasticsearch CA 인증서 유효기간(일)
+    ES_CERT_DAYS: "7300",                                     // Elasticsearch 서버 인증서 유효기간(일)
+    ES_TLS_REISSUE: true,                                     // 자동 생성 인증서를 긴 유효기간으로 다시 발급  [true | false]
+    ES_CERT_EXTRA_SANS: "",                                   // 서버 인증서에 추가할 이름/IP
 
     // (비밀번호·암호화 키 항목은 이 파일에서 지정할 수 없습니다: ELASTIC_PASSWORD, KIBANA_SECURITY_ENCRYPTION_KEY, KIBANA_REPORTING_ENCRYPTION_KEY, KIBANA_SAVED_OBJECTS_ENCRYPTION_KEY, KIBANA_INITIAL_USER_PASSWORD, LOGSTASH_ES_PASSWORD, FTP_PASSWORD)
   },
