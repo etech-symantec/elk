@@ -32,4 +32,4 @@ if [[ -f /etc/elk-auto/elk.env ]]; then
 fi
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 echo "웹 리포트: http://${IP:-SERVER_IP}:${PORT}/"
-echo "Config Wizard 버튼 효과는 ZIP의 config-wizard.html로 기존 파일을 교체하면 반영됩니다."
+echo "Config Wizard는 ZIP의 config-wizard.html로 기존 파일을 교체하면 최신 내장 리포트와 동일해집니다."
