@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-# ELK Auto Installer v2.9.4
+# ELK Auto Installer v2.9.5
 # Target: Ubuntu 22.04 / 24.04, Elastic Stack 9.x
 # Usage: sudo bash install-elk.sh ./elk.env
 
@@ -316,6 +316,13 @@ unset _old_name _new_name
 : "${HEALTH_DISK_WARN_PERCENT:=85}"
 : "${HEALTH_DISK_CRIT_PERCENT:=92}"
 : "${HEALTH_AUTO_PAUSE_FILE_INGEST_ON_CRITICAL:=false}"
+
+# 정기점검 HTML / Web Viewer (v2.9.5)
+: "${ELK_REPORT_HTML_DIR:=/var/lib/elk-report}"
+: "${ELK_REPORT_HTML_FILE:=${ELK_REPORT_HTML_DIR}/report.html}"
+: "${ELK_REPORT_WEB_ENABLED:=true}"
+: "${ELK_REPORT_WEB_HOST:=0.0.0.0}"
+: "${ELK_REPORT_WEB_PORT:=8088}"
 : "${LS_PARSE_JSON_MESSAGE:=false}"
 : "${LS_JSON_SOURCE_FIELD:=message}"
 : "${LS_JSON_TARGET_FIELD:=}"
@@ -378,6 +385,7 @@ unset _old_name _new_name
 : "${UFW_ELASTICSEARCH_ALLOWED_CIDRS:=}"
 : "${UFW_LOGSTASH_ALLOWED_CIDRS:=}"
 : "${UFW_FTP_ALLOWED_CIDRS:=}"
+: "${UFW_REPORT_ALLOWED_CIDRS:=192.168.0.0/16,10.0.0.0/8}"
 : "${ENABLE_SERVICES_ON_BOOT:=true}"
 : "${START_SERVICES_AFTER_INSTALL:=true}"
 : "${WAIT_TIMEOUT_SECONDS:=180}"
@@ -853,6 +861,12 @@ validate_env() {
   validate_port "ES_HTTP_PORT" "$ES_HTTP_PORT"
   validate_port "KIBANA_SERVER_PORT" "$KIBANA_SERVER_PORT"
   if istrue "$INSTALL_FTP_SERVER"; then validate_port "FTP_LISTEN_PORT" "$FTP_LISTEN_PORT"; fi
+  if istrue "$ELK_REPORT_WEB_ENABLED"; then
+    validate_port "ELK_REPORT_WEB_PORT" "$ELK_REPORT_WEB_PORT"
+    validate_abs_path "ELK_REPORT_HTML_DIR" "$ELK_REPORT_HTML_DIR"
+    validate_abs_path "ELK_REPORT_HTML_FILE" "$ELK_REPORT_HTML_FILE"
+    [[ -n "$ELK_REPORT_WEB_HOST" ]] || die "ELK_REPORT_WEB_HOST가 비어 있습니다."
+  fi
 
   case "$INDEX_MODE" in daily|rollover|plain) ;; *) die "INDEX_MODE은 daily/rollover/plain 중 하나여야 합니다." ;; esac
   case "$ES_HEAP_MODE" in auto|fixed) ;; *) die "ES_HEAP_MODE은 auto 또는 fixed여야 합니다." ;; esac
@@ -1009,7 +1023,7 @@ extend_root_lvm() {
 }
 
 # ----------------------------- OS -----------------------------
-ELK_AUTO_VERSION="2.9.4"
+ELK_AUTO_VERSION="2.9.5"
 log "ELK Auto Installer v${ELK_AUTO_VERSION}"
 log "환경파일: $ENV_FILE"
 log "설치 로그: $INSTALL_LOG"
@@ -1090,7 +1104,7 @@ fi
 overall_progress 5 "Ubuntu 기본환경 및 필수 패키지 준비"
 log "필수 패키지 설치"
 apt-get -o Acquire::Retries="${APT_RETRIES}" -o Acquire::http::Timeout="${APT_CONNECT_TIMEOUT}" -o Acquire::https::Timeout="${APT_CONNECT_TIMEOUT}" update -y
-apt_install_progress "필수 패키지" ca-certificates curl wget gnupg apt-transport-https jq openssl rsync netcat-openbsd lsof unzip xz-utils zstd bzip2 coreutils util-linux logrotate cron
+apt_install_progress "필수 패키지" ca-certificates curl wget gnupg apt-transport-https jq openssl rsync netcat-openbsd lsof unzip xz-utils zstd bzip2 coreutils util-linux logrotate cron python3
 
 # ----------------------------- Elastic APT repo -----------------------------
 overall_progress 10 "Elastic ${ELASTIC_MAJOR} APT 저장소 구성"
@@ -2279,10 +2293,39 @@ if [[ -f "$SCRIPT_DIR/elk-patch.sh" && -f "$SCRIPT_DIR/proxysg-lib.sh" ]]; then
   if [[ -s "$SCRIPT_DIR/custom-pipeline.conf" ]]; then install -m 644 "$SCRIPT_DIR/custom-pipeline.conf" /usr/local/lib/elk-auto/custom-pipeline.conf; else rm -f /usr/local/lib/elk-auto/custom-pipeline.conf; fi
   log "부분 패치 도구 설치: /usr/local/sbin/elk-patch  (예: sudo elk-patch --list)"
 fi
-# v2.9.4: 서버 정기점검 리포트 (읽기 전용). 사용법: sudo elk-report   /  sudo elk-report --list
+# v2.9.5: 서버 정기점검 리포트 + HTML Web Viewer
 if [[ -f "$SCRIPT_DIR/elk-report.sh" ]]; then
   install -m 755 "$SCRIPT_DIR/elk-report.sh" /usr/local/sbin/elk-report
-  log "정기점검 리포트 도구 설치: /usr/local/sbin/elk-report  (예: sudo elk-report)"
+  install -d -m 755 "$ELK_REPORT_HTML_DIR"
+  log "정기점검 리포트 도구 설치: /usr/local/sbin/elk-report  (HTML: $ELK_REPORT_HTML_FILE)"
+fi
+if istrue "$ELK_REPORT_WEB_ENABLED"; then
+  [[ -f "$SCRIPT_DIR/elk-report-web.py" ]] || die "필수 파일 없음: $SCRIPT_DIR/elk-report-web.py"
+  install -d -m 755 /usr/local/lib/elk-auto "$ELK_REPORT_HTML_DIR"
+  install -m 755 "$SCRIPT_DIR/elk-report-web.py" /usr/local/lib/elk-auto/elk-report-web.py
+  cat >/etc/systemd/system/elk-report-web.service <<EOF_REPORT_WEB
+[Unit]
+Description=ELK Report Web Viewer
+After=network.target elasticsearch.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/python3 /usr/local/lib/elk-auto/elk-report-web.py --host ${ELK_REPORT_WEB_HOST} --port ${ELK_REPORT_WEB_PORT} --report /usr/local/sbin/elk-report --html ${ELK_REPORT_HTML_FILE} --env /etc/elk-auto/elk.env
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=${ELK_REPORT_HTML_DIR} /var/log /run /tmp
+
+[Install]
+WantedBy=multi-user.target
+EOF_REPORT_WEB
+  systemctl daemon-reload
+  log "점검 웹페이지 구성: http://<서버IP>:${ELK_REPORT_WEB_PORT}/  (bind ${ELK_REPORT_WEB_HOST})"
 fi
 
 # ----------------------------- snapshots -----------------------------
@@ -2334,6 +2377,11 @@ if istrue "$HEALTH_MONITOR_ENABLED"; then
   systemctl enable elk-health-monitor.timer >/dev/null
   if istrue "$START_SERVICES_AFTER_INSTALL"; then systemctl restart elk-health-monitor.timer; fi
 fi
+if istrue "$ELK_REPORT_WEB_ENABLED"; then
+  if istrue "$ENABLE_SERVICES_ON_BOOT"; then systemctl enable elk-report-web.service >/dev/null; fi
+  if istrue "$START_SERVICES_AFTER_INSTALL"; then systemctl restart elk-report-web.service; fi
+  /usr/local/sbin/elk-report --no-color >/dev/null 2>&1 || true
+fi
 
 # ----------------------------- firewall -----------------------------
 overall_progress 95 "UFW 방화벽 구성"
@@ -2377,6 +2425,9 @@ ufw_apply_rules() {
   fi
   if istrue "$LS_BEATS_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_BEATS_PORT" tcp "Logstash Beats"; fi
   if istrue "$LS_HTTP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_HTTP_PORT" tcp "Logstash HTTP"; fi
+  if istrue "$ELK_REPORT_WEB_ENABLED" && [[ "$ELK_REPORT_WEB_HOST" != "127.0.0.1" && "$ELK_REPORT_WEB_HOST" != "localhost" ]]; then
+    ufw_allow_list "$UFW_REPORT_ALLOWED_CIDRS" "$ELK_REPORT_WEB_PORT" tcp "ELK Report Web"
+  fi
   if istrue "$INSTALL_FTP_SERVER"; then
     ufw_allow_list "$UFW_FTP_ALLOWED_CIDRS" "$FTP_LISTEN_PORT" tcp "FTP"
     if istrue "$FTP_PASV_ENABLE" && [[ "$FTP_PASV_MIN_PORT" != "$FTP_PASV_MAX_PORT" ]]; then
@@ -2531,6 +2582,8 @@ cat <<RESULT
   sudo elk-ops indices
   sudo elk-ops ingest
   sudo elk-check /etc/elk-auto/elk.env
+  sudo elk-report
+  # 점검 웹페이지: http://<서버IP>:${ELK_REPORT_WEB_PORT}/
 RESULT
 
 if istrue "$LS_TCP_ENABLED"; then echo " Logstash TCP Input     : ${server_ip}:${LS_TCP_PORT}"; fi

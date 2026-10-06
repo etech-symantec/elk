@@ -16,10 +16,11 @@ set -uo pipefail
 export LC_ALL=C.UTF-8 2>/dev/null || export LC_ALL=en_US.UTF-8 2>/dev/null || true
 
 REPORT_VERSION="1"
-ELK_AUTO_VERSION="2.9.4"
+ELK_AUTO_VERSION="2.9.5"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 ONLY=""; SKIP=""; STALE_H="${ELK_STALE_HOURS:-36}"; COLOR_MODE="${ELK_COLOR:-auto}"; SELF_DELETE=0
-ALL_SECTIONS=(sys ver cpu mem disk last svc es ingest cert os)
+HTML_OUT="${ELK_REPORT_HTML_FILE:-/var/lib/elk-report/report.html}"; WRITE_HTML=1
+ALL_SECTIONS=(sys ver cpu mem disk last svc es ingest cfg cert os)
 
 usage() { sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 list_sections() {
@@ -34,6 +35,7 @@ list_sections() {
   svc     서비스 상태 (elasticsearch kibana logstash nginx vsftpd cron)
   es      클러스터 상태 · 미할당 샤드 · JVM Heap · ILM 오류 · 읽기 전용 인덱스
   ingest  처리 스크립트(cron·로그) · 처리 대기 파일 · Logstash 이벤트
+  cfg     OneClick 설치 구성 일치 여부 (패키지 · 설정 · 도구 · cron · sysctl)
   cert    인증서 만료일 (Elasticsearch CA · Nginx)
   os      업데이트 · 실패한 서비스 · OOM 기록
 EOF
@@ -45,6 +47,8 @@ while [[ $# -gt 0 ]]; do
     --env) ENV_FILE="${2:-}"; shift 2 ;;
     --stale-hours) STALE_H="${2:-36}"; shift 2 ;;
     --no-color) COLOR_MODE=never; shift ;;
+    --html) HTML_OUT="${2:-}"; WRITE_HTML=1; shift 2 ;;
+    --no-html) WRITE_HTML=0; shift ;;
     --color=*) COLOR_MODE="${1#--color=}"; shift ;;
     --self-delete) SELF_DELETE=1; shift ;;
     --list) list_sections; exit 0 ;;
@@ -74,7 +78,7 @@ if ! [[ "$COLS" =~ ^[0-9]+$ ]]; then
 fi
 (( COLS < 80 )) && COLS=80; (( COLS > 120 )) && COLS=120
 LABW=26; VCOL=$((2+2+LABW+2)); VAVAIL=$((COLS-VCOL-1)); (( VAVAIL < 40 )) && VAVAIL=40
-SEC_NAME=(); SEC_ST=(); CUR_IDX=-1; ISS_ST=(); ISS_SEC=(); ISS_LB=(); ISS_VAL=()
+SEC_NAME=(); SEC_ST=(); CUR_IDX=-1; ISS_ST=(); ISS_SEC=(); ISS_LB=(); ISS_VAL=(); ROW_SEC=(); ROW_ST=(); ROW_LB=(); ROW_VAL=()
 dwv() { # 화면 폭을 DW 에 저장 (한글·전각 = 2칸, 나머지 = 1칸)
   local s="$1" i o; DW=0
   for ((i=0;i<${#s};i++)); do
@@ -106,6 +110,7 @@ group() { printf '  %s▸ %s%s' "$B" "$1" "$R"; [[ -n "${2:-}" ]] && printf '  %
 mark() { (( CUR_IDX >= 0 )) && (( $1 > SEC_ST[CUR_IDX] )) && SEC_ST[CUR_IDX]=$1; return 0; }
 row() { # status label value  — 라벨 칸 고정, 긴 값은 값 칸에 맞춰 줄바꿈, 주의/이상은 라벨 색 강조
   local st="$1" label="$2" val="$3" g c lc="$B" lw i
+  ROW_SEC+=("${SEC_NAME[CUR_IDX]:-정보}"); ROW_ST+=("$st"); ROW_LB+=("$label"); ROW_VAL+=("$val")
   case "$st" in
     ok)   g="✔"; c="$G"; N_OK=$((N_OK+1)); mark 0 ;;
     warn) g="⚠"; c="$Y"; lc="$B$Y"; N_WARN=$((N_WARN+1)); mark 1; ISS_ST+=(warn); ISS_SEC+=("${SEC_NAME[CUR_IDX]:-}"); ISS_LB+=("$label"); ISS_VAL+=("$val") ;;
@@ -159,7 +164,13 @@ tf() { [[ "${1,,}" =~ ^(1|true|yes|y|on)$ ]]; }
 : "${PROXYSG_MAIN_INDEX_PREFIX:=proxy-main}"; : "${PROXYSG_SSL_INDEX_PREFIX:=proxy-ssl}"; : "${PROXYSG_CLOUD_INDEX_PREFIX:=proxy-cloud}"
 : "${PROXYSG_PROCESS_LOG:=/var/log/elk-proxysg-log-process.log}"; : "${PROXYSG_PROCESS_CRON:=0 3 * * *}"
 : "${INSTALL_NGINX:=false}"; : "${NGINX_TLS_CERT_FILE:=/etc/ssl/certs/kibana-selfsigned.crt}"; : "${INSTALL_FTP_SERVER:=true}"
+: "${INSTALL_ELASTICSEARCH:=true}"; : "${INSTALL_KIBANA:=true}"; : "${INSTALL_LOGSTASH:=true}"
 : "${LOGSTASH_API_ENABLED:=true}"; : "${LOGSTASH_API_HOST:=127.0.0.1}"; : "${LOGSTASH_API_PORT:=9600}"; : "${KIBANA_SERVER_PORT:=5601}"
+: "${LOGSTASH_PIPELINE_FILE:=/etc/logstash/conf.d/logstash.conf}"; : "${LOGSTASH_HEAP_MIN:=2g}"; : "${LOGSTASH_HEAP_MAX:=2g}"
+: "${VM_MAX_MAP_COUNT:=1048576}"; : "${SYSTEM_SWAPPINESS:=1}"; : "${DISABLE_SWAP:=false}"
+: "${PROXYSG_PROCESS_SCRIPT:=/usr/local/sbin/elk-proxysg-log-process}"
+: "${ELK_REPORT_WEB_ENABLED:=true}"; : "${ELK_REPORT_WEB_HOST:=0.0.0.0}"; : "${ELK_REPORT_WEB_PORT:=8088}"
+: "${ELK_REPORT_HTML_DIR:=/var/lib/elk-report}"; : "${ELK_REPORT_HTML_FILE:=${ELK_REPORT_HTML_DIR}/report.html}"
 [[ "$LOGSTASH_API_HOST" == "0.0.0.0" ]] && LOGSTASH_API_HOST=127.0.0.1
 if [[ -f "$SECRETS_FILE" ]]; then set +u; source "$SECRETS_FILE" 2>/dev/null; set -u; fi
 CA="${ELK_CA_FILE:-/etc/elasticsearch/certs/http_ca.crt}"
@@ -201,7 +212,7 @@ kv "서버" "$(hostname)    ·    $(date '+%Y-%m-%d %H:%M:%S %Z')"
 kv "버전" "ELK Auto Installer v${ELK_AUTO_VERSION}    ·    환경파일 ${ENV_FILE}"
 kv "범례" "${G}✔ 정상${R}   ${Y}⚠ 주의${R}   ${X}✖ 이상${R}   ${D}· 정보${R}"
 unset _t
-(( LEGACY_ENV )) && printf '  %s· 이전 버전(2.9.4 미만, GUIDE_*) 설정 파일을 읽어 점검합니다.%s\n' "$D" "$R"
+(( LEGACY_ENV )) && printf '  %s· 이전 버전(2.9.5 미만, GUIDE_*) 설정 파일을 읽어 점검합니다.%s\n' "$D" "$R"
 [[ -n "${ENV_MISSING:-}" ]] && printf '  %s⚠ elk.env 를 찾지 못해 기본값으로 점검합니다: %s%s\n' "$Y" "$ENV_FILE" "$R"
 (( HAVE_JQ )) || printf '  %s⚠ jq 가 없어 Elasticsearch 항목은 건너뜁니다. (sudo apt-get install -y jq)%s\n' "$Y" "$R"
 
@@ -423,6 +434,30 @@ if want ingest; then
   if [[ "$le" =~ ^[0-9]+$ ]]; then if (( le > 0 )); then row warn "Logstash 오류 로그(24시간)" "${le}줄 — journalctl -u logstash -p err --since '24 hours ago'"; else row ok "Logstash 오류 로그(24시간)" "없음"; fi; fi
 fi
 
+# ---------------------------------------------------------------- cfg
+cfg_bool() { if tf "$1"; then echo true; else echo false; fi; }
+cfg_file() { local label="$1" f="$2" mode="${3:-file}"; if [[ "$mode" == x ]]; then [[ -x "$f" ]] && row ok "$label" "설치됨: $f" || row crit "$label" "설치되지 않음: $f"; else [[ -e "$f" ]] && row ok "$label" "존재: $f" || row crit "$label" "없음: $f"; fi; }
+cfg_yaml() { local label="$1" file="$2" key="$3" expect="$4" actual=""; [[ -f "$file" ]] || { row crit "$label" "설정 파일 없음: $file"; return; }; actual="$(awk -F: -v k="$key" '$1 ~ "^[[:space:]]*"k"[[:space:]]*$" {sub(/^[^:]*:[[:space:]]*/,""); gsub(/^[\"'\'' ]+|[\"'\'' ]+$/ ,""); print; exit}' "$file" 2>/dev/null || true)"; if [[ "$actual" == "$expect" ]]; then row ok "$label" "$key=$actual"; else row warn "$label" "기대 $key=$expect · 실제 ${actual:-'(없음)'}"; fi; }
+if want cfg; then
+  section "OneClick 구성 일치"
+  # 설치 선택과 실제 패키지
+  for _e in "INSTALL_ELASTICSEARCH:elasticsearch:Elasticsearch" "INSTALL_KIBANA:kibana:Kibana" "INSTALL_LOGSTASH:logstash:Logstash" "INSTALL_NGINX:nginx:Nginx" "INSTALL_FTP_SERVER:vsftpd:FTP(vsftpd)"; do
+    IFS=: read -r _vk _pkg _lb <<<"$_e"; _want="${!_vk:-false}"; if tf "$_want"; then dpkg-query -W -f='${Status}' "$_pkg" 2>/dev/null | grep -q 'install ok installed' && row ok "패키지 $_lb" "설치됨" || row crit "패키지 $_lb" "elk.env에서는 사용하지만 패키지가 설치되지 않았습니다."; else dpkg-query -W -f='${Status}' "$_pkg" 2>/dev/null | grep -q 'install ok installed' && row info "패키지 $_lb" "설정은 사용 안 함이지만 패키지는 설치되어 있음" || row info "패키지 $_lb" "사용 안 함"; fi
+  done
+  _mm="$(sysctl -n vm.max_map_count 2>/dev/null || echo '?')"; [[ "$_mm" == "$VM_MAX_MAP_COUNT" ]] && row ok "vm.max_map_count" "$_mm" || row warn "vm.max_map_count" "기대 $VM_MAX_MAP_COUNT · 실제 $_mm"
+  _sw="$(sysctl -n vm.swappiness 2>/dev/null || echo '?')"; if tf "$DISABLE_SWAP"; then [[ "$(swapon --noheadings 2>/dev/null | wc -l)" -eq 0 ]] && row ok "Swap 정책" "DISABLE_SWAP=true · 활성 Swap 없음" || row warn "Swap 정책" "DISABLE_SWAP=true 이지만 활성 Swap이 있습니다."; else [[ "$_sw" == "$SYSTEM_SWAPPINESS" ]] && row ok "vm.swappiness" "$_sw" || row warn "vm.swappiness" "기대 $SYSTEM_SWAPPINESS · 실제 $_sw"; [[ "$(swapon --noheadings 2>/dev/null | wc -l)" -gt 0 ]] && row ok "Swap 안전망" "활성 Swap 있음" || row warn "Swap 안전망" "DISABLE_SWAP=false 이지만 활성 Swap이 없습니다."; fi
+  tf "$INSTALL_ELASTICSEARCH" && { cfg_yaml "ES cluster.name" /etc/elasticsearch/elasticsearch.yml cluster.name "${ES_CLUSTER_NAME:-elk-cluster}"; cfg_yaml "ES network.host" /etc/elasticsearch/elasticsearch.yml network.host "${ES_NETWORK_HOST:-0.0.0.0}"; }
+  tf "$INSTALL_KIBANA" && { cfg_yaml "Kibana server.port" /etc/kibana/kibana.yml server.port "$KIBANA_SERVER_PORT"; }
+  if tf "$INSTALL_LOGSTASH"; then
+    [[ -f "$LOGSTASH_PIPELINE_FILE" ]] && row ok "Logstash pipeline" "존재: $LOGSTASH_PIPELINE_FILE" || row crit "Logstash pipeline" "없음: $LOGSTASH_PIPELINE_FILE"
+    _xms="$(grep -hE '^-Xms' /etc/logstash/jvm.options /etc/logstash/jvm.options.d/* 2>/dev/null | tail -1 | sed 's/^-Xms//' || true)"; _xmx="$(grep -hE '^-Xmx' /etc/logstash/jvm.options /etc/logstash/jvm.options.d/* 2>/dev/null | tail -1 | sed 's/^-Xmx//' || true)"
+    [[ "$_xms" == "$LOGSTASH_HEAP_MIN" && "$_xmx" == "$LOGSTASH_HEAP_MAX" ]] && row ok "Logstash Heap" "Xms=$_xms · Xmx=$_xmx" || row warn "Logstash Heap" "기대 Xms=$LOGSTASH_HEAP_MIN/Xmx=$LOGSTASH_HEAP_MAX · 실제 Xms=${_xms:-?}/Xmx=${_xmx:-?}"
+  fi
+  cfg_file "관리 도구 elk-check" /usr/local/sbin/elk-check x; cfg_file "관리 도구 elk-ops" /usr/local/sbin/elk-ops x; cfg_file "관리 도구 elk-report" /usr/local/sbin/elk-report x; cfg_file "관리 도구 elk-patch" /usr/local/sbin/elk-patch x
+  tf "$PROXYSG_FLOW_ENABLED" && { cfg_file "ProxySG 처리 스크립트" "$PROXYSG_PROCESS_SCRIPT" x; _cf="/etc/cron.d/elk-proxysg-log-process"; [[ -f "$_cf" ]] || _cf="/etc/cron.d/elk-guide-log-process"; if [[ -f "$_cf" ]]; then _actual="$(grep -vE '^[[:space:]]*(#|$|[A-Z_]+=)' "$_cf" | head -1 | awk '{print $1,$2,$3,$4,$5}')"; [[ "$_actual" == "$PROXYSG_PROCESS_CRON" ]] && row ok "ProxySG cron" "$_actual" || row warn "ProxySG cron" "기대 $PROXYSG_PROCESS_CRON · 실제 ${_actual:-'(없음)'}"; else row crit "ProxySG cron" "cron 파일 없음"; fi; }
+  if tf "$ELK_REPORT_WEB_ENABLED"; then cfg_file "점검 웹 서비스 파일" /usr/local/lib/elk-auto/elk-report-web.py file; systemctl is-active --quiet elk-report-web && row ok "점검 웹 서비스" "active · http://$(hostname -I 2>/dev/null | awk '{print $1}'):${ELK_REPORT_WEB_PORT}/" || row crit "점검 웹 서비스" "elk-report-web가 active가 아닙니다."; else row info "점검 웹 서비스" "사용 안 함"; fi
+fi
+
 # ---------------------------------------------------------------- cert
 cert_days() { local f="$1" e; e="$(openssl x509 -enddate -noout -in "$f" 2>/dev/null | cut -d= -f2)"; [[ -n "$e" ]] || return 1; echo $(( ( $(date -d "$e" +%s) - NOW ) / 86400 )); }
 if want cert; then
@@ -475,6 +510,40 @@ else
   printf '\n  %s✔ 주의·이상 항목이 없습니다. 모든 점검이 정상입니다.%s\n' "$G" "$R"
 fi
 printf '\n'
+
+# ---------------------------------------------------------------- HTML 리포트
+html_esc() { local z="$1"; z="${z//&/&amp;}"; z="${z//</&lt;}"; z="${z//>/&gt;}"; z="${z//\"/&quot;}"; printf '%s' "$z"; }
+write_html() {
+  (( WRITE_HTML )) || return 0
+  [[ -n "$HTML_OUT" ]] || return 0
+  mkdir -p "$(dirname "$HTML_OUT")" 2>/dev/null || return 0
+  local tmp="${HTML_OUT}.tmp.$$" i sec last="" cls badge urlhost
+  urlhost="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  {
+    cat <<'HTML_HEAD'
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ELK 점검 리포트</title><style>
+:root{--bg:#f4f7fb;--card:#fff;--ink:#172033;--muted:#64748b;--line:#dbe4ef;--ok:#059669;--warn:#d97706;--bad:#dc2626;--blue:#2563eb}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,"Pretendard","Noto Sans KR","Segoe UI",sans-serif}.wrap{max-width:1380px;margin:auto;padding:24px}.hero{background:linear-gradient(120deg,#0b1736,#1e3a8a);color:white;border-radius:18px;padding:22px;box-shadow:0 12px 30px #0f172a18}.hero h1{margin:0 0 6px;font-size:24px}.sub{color:#cbd5e1;font-size:13px}.runner{display:flex;gap:8px;margin-top:16px}.runner input{flex:1;border:1px solid #93c5fd;border-radius:10px;padding:10px 12px;font-family:ui-monospace,Consolas,monospace}.runner button{border:0;border-radius:10px;padding:10px 16px;background:#fff;color:#1d4ed8;font-weight:800;cursor:pointer}.state{margin-top:8px;font-size:12px;color:#bfdbfe}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}.card{background:white;border:1px solid var(--line);border-radius:14px;padding:15px;box-shadow:0 6px 18px #0f172a0d}.card b{display:block;font-size:11px;color:var(--muted);margin-bottom:7px}.card strong{font-size:24px}.ok{color:var(--ok)}.warn{color:var(--warn)}.crit{color:var(--bad)}.info{color:#64748b}.sec{background:white;border:1px solid var(--line);border-radius:14px;margin:12px 0;overflow:hidden}.sec h2{font-size:15px;margin:0;padding:13px 16px;background:#f8fafc;border-bottom:1px solid var(--line)}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:10px 12px;border-bottom:1px solid #eef2f7;text-align:left;vertical-align:top}th{width:25%;color:#334155}.st{width:74px;font-weight:800}.issue{border-left:4px solid var(--bad)}.issue.warnrow{border-left-color:var(--warn)}.foot{font-size:11px;color:var(--muted);margin:18px 3px}.pill{display:inline-block;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:800;background:#e2e8f0}.pill.ok{background:#d1fae5}.pill.warn{background:#fef3c7}.pill.crit{background:#fee2e2}@media(max-width:760px){.wrap{padding:12px}.cards{grid-template-columns:1fr 1fr}.runner{flex-direction:column}th{width:36%}}
+</style></head><body><div class="wrap"><div class="hero"><h1>ELK 서버 점검 리포트</h1>
+HTML_HEAD
+    printf '<div class="sub">서버 <b>%s</b> · 생성 %s · ELK Auto Installer v%s</div>\n' "$(html_esc "$(hostname)")" "$(html_esc "$(date '+%Y-%m-%d %H:%M:%S %Z')")" "$(html_esc "$ELK_AUTO_VERSION")"
+    cat <<'HTML_RUN'
+<div class="runner"><input id="cmd" value="elk-report" aria-label="elk-report 명령"><button id="run">최신 정보 불러오기</button></div><div class="state" id="state">허용 명령: elk-report [--only ...] [--skip ...] [--stale-hours N] [--no-color]</div></div>
+HTML_RUN
+    printf '<div class="cards"><div class="card"><b>정상</b><strong class="ok">%d</strong></div><div class="card"><b>주의</b><strong class="warn">%d</strong></div><div class="card"><b>이상</b><strong class="crit">%d</strong></div><div class="card"><b>HTML 파일</b><span>%s</span></div></div>\n' "$N_OK" "$N_WARN" "$N_CRIT" "$(html_esc "$HTML_OUT")"
+    for ((i=0;i<${#ROW_ST[@]};i++)); do
+      sec="${ROW_SEC[i]}"; if [[ "$sec" != "$last" ]]; then [[ -n "$last" ]] && echo '</tbody></table></div>'; printf '<div class="sec"><h2>%s</h2><table><tbody>\n' "$(html_esc "$sec")"; last="$sec"; fi
+      cls="${ROW_ST[i]}"; case "$cls" in ok) badge='정상' ;; warn) badge='주의' ;; crit) badge='이상' ;; *) badge='정보' ;; esac
+      printf '<tr class="%s"><td class="st %s">%s</td><th>%s</th><td>%s</td></tr>\n' "$([[ "$cls" == crit ]] && echo issue || [[ "$cls" == warn ]] && echo 'issue warnrow')" "$cls" "$badge" "$(html_esc "${ROW_LB[i]}")" "$(html_esc "${ROW_VAL[i]}")"
+    done
+    [[ -n "$last" ]] && echo '</tbody></table></div>'
+    cat <<'HTML_TAIL'
+<div class="foot">이 페이지는 <code>elk-report</code>가 생성합니다. 웹의 명령 입력은 임의 셸 명령이 아니라 허용된 elk-report 옵션만 실행합니다.</div></div>
+<script>const b=document.getElementById('run'),s=document.getElementById('state'),c=document.getElementById('cmd');b.onclick=async()=>{b.disabled=true;s.textContent='점검 실행 중…';try{const r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:c.value})});const j=await r.json();if(!r.ok)throw new Error(j.error||'실행 실패');s.textContent='완료 · '+(j.message||'리포트를 새로 불러옵니다.');setTimeout(()=>location.reload(),450)}catch(e){s.textContent='오류: '+e.message}finally{b.disabled=false}};</script></body></html>
+HTML_TAIL
+  } >"$tmp" && chmod 644 "$tmp" && mv -f "$tmp" "$HTML_OUT"
+  printf '[HTML] %s\n' "$HTML_OUT"
+}
+write_html
 (( N_CRIT > 0 )) && exit 2
 (( N_WARN > 0 )) && exit 1
 exit 0

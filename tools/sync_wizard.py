@@ -25,6 +25,7 @@ EMBEDDED = {
     'elk-patch.sh':               '_internal/core/elk-patch.sh',
     'elk-color.sh':               '_internal/core/elk-color.sh',
     'elk-report.sh':              '_internal/core/elk-report.sh',
+    'elk-report-web.py':          '_internal/core/elk-report-web.py',
     'elk-tls-lib.sh':             '_internal/core/elk-tls-lib.sh',
     'proxysg-lib.sh':             '_internal/core/proxysg-lib.sh',
     'log-ingest-manager.sh':      '_internal/core/log-ingest-manager.sh',
@@ -37,6 +38,7 @@ PATCH_GZ = {
     'proxysg-lib.sh':          '_internal/core/proxysg-lib.sh',
     'proxysg-log-filter.conf': '_internal/core/proxysg-log-filter.conf',
     'elk-report.sh':           '_internal/core/elk-report.sh',
+    'elk-report-web.py':       '_internal/core/elk-report-web.py',
     'elk-tls-lib.sh':          '_internal/core/elk-tls-lib.sh',
 }
 # ZIP에만 들어가는 파일: 저장소 경로 -> 권한(8진수 문자열)

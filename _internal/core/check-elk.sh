@@ -50,6 +50,18 @@ source "$ENV_FILE"
 : "${SLM_POLICY_ENABLED:=false}"
 : "${SLM_POLICY_NAME:=daily-snapshot}"
 : "${UFW_MANAGE:=false}"
+: "${VM_MAX_MAP_COUNT:=1048576}"
+: "${SYSTEM_SWAPPINESS:=1}"
+: "${DISABLE_SWAP:=false}"
+: "${LOGSTASH_PIPELINE_FILE:=/etc/logstash/conf.d/logstash.conf}"
+: "${LOGSTASH_HEAP_MIN:=2g}"
+: "${LOGSTASH_HEAP_MAX:=2g}"
+: "${PROXYSG_PROCESS_SCRIPT:=/usr/local/sbin/elk-proxysg-log-process}"
+: "${PROXYSG_PROCESS_CRON:=0 3 * * *}"
+: "${ELK_REPORT_WEB_ENABLED:=true}"
+: "${ELK_REPORT_WEB_PORT:=8088}"
+: "${ES_CLUSTER_NAME:=elk-cluster}"
+: "${ES_NETWORK_HOST:=0.0.0.0}"
 
 istrue(){ [[ "${1,,}" =~ ^(1|true|yes|y|on)$ ]]; }
 if [[ -f "$SECRETS_FILE" ]]; then
@@ -194,6 +206,41 @@ if istrue "$INSTALL_LOGSTASH"; then
 fi
 if istrue "$INSTALL_FTP_SERVER"; then
   if nc -z 127.0.0.1 "$FTP_LISTEN_PORT" 2>/dev/null; then pass "FTP Control Port OPEN: ${FTP_LISTEN_PORT}/tcp"; else fail "FTP Control Port CLOSED: ${FTP_LISTEN_PORT}/tcp"; fi
+fi
+
+# OneClick 설치 항목 / 주요 값 일치 점검
+for _spec in "true:/usr/local/sbin/elk-check:elk-check" "true:/usr/local/sbin/elk-ops:elk-ops" "true:/usr/local/sbin/elk-report:elk-report" "true:/usr/local/sbin/elk-patch:elk-patch"; do
+  IFS=: read -r _on _path _label <<<"$_spec"; [[ -x "$_path" ]] && pass "관리 도구 설치됨: $_label" || fail "관리 도구 없음: $_path"
+done
+_mm="$(sysctl -n vm.max_map_count 2>/dev/null || echo '?')"; [[ "$_mm" == "$VM_MAX_MAP_COUNT" ]] && pass "vm.max_map_count 일치: $_mm" || warn "vm.max_map_count 불일치: 기대 $VM_MAX_MAP_COUNT / 실제 $_mm"
+yaml_val(){ local f="$1" k="$2"; awk -F: -v k="$k" '$1 ~ "^[[:space:]]*"k"[[:space:]]*$" {sub(/^[^:]*:[[:space:]]*/,""); gsub(/^[\"'\'' ]+|[\"'\'' ]+$/ ,""); print; exit}' "$f" 2>/dev/null || true; }
+if istrue "$INSTALL_ELASTICSEARCH" && [[ -f /etc/elasticsearch/elasticsearch.yml ]]; then
+  _v="$(yaml_val /etc/elasticsearch/elasticsearch.yml cluster.name)"; [[ "$_v" == "$ES_CLUSTER_NAME" ]] && pass "Elasticsearch cluster.name 일치: $_v" || warn "Elasticsearch cluster.name 불일치: 기대 $ES_CLUSTER_NAME / 실제 ${_v:-없음}"
+  _v="$(yaml_val /etc/elasticsearch/elasticsearch.yml network.host)"; [[ "$_v" == "$ES_NETWORK_HOST" ]] && pass "Elasticsearch network.host 일치: $_v" || warn "Elasticsearch network.host 불일치: 기대 $ES_NETWORK_HOST / 실제 ${_v:-없음}"
+fi
+if istrue "$INSTALL_KIBANA" && [[ -f /etc/kibana/kibana.yml ]]; then
+  _v="$(yaml_val /etc/kibana/kibana.yml server.port)"; [[ "$_v" == "$KIBANA_SERVER_PORT" ]] && pass "Kibana server.port 일치: $_v" || warn "Kibana server.port 불일치: 기대 $KIBANA_SERVER_PORT / 실제 ${_v:-없음}"
+fi
+_sw="$(sysctl -n vm.swappiness 2>/dev/null || echo '?')"
+if istrue "$DISABLE_SWAP"; then
+  [[ "$(swapon --noheadings 2>/dev/null | wc -l)" -eq 0 ]] && pass "Swap 비활성 정책 일치" || warn "DISABLE_SWAP=true 이지만 Swap이 활성 상태"
+else
+  [[ "$_sw" == "$SYSTEM_SWAPPINESS" ]] && pass "vm.swappiness 일치: $_sw" || warn "vm.swappiness 불일치: 기대 $SYSTEM_SWAPPINESS / 실제 $_sw"
+  [[ "$(swapon --noheadings 2>/dev/null | wc -l)" -gt 0 ]] && pass "Swap 안전망 활성" || warn "DISABLE_SWAP=false 이지만 활성 Swap 없음"
+fi
+if istrue "$INSTALL_LOGSTASH"; then
+  [[ -f "$LOGSTASH_PIPELINE_FILE" ]] && pass "Logstash pipeline 존재: $LOGSTASH_PIPELINE_FILE" || fail "Logstash pipeline 없음: $LOGSTASH_PIPELINE_FILE"
+  _xms="$(grep -hE '^-Xms' /etc/logstash/jvm.options /etc/logstash/jvm.options.d/* 2>/dev/null | tail -1 | sed 's/^-Xms//' || true)"; _xmx="$(grep -hE '^-Xmx' /etc/logstash/jvm.options /etc/logstash/jvm.options.d/* 2>/dev/null | tail -1 | sed 's/^-Xmx//' || true)"
+  [[ "$_xms" == "$LOGSTASH_HEAP_MIN" && "$_xmx" == "$LOGSTASH_HEAP_MAX" ]] && pass "Logstash Heap 일치: Xms=$_xms Xmx=$_xmx" || warn "Logstash Heap 불일치: 기대 $LOGSTASH_HEAP_MIN/$LOGSTASH_HEAP_MAX 실제 ${_xms:-?}/${_xmx:-?}"
+fi
+if istrue "$PROXYSG_FLOW_ENABLED"; then
+  [[ -x "$PROXYSG_PROCESS_SCRIPT" ]] && pass "ProxySG 처리 스크립트 설치됨" || fail "ProxySG 처리 스크립트 없음: $PROXYSG_PROCESS_SCRIPT"
+  _cf=/etc/cron.d/elk-proxysg-log-process; [[ -f "$_cf" ]] || _cf=/etc/cron.d/elk-guide-log-process
+  if [[ -f "$_cf" ]]; then _cr="$(grep -vE '^[[:space:]]*(#|$|[A-Z_]+=)' "$_cf" | head -1 | awk '{print $1,$2,$3,$4,$5}')"; [[ "$_cr" == "$PROXYSG_PROCESS_CRON" ]] && pass "ProxySG cron 일치: $_cr" || warn "ProxySG cron 불일치: 기대 $PROXYSG_PROCESS_CRON / 실제 ${_cr:-없음}"; else fail "ProxySG cron 파일 없음"; fi
+fi
+if istrue "$ELK_REPORT_WEB_ENABLED"; then
+  [[ -f /usr/local/lib/elk-auto/elk-report-web.py ]] && pass "점검 웹 도구 설치됨" || fail "점검 웹 도구 없음"
+  systemctl is-active --quiet elk-report-web 2>/dev/null && pass "점검 웹 서비스 active (:${ELK_REPORT_WEB_PORT})" || fail "점검 웹 서비스 inactive"
 fi
 
 if istrue "$UFW_MANAGE"; then

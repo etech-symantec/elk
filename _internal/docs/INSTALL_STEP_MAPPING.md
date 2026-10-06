@@ -32,6 +32,8 @@
 | ILM `proxy-retention-policy` | ProxySG 정책명 자동 적용 |
 | Index Template `proxy-index-template` | `proxy-main-*`, `proxy-ssl-*` 두 패턴 자동 적용 |
 | 기존 인덱스에 lifecycle 설정 | `ILM_APPLY_TO_EXISTING=true` 선택 시 자동 적용 |
+| HTML 점검 리포트 / 웹 Viewer | `elk-report` → `/var/lib/elk-report/report.html`, `elk-report-web`(기본 8088/tcp) |
+| OneClick 구성 일치 점검 | `elk-report --only cfg`, `elk-check`가 패키지·sysctl·Heap·pipeline·도구·cron 확인 |
 
 ## 보존기간 차이
 
@@ -49,3 +51,9 @@ Wizard 최종 단계에 다음 점검 항목을 요약했습니다.
 - Nginx → `nginx -t` / 서비스 상태 / Self-Signed 인증서 신뢰
 
 자동 설치 스크립트는 설정 파일을 root 권한으로 생성하므로 장애 대응 예시로 흔한 `chmod 777 /etc/logstash/conf.d/`는 자동 적용하지 않습니다.
+
+## v2.9.5 점검 웹
+
+- `sudo elk-report` 실행 시 터미널 출력과 HTML 리포트를 동시에 갱신합니다.
+- `elk-report-web`은 HTML을 제공하고 `/api/run`에서 허용된 `elk-report` 옵션만 실행합니다.
+- 기본 URL은 `http://서버IP:8088/`이며 `ELK_REPORT_WEB_HOST`, `ELK_REPORT_WEB_PORT`, `UFW_REPORT_ALLOWED_CIDRS`로 제어합니다.

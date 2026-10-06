@@ -1,3 +1,12 @@
+# v2.9.5
+
+- `elk-report`가 기존 터미널 출력과 동시에 시각적 HTML 리포트(`/var/lib/elk-report/report.html`)를 생성하도록 확장했습니다.
+- 새 `elk-report-web.py` / `elk-report-web.service`를 추가해 기본 `8088/tcp`에서 점검 HTML을 제공합니다. 웹 페이지에서 `elk-report`와 허용된 옵션만 실행해 최신 정보를 다시 불러올 수 있으며 임의 셸 명령은 거절합니다.
+- `elk-report`에 `cfg`(OneClick 구성 일치) 섹션을 추가해 설치 패키지, vm.max_map_count, Swap/swappiness, Elasticsearch/Kibana 주요 설정, Logstash Heap·pipeline, 관리 도구, ProxySG cron, 점검 웹 서비스를 `elk.env` 기대값과 비교합니다.
+- `check-elk.sh`도 관리 도구·sysctl·Swap·Logstash Heap/pipeline·ProxySG cron·점검 웹 누락/불일치를 검사합니다.
+- Config Wizard 점검 출력 예시를 현재 Swap 안전망 정책과 `cfg`/HTML 출력에 맞게 갱신하고, 점검 웹 Listen/Port/HTML 경로/UFW 허용 대역 설정을 추가했습니다.
+- Config Wizard / One-Click / elk-patch / elk-report / Windows 원격 배포 표기를 v2.9.5로 올렸습니다.
+
 # v2.9.4
 
 - **점검 리포트(`elk-report`) 출력 가독성 개선**: 화면 폭(80~120칸)에 맞춘 섹션 구분선, 고정 라벨 칸 + 긴 설명 자동 줄바꿈(값 칸 정렬), 주의/이상 항목 라벨 색 강조, 맨 아래에 **섹션별 상태 요약**과 **조치 필요 목록**(이상 → 주의 순)을 추가했습니다. 점검 로직·종료 코드(0/1/2)·옵션은 그대로입니다. 파이프/파일 저장 시 폭은 100칸이며 `ELK_REPORT_COLS=숫자`로 바꿀 수 있습니다.

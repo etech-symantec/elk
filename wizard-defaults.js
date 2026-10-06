@@ -361,6 +361,7 @@ window.ELK_DEFAULTS = {
     UFW_ELASTICSEARCH_ALLOWED_CIDRS: "127.0.0.1/32",          // Ufw Elasticsearch Allowed Cidrs
     UFW_LOGSTASH_ALLOWED_CIDRS: "192.168.0.0/16,10.0.0.0/8",  // Ufw Logstash Allowed Cidrs
     UFW_FTP_ALLOWED_CIDRS: "192.168.0.0/16,10.0.0.0/8",       // FTP 접속 허용 대역
+    UFW_REPORT_ALLOWED_CIDRS: "192.168.0.0/16,10.0.0.0/8",    // 점검 웹 접속 허용 대역
 
     // ───── 고급 설정 24단계 · 서비스 / 설치 후 검증 ─────
     ENABLE_SERVICES_ON_BOOT: true,                            // 부팅 시 자동 시작  [true | false]
@@ -369,6 +370,11 @@ window.ELK_DEFAULTS = {
     CREATE_TEST_EVENT: false,                                 // 설치 후 테스트 이벤트 생성  [true | false]
     TEST_EVENT_MESSAGE: "ELK auto installer test event",      // Test Event Message
     POST_INSTALL_SCRIPT: "",                                  // Post Install Script
+    ELK_REPORT_WEB_ENABLED: true,                              // 점검 웹페이지 사용 [true | false]
+    ELK_REPORT_WEB_HOST: "0.0.0.0",                           // 점검 웹 Listen 주소
+    ELK_REPORT_WEB_PORT: "8088",                              // 점검 웹 포트
+    ELK_REPORT_HTML_DIR: "/var/lib/elk-report",               // 점검 HTML 저장 폴더
+    ELK_REPORT_HTML_FILE: "/var/lib/elk-report/report.html",  // 점검 HTML 파일
 
     // ───── 기타 (설치 진행 표시 · APT 재시도) ─────
     INSTALL_PROGRESS_ENABLED: true,                           // 설치 전체 진행률 표시  [true | false]
