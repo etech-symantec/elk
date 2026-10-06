@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-# ELK Auto Installer v2.9.4
+# ELK Auto Installer v2.9.2 (keystore + kibana-token hotfix)
 # Target: Ubuntu 22.04 / 24.04, Elastic Stack 9.x
 # Usage: sudo bash install-elk.sh ./elk.env
 
@@ -55,10 +55,21 @@ unset _old_name _new_name
 : "${SYSTEM_HOSTNAME:=elk01}"
 : "${TIMEZONE:=Asia/Seoul}"
 : "${ENABLE_NTP:=true}"
-: "${DISABLE_SWAP:=true}"
+# 서버 스펙/자동 사이징 메타데이터 (Wizard가 권장값 계산에 사용; 설치기에서도 기록용으로 유지)
+: "${SERVER_RAM_GB:=8}"
+: "${SERVER_CPU_CORES:=4}"
+: "${SERVER_DISK_GB:=100}"
+: "${AUTO_RESOURCE_SIZING:=true}"
+
+# Swap 정책
+# DISABLE_SWAP=true  : Elastic 공식 권장에 맞춰 swap 비활성화
+# DISABLE_SWAP=false : swap 사용 허용. AUTO_CREATE_SWAP=true이면 활성 swap이 없을 때 SWAP_FILE_PATH를 생성
+: "${DISABLE_SWAP:=false}"
+: "${AUTO_CREATE_SWAP:=true}"
+: "${SWAP_FILE_PATH:=/swapfile}"
+: "${SWAP_SIZE_GB:=2}"
 : "${VM_MAX_MAP_COUNT:=1048576}"
 : "${SYSTEM_SWAPPINESS:=1}"
-: "${OS_EXTEND_ROOT_LVM:=true}"
 : "${INSTALL_LOG:=/var/log/elk-auto-install.log}"
 : "${STATE_DIR:=/root/.elk-auto-installer}"
 : "${SECRETS_FILE:=${STATE_DIR}/secrets.env}"
@@ -88,9 +99,9 @@ unset _old_name _new_name
 : "${ES_TRANSPORT_TLS_ENABLED:=true}"
 : "${ELASTIC_USERNAME:=elastic}"
 : "${ELASTIC_PASSWORD:=}"
-: "${ES_HEAP_MODE:=auto}"
-: "${ES_HEAP_MIN:=16g}"
-: "${ES_HEAP_MAX:=16g}"
+: "${ES_HEAP_MODE:=fixed}"
+: "${ES_HEAP_MIN:=2g}"
+: "${ES_HEAP_MAX:=2g}"
 : "${ES_BOOTSTRAP_MEMORY_LOCK:=false}"
 : "${ES_LIMIT_NOFILE:=65535}"
 : "${ES_LIMIT_NPROC:=4096}"
@@ -147,9 +158,9 @@ unset _old_name _new_name
 : "${LOGSTASH_PIPELINE_ID:=main}"
 : "${LOGSTASH_PIPELINE_FILE:=/etc/logstash/conf.d/10-main.conf}"
 : "${LOGSTASH_PROFILE:=generic}"
-: "${LOGSTASH_HEAP_MIN:=2g}"
-: "${LOGSTASH_HEAP_MAX:=2g}"
-: "${LOGSTASH_PIPELINE_WORKERS:=0}"
+: "${LOGSTASH_HEAP_MIN:=1g}"
+: "${LOGSTASH_HEAP_MAX:=1g}"
+: "${LOGSTASH_PIPELINE_WORKERS:=2}"
 : "${LOGSTASH_PIPELINE_BATCH_SIZE:=125}"
 : "${LOGSTASH_PIPELINE_BATCH_DELAY:=50}"
 : "${LOGSTASH_CONFIG_RELOAD_AUTOMATIC:=true}"
@@ -284,7 +295,7 @@ unset _old_name _new_name
 : "${FILE_INGEST_MIN_AGE_SECONDS:=60}"
 : "${FILE_INGEST_MAX_FILES_PER_RUN:=20}"
 : "${FILE_INGEST_MAX_SOURCE_FILE_BYTES:=0}"
-: "${FILE_INGEST_MIN_STAGING_FREE_GB:=20}"
+: "${FILE_INGEST_MIN_STAGING_FREE_GB:=5}"
 : "${FILE_INGEST_DEDUPE_MODE:=content_sha256}"
 : "${FILE_INGEST_DUPLICATE_ACTION:=archive}"
 : "${FILE_INGEST_PLAIN_BACKUP_COMPRESSION:=zstd}"
@@ -365,7 +376,6 @@ unset _old_name _new_name
 
 : "${UFW_MANAGE:=false}"
 : "${UFW_ENABLE_IF_INACTIVE:=false}"
-: "${UFW_ADD_RULES_IF_ACTIVE:=true}"
 : "${UFW_KIBANA_ALLOWED_CIDRS:=}"
 : "${UFW_NGINX_ALLOWED_CIDRS:=}"
 : "${UFW_ELASTICSEARCH_ALLOWED_CIDRS:=}"
@@ -393,59 +403,14 @@ if [[ -t 1 ]]; then
   fi
 fi
 
-# >>> elk-color-wiring (start)
-# v2.9.4: 화면 출력만 색을 입힌다. 로그 파일($INSTALL_LOG)에는 색 없는 글자만 남는다.
-#   ELK_COLOR=auto(기본: 터미널일 때만)|always|never, NO_COLOR=1 이면 끔
-if [[ -f "$SCRIPT_DIR/elk-color.sh" ]]; then
-  # shellcheck disable=SC1091
-  source "$SCRIPT_DIR/elk-color.sh"
-else
-  ELK_COLOR_ON=0
-  elk_color_init() { :; }
-  elk_paint_stream() { cat; }
-  elk_legend() { :; }
-  elk_banner() { local kind="$1" title="$2" bar g=""; shift 2; [[ "$kind" == ok ]] && g="✔ "; [[ "$kind" == fail ]] && g="✖ "; bar="$(printf '%*s' 79 '')"; if [[ "$kind" == fail ]]; then bar="${bar// /!}"; else bar="${bar// /=}"; fi; echo "$bar"; echo " ${g}${title}"; local l; for l in "$@"; do echo " $l"; done; echo "$bar"; }
-fi
-elk_color_init
-elk_legend          # 색 안내는 화면에만 한 번 보여 준다(로그 파일에는 남기지 않음)
-if (( ELK_COLOR_ON )); then
-  exec > >(tee -a "$INSTALL_LOG" | elk_paint_stream) 2>&1
-  ELK_STREAM_PAINTED=1
-else
-  exec > >(tee -a "$INSTALL_LOG") 2>&1
-fi
-# <<< elk-color-wiring (end)
+exec > >(tee -a "$INSTALL_LOG") 2>&1
 
 # ----------------------------- helpers -----------------------------
 _ts() { date '+%Y-%m-%d %H:%M:%S'; }
 log()  { echo "[$(_ts)] [INFO] $*"; }
 warn() { echo "[$(_ts)] [WARN] $*"; }
-die()  { _ELK_LAST_ERROR="$*"; echo "[$(_ts)] [ERROR] $*" >&2; exit 1; }
-ok_msg() { echo "[$(_ts)] [OK] $*"; }
+die()  { echo "[$(_ts)] [ERROR] $*" >&2; exit 1; }
 istrue() { [[ "${1,,}" =~ ^(1|true|yes|y|on)$ ]]; }
-
-# >>> elk-fail-banner (start)
-# v2.9.4: 설치가 중간에 끝나면(die 또는 예상 못 한 명령 실패) 빨간 실패 상자로 원인/로그 위치/다음 조치를 보여 준다.
-ELK_DONE=0; _ELK_LAST_ERROR=""; _ELK_ERR_CMD=""; _ELK_ERR_LINE=""; _ELK_ERR_FN=""
-trap '_ELK_ERR_LINE="$LINENO"; _ELK_ERR_CMD="$BASH_COMMAND"; _ELK_ERR_FN="${FUNCNAME[*]:-}"' ERR
-_elk_on_exit() {
-  local rc="$1" why=""
-  trap - EXIT ERR
-  if (( rc != 0 && ELK_DONE == 0 )); then
-    why="$_ELK_LAST_ERROR"
-    if [[ -z "$why" ]]; then
-      local fn="${_ELK_ERR_FN//$'\n'/ }"; fn="${fn//$'\t'/ }"; fn="${fn// / ← }"; fn="${fn% ← main}"; [[ "$fn" == "main" ]] && fn=""
-      why="명령 실패: ${_ELK_ERR_CMD:-알 수 없음} (install-elk.sh ${_ELK_ERR_LINE:-?}번째 줄${fn:+, 함수 $fn})"
-    fi
-    elk_banner fail "ELK 설치 실패 (종료 코드 $rc)" "원인: ${why:0:300}" "로그: $INSTALL_LOG" "다음 조치: 위 [ERROR] 줄과 바로 앞 로그를 확인한 뒤 같은 설치 파일을 다시 실행하세요. (다시 실행해도 안전합니다)"
-    sleep 0.4
-  elif (( ELK_DONE == 1 )); then
-    sleep 0.4
-  fi
-  exit "$rc"
-}
-trap '_elk_on_exit $?' EXIT
-# <<< elk-fail-banner (end)
 
 
 progress_tty() {
@@ -842,6 +807,13 @@ validate_env() {
 
   validate_abs_path "ES_PATH_DATA" "$ES_PATH_DATA"
   validate_abs_path "ES_PATH_LOGS" "$ES_PATH_LOGS"
+  [[ "$SERVER_RAM_GB" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "SERVER_RAM_GB는 숫자(GB)여야 합니다: $SERVER_RAM_GB"
+  [[ "$SERVER_CPU_CORES" =~ ^[0-9]+$ ]] && (( SERVER_CPU_CORES >= 1 )) || die "SERVER_CPU_CORES는 1 이상의 정수여야 합니다: $SERVER_CPU_CORES"
+  [[ "$SERVER_DISK_GB" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "SERVER_DISK_GB는 숫자(GB)여야 합니다: $SERVER_DISK_GB"
+  if ! istrue "$DISABLE_SWAP" && istrue "$AUTO_CREATE_SWAP"; then
+    validate_abs_path "SWAP_FILE_PATH" "$SWAP_FILE_PATH"
+    [[ "$SWAP_SIZE_GB" =~ ^[0-9]+$ ]] && (( SWAP_SIZE_GB >= 1 )) || die "SWAP_SIZE_GB는 1 이상의 정수(GB)여야 합니다: $SWAP_SIZE_GB"
+  fi
   validate_port "ES_HTTP_PORT" "$ES_HTTP_PORT"
   validate_port "KIBANA_SERVER_PORT" "$KIBANA_SERVER_PORT"
   if istrue "$INSTALL_FTP_SERVER"; then validate_port "FTP_LISTEN_PORT" "$FTP_LISTEN_PORT"; fi
@@ -940,6 +912,9 @@ if [[ "$RUN_MODE" == "--validate" || "$RUN_MODE" == "validate" ]]; then
   Elastic version    : ${ELASTIC_VERSION:-latest}
   Cluster / Node     : $ES_CLUSTER_NAME / $ES_NODE_NAME
   Elasticsearch data: $ES_PATH_DATA
+  Server sizing      : RAM ${SERVER_RAM_GB}GB / CPU ${SERVER_CPU_CORES} cores / Disk ${SERVER_DISK_GB}GB
+  ES / Logstash heap : ${ES_HEAP_MODE} ${ES_HEAP_MIN}-${ES_HEAP_MAX} / ${LOGSTASH_HEAP_MIN}-${LOGSTASH_HEAP_MAX}
+  Swap               : disable=${DISABLE_SWAP} / auto_create=${AUTO_CREATE_SWAP} / ${SWAP_SIZE_GB}GB @ ${SWAP_FILE_PATH} / swappiness=${SYSTEM_SWAPPINESS}
   Index mode         : $INDEX_MODE
   Index match        : $INDEX_MATCH_PATTERN
   Template patterns  : $INDEX_TEMPLATE_PATTERNS
@@ -954,49 +929,11 @@ if [[ "$RUN_MODE" == "--validate" || "$RUN_MODE" == "validate" ]]; then
   File ingest mgr    : $FILE_INGEST_MANAGER_ENABLED / $FILE_INGEST_SOURCE_DIRS
   Backup compression : $FILE_INGEST_PLAIN_BACKUP_COMPRESSION
   Health monitor     : $HEALTH_MONITOR_ENABLED / $HEALTH_MONITOR_INTERVAL
-  Root LVM extend    : $OS_EXTEND_ROOT_LVM
-  UFW manage         : $UFW_MANAGE (add rules if UFW already active: $UFW_ADD_RULES_IF_ACTIVE)
 VALID
   exit 0
 fi
 
-
-# ---- v2.9.4: Ubuntu 설치 때 LVM 볼륨 그룹에 남아 있는 공간을 루트(/)에 모두 할당 ---------------------------
-# Ubuntu Server 기본 LVM 설치는 디스크 일부만 루트 LV에 할당합니다. (나머지는 VG의 미할당 공간으로 남음)
-# 수동 명령:  sudo lvextend -l +100%FREE -r /dev/mapper/ubuntu--vg-ubuntu--lv
-# 안전 규칙: 루트(/)가 일반 LVM 볼륨일 때만 확장하고, LVM이 아니거나 thin 볼륨이거나 남는 공간이 없으면 건너뜁니다.
-#            확장이 실패해도 설치는 계속합니다(경고만). 이미 모두 할당된 서버에서 다시 실행해도 아무 일도 하지 않습니다.
-extend_root_lvm() {
-  local IFS=' '
-  local src fstype info vg lv attr free_b size_before size_after
-  if ! istrue "${OS_EXTEND_ROOT_LVM:-true}"; then log "루트 디스크 자동 확장: 사용 안 함 (OS_EXTEND_ROOT_LVM=false)"; return 0; fi
-  command -v findmnt >/dev/null 2>&1 || { log "루트 디스크 확장 건너뜀: findmnt 명령이 없습니다."; return 0; }
-  src="$(findmnt -n -o SOURCE / 2>/dev/null || true)"; fstype="$(findmnt -n -o FSTYPE / 2>/dev/null || true)"
-  if [[ -z "$src" || "$src" != /dev/* ]]; then log "루트 디스크 확장 건너뜀: 루트 장치를 확인할 수 없습니다. (${src:-unknown})"; return 0; fi
-  if ! command -v lvs >/dev/null 2>&1 || ! command -v vgs >/dev/null 2>&1 || ! command -v lvextend >/dev/null 2>&1; then
-    log "루트 디스크 확장 건너뜀: LVM 도구(lvm2)가 없습니다. (LVM 구성이 아닌 서버)"; return 0
-  fi
-  info="$(lvs --noheadings --separator '|' -o vg_name,lv_name,lv_attr "$src" 2>/dev/null | tr -d ' ' | head -n1 || true)"
-  if [[ -z "$info" || "$info" != *"|"*"|"* ]]; then log "루트 디스크 확장 건너뜀: 루트(/)가 LVM 볼륨이 아닙니다. (장치 $src, 파일시스템 ${fstype:-?})"; return 0; fi
-  vg="${info%%|*}"; lv="${info#*|}"; attr="${lv#*|}"; lv="${lv%%|*}"
-  if [[ "${attr:0:1}" == "V" || "${attr:0:1}" == "t" ]]; then log "루트 디스크 확장 건너뜀: thin 볼륨은 자동 확장 대상이 아닙니다. ($vg/$lv)"; return 0; fi
-  free_b="$(vgs --noheadings --units b --nosuffix -o vg_free "$vg" 2>/dev/null | tr -d ' ' | head -n1 || true)"
-  if [[ ! "$free_b" =~ ^[0-9]+$ ]]; then warn "루트 디스크 확장 건너뜀: VG 여유 공간을 읽을 수 없습니다. ($vg)"; return 0; fi
-  if (( free_b < 4194304 )); then log "루트 디스크 확장 불필요: VG($vg)에 남는 공간이 없습니다. (이미 모두 할당됨)"; return 0; fi
-  size_before="$(lvs --noheadings --units g --nosuffix -o lv_size "$src" 2>/dev/null | tr -d ' ' | head -n1 || true)"
-  log "루트 LV 확장: $src  (VG $vg 여유 $(( free_b / 1048576 )) MiB 전부 할당, 파일시스템 ${fstype:-?} 함께 확장)"
-  if lvextend -l +100%FREE -r "$src"; then
-    size_after="$(lvs --noheadings --units g --nosuffix -o lv_size "$src" 2>/dev/null | tr -d ' ' | head -n1 || true)"
-    log "루트 LV 확장 완료: ${size_before:-?} GiB → ${size_after:-?} GiB"
-  else
-    warn "루트 LV 확장에 실패했습니다. 설치는 계속합니다. 직접 실행: sudo lvextend -l +100%FREE -r $src"
-  fi
-  return 0
-}
-
 # ----------------------------- OS -----------------------------
-ELK_AUTO_VERSION="2.9.4"
-log "ELK Auto Installer v${ELK_AUTO_VERSION}"
 log "환경파일: $ENV_FILE"
 log "설치 로그: $INSTALL_LOG"
 
@@ -1005,8 +942,6 @@ log "설치 로그: $INSTALL_LOG"
 source /etc/os-release
 [[ "${ID:-}" == "ubuntu" ]] || warn "Ubuntu가 아닌 OS입니다: ${PRETTY_NAME:-unknown}. 설치는 계속하지만 검증 범위 밖입니다."
 log "OS: ${PRETTY_NAME:-unknown}"
-
-extend_root_lvm
 
 if istrue "$SET_HOSTNAME"; then
   log "Hostname 설정: $SYSTEM_HOSTNAME"
@@ -1028,10 +963,38 @@ SYSCTL
 sysctl --system >/dev/null
 
 if istrue "$DISABLE_SWAP"; then
+  log "Swap 비활성화 (Elastic 공식 권장 모드)"
   swapoff -a || true
   if [[ -f /etc/fstab ]]; then
     cp -a /etc/fstab "$BACKUP_DIR/fstab.$(date '+%Y%m%d-%H%M%S').bak"
     sed -ri '/^[[:space:]]*[^#].*[[:space:]]swap[[:space:]]/ s/^/# ELK-AUTO disabled swap: /' /etc/fstab
+  fi
+else
+  log "Swap 사용 허용 (vm.swappiness=${SYSTEM_SWAPPINESS})"
+  if istrue "$AUTO_CREATE_SWAP"; then
+    # 이미 활성 swap이 있으면 그대로 사용하고, 없을 때만 전용 swapfile을 만든다.
+    if [[ -z "$(swapon --show=NAME --noheadings 2>/dev/null | awk 'NF{print;exit}')" ]]; then
+      if [[ -e "$SWAP_FILE_PATH" ]]; then
+        _swap_type="$(blkid -p -s TYPE -o value "$SWAP_FILE_PATH" 2>/dev/null || true)"
+        [[ "$_swap_type" == "swap" ]] || die "SWAP_FILE_PATH가 이미 존재하지만 swap 파일이 아닙니다: $SWAP_FILE_PATH"
+        log "기존 swap 파일 재사용: $SWAP_FILE_PATH"
+      else
+        log "긴급용 swap 파일 생성: ${SWAP_FILE_PATH} (${SWAP_SIZE_GB}GB)"
+        if ! fallocate -l "${SWAP_SIZE_GB}G" "$SWAP_FILE_PATH" 2>/dev/null; then
+          dd if=/dev/zero of="$SWAP_FILE_PATH" bs=1M count=$((SWAP_SIZE_GB*1024)) status=progress
+        fi
+        chmod 600 "$SWAP_FILE_PATH"
+        mkswap "$SWAP_FILE_PATH" >/dev/null
+      fi
+      chmod 600 "$SWAP_FILE_PATH"
+      swapon "$SWAP_FILE_PATH"
+    else
+      log "기존 활성 swap을 유지합니다: $(swapon --show=NAME,SIZE --noheadings | xargs)"
+    fi
+    if [[ -f /etc/fstab ]] && ! grep -Fq "$SWAP_FILE_PATH none swap" /etc/fstab; then
+      cp -a /etc/fstab "$BACKUP_DIR/fstab.$(date '+%Y%m%d-%H%M%S').bak"
+      printf '%s none swap sw 0 0\n' "$SWAP_FILE_PATH" >> /etc/fstab
+    fi
   fi
 fi
 
@@ -2195,22 +2158,6 @@ EOF_HEALTH_ROTATE
 fi
 systemctl daemon-reload
 
-# ----------------------------- partial patch tool -----------------------------
-# v2.9.4: 설치 후 일부 값만 바꿔 적용하는 도구를 서버에 남겨 둔다. (사용법: sudo elk-patch --list)
-if [[ -f "$SCRIPT_DIR/elk-patch.sh" && -f "$SCRIPT_DIR/proxysg-lib.sh" ]]; then
-  install -d -m 755 /usr/local/lib/elk-auto
-  install -m 755 "$SCRIPT_DIR/elk-patch.sh" /usr/local/sbin/elk-patch
-  install -m 644 "$SCRIPT_DIR/proxysg-lib.sh" /usr/local/lib/elk-auto/proxysg-lib.sh
-  if [[ -f "$SCRIPT_DIR/proxysg-log-filter.conf" ]]; then install -m 644 "$SCRIPT_DIR/proxysg-log-filter.conf" /usr/local/lib/elk-auto/proxysg-log-filter.conf; fi
-  if [[ -s "$SCRIPT_DIR/custom-pipeline.conf" ]]; then install -m 644 "$SCRIPT_DIR/custom-pipeline.conf" /usr/local/lib/elk-auto/custom-pipeline.conf; else rm -f /usr/local/lib/elk-auto/custom-pipeline.conf; fi
-  log "부분 패치 도구 설치: /usr/local/sbin/elk-patch  (예: sudo elk-patch --list)"
-fi
-# v2.9.4: 서버 정기점검 리포트 (읽기 전용). 사용법: sudo elk-report   /  sudo elk-report --list
-if [[ -f "$SCRIPT_DIR/elk-report.sh" ]]; then
-  install -m 755 "$SCRIPT_DIR/elk-report.sh" /usr/local/sbin/elk-report
-  log "정기점검 리포트 도구 설치: /usr/local/sbin/elk-report  (예: sudo elk-report)"
-fi
-
 # ----------------------------- snapshots -----------------------------
 overall_progress 91 "Snapshot / SLM 구성"
 if istrue "$INSTALL_ELASTICSEARCH" && istrue "$SNAPSHOT_REPO_ENABLED"; then
@@ -2263,73 +2210,49 @@ fi
 
 # ----------------------------- firewall -----------------------------
 overall_progress 95 "UFW 방화벽 구성"
-# v2.9.4: UFW 규칙 추가는 두 경우에 한다.
-#   1) UFW_MANAGE=true                          : ufw 설치 → 규칙 추가 → (UFW_ENABLE_IF_INACTIVE 이면) 활성화  (예전과 같음)
-#   2) UFW_MANAGE=false 이지만 UFW 가 "이미 켜져 있고" UFW_ADD_RULES_IF_ACTIVE=true : 설치한 서비스에 필요한 포트만 허용 규칙으로 추가
-#      → UFW 를 설치/활성화/비활성화하거나 기본 정책·기존 규칙을 바꾸지 않는다. (켜져 있는 방화벽 때문에 Kibana/FTP 등에 접속이 안 되는 것을 막기 위함)
-# 규칙 하나가 실패해도(잘못된 대역 등) 설치는 계속하고 경고만 남긴다.
-UFW_RULES_ADDED=0; UFW_RULES_FAILED=0
 ufw_allow_list() {
-  local csv="$1" port="$2" proto="${3:-tcp}" what="${4:-}" item
-  if [[ -z "${csv//[[:space:]]/}" ]]; then warn "UFW 허용 대역이 비어 있어 ${what:+$what }${port}/${proto} 규칙을 추가하지 않았습니다. (해당 서비스에 외부에서 접속할 수 없습니다)"; return 0; fi
-  local -a arr; IFS=',' read -ra arr <<< "$csv"
+  local csv="$1" port="$2" proto="${3:-tcp}" item
+  [[ -n "$csv" ]] || return 0
+  IFS=',' read -ra arr <<< "$csv"
   for item in "${arr[@]}"; do
     item="$(echo "$item" | xargs)"
     [[ -n "$item" ]] || continue
-    if [[ "${item,,}" == "any" || "${item,,}" == "anywhere" ]]; then
-      if LC_ALL=C ufw allow to any port "$port" proto "$proto" >/dev/null 2>&1; then UFW_RULES_ADDED=$((UFW_RULES_ADDED+1)); log "UFW 허용: 모든 주소 → ${what:+$what }${port}/${proto}"; else UFW_RULES_FAILED=$((UFW_RULES_FAILED+1)); warn "UFW 규칙 추가 실패: any → ${port}/${proto}"; fi
-    elif LC_ALL=C ufw allow from "$item" to any port "$port" proto "$proto" >/dev/null 2>&1; then
-      UFW_RULES_ADDED=$((UFW_RULES_ADDED+1)); log "UFW 허용: ${item} → ${what:+$what }${port}/${proto}"
-    else
-      UFW_RULES_FAILED=$((UFW_RULES_FAILED+1)); warn "UFW 규칙 추가 실패(허용 대역 형식을 확인하세요): ${item} → ${port}/${proto}"
-    fi
+    ufw allow from "$item" to any port "$port" proto "$proto" >/dev/null
   done
-  return 0
 }
-ufw_apply_rules() {
-  local item
-  if istrue "$INSTALL_NGINX"; then
-    ufw_allow_list "$UFW_NGINX_ALLOWED_CIDRS" "$NGINX_HTTP_PORT" tcp "Nginx HTTP"
-    ufw_allow_list "$UFW_NGINX_ALLOWED_CIDRS" "$NGINX_HTTPS_PORT" tcp "Nginx HTTPS"
-  else
-    ufw_allow_list "$UFW_KIBANA_ALLOWED_CIDRS" "$KIBANA_SERVER_PORT" tcp "Kibana"
-  fi
-  ufw_allow_list "$UFW_ELASTICSEARCH_ALLOWED_CIDRS" "$ES_HTTP_PORT" tcp "Elasticsearch"
-  if istrue "$LS_TCP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_TCP_PORT" tcp "Logstash TCP"; fi
-  if istrue "$LS_UDP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_UDP_PORT" udp "Logstash UDP"; fi
-  if istrue "$LS_SYSLOG_ENABLED"; then
-    ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_SYSLOG_PORT" tcp "Logstash Syslog"
-    ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_SYSLOG_PORT" udp "Logstash Syslog"
-  fi
-  if istrue "$LS_BEATS_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_BEATS_PORT" tcp "Logstash Beats"; fi
-  if istrue "$LS_HTTP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_HTTP_PORT" tcp "Logstash HTTP"; fi
-  if istrue "$INSTALL_FTP_SERVER"; then
-    ufw_allow_list "$UFW_FTP_ALLOWED_CIDRS" "$FTP_LISTEN_PORT" tcp "FTP"
-    if istrue "$FTP_PASV_ENABLE" && [[ "$FTP_PASV_MIN_PORT" != "$FTP_PASV_MAX_PORT" ]]; then
-      ufw_allow_list "$UFW_FTP_ALLOWED_CIDRS" "${FTP_PASV_MIN_PORT}:${FTP_PASV_MAX_PORT}" tcp "FTP 패시브"
-    elif istrue "$FTP_PASV_ENABLE"; then
-      ufw_allow_list "$UFW_FTP_ALLOWED_CIDRS" "$FTP_PASV_MIN_PORT" tcp "FTP 패시브"
-    fi
-  fi
-  if (( UFW_RULES_FAILED > 0 )); then warn "UFW 허용 규칙: ${UFW_RULES_ADDED}개 추가, ${UFW_RULES_FAILED}개 실패"; else log "UFW 허용 규칙 ${UFW_RULES_ADDED}개 적용 완료"; fi
-}
-ufw_is_active() { command -v ufw >/dev/null 2>&1 && LC_ALL=C ufw status 2>/dev/null | grep -q '^Status: active'; }
 
 if istrue "$UFW_MANAGE"; then
   apt_install_progress "UFW" ufw
-  ufw_apply_rules
-  if istrue "$UFW_ENABLE_IF_INACTIVE" && LC_ALL=C ufw status | grep -q 'Status: inactive'; then
+  if istrue "$INSTALL_NGINX"; then
+    ufw_allow_list "$UFW_NGINX_ALLOWED_CIDRS" "$NGINX_HTTP_PORT" tcp
+    ufw_allow_list "$UFW_NGINX_ALLOWED_CIDRS" "$NGINX_HTTPS_PORT" tcp
+  else
+    ufw_allow_list "$UFW_KIBANA_ALLOWED_CIDRS" "$KIBANA_SERVER_PORT" tcp
+  fi
+  ufw_allow_list "$UFW_ELASTICSEARCH_ALLOWED_CIDRS" "$ES_HTTP_PORT" tcp
+  if istrue "$LS_TCP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_TCP_PORT" tcp; fi
+  if istrue "$LS_UDP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_UDP_PORT" udp; fi
+  if istrue "$LS_SYSLOG_ENABLED"; then
+    ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_SYSLOG_PORT" tcp
+    ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_SYSLOG_PORT" udp
+  fi
+  if istrue "$LS_BEATS_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_BEATS_PORT" tcp; fi
+  if istrue "$LS_HTTP_ENABLED"; then ufw_allow_list "$UFW_LOGSTASH_ALLOWED_CIDRS" "$LS_HTTP_PORT" tcp; fi
+  if istrue "$INSTALL_FTP_SERVER"; then
+    ufw_allow_list "$UFW_FTP_ALLOWED_CIDRS" "$FTP_LISTEN_PORT" tcp
+    if istrue "$FTP_PASV_ENABLE" && [[ "$FTP_PASV_MIN_PORT" != "$FTP_PASV_MAX_PORT" ]]; then
+      IFS=',' read -ra ftp_cidrs <<< "$UFW_FTP_ALLOWED_CIDRS"
+      for item in "${ftp_cidrs[@]}"; do
+        item="$(echo "$item" | xargs)"; [[ -n "$item" ]] || continue
+        ufw allow from "$item" to any port "${FTP_PASV_MIN_PORT}:${FTP_PASV_MAX_PORT}" proto tcp >/dev/null
+      done
+    elif istrue "$FTP_PASV_ENABLE"; then
+      ufw_allow_list "$UFW_FTP_ALLOWED_CIDRS" "$FTP_PASV_MIN_PORT" tcp
+    fi
+  fi
+  if istrue "$UFW_ENABLE_IF_INACTIVE" && ufw status | grep -q 'Status: inactive'; then
     ufw --force enable
   fi
-elif istrue "$UFW_ADD_RULES_IF_ACTIVE" && ufw_is_active; then
-  log "UFW가 이미 켜져 있습니다. (UFW_MANAGE=false) 설치한 서비스에 필요한 포트만 허용 규칙으로 추가합니다. UFW의 활성 상태·기본 정책·기존 규칙은 바꾸지 않습니다."
-  ufw_apply_rules
-elif ! istrue "$UFW_ADD_RULES_IF_ACTIVE"; then
-  log "UFW 규칙을 건드리지 않습니다. (UFW_MANAGE=false, UFW_ADD_RULES_IF_ACTIVE=false) UFW를 쓰는 서버라면 필요한 포트를 직접 허용하세요."
-elif command -v ufw >/dev/null 2>&1; then
-  log "UFW가 꺼져 있어 방화벽 규칙을 추가하지 않습니다. (UFW_MANAGE=false)"
-else
-  log "UFW가 설치되어 있지 않아 방화벽 규칙을 추가하지 않습니다. (UFW_MANAGE=false)"
 fi
 
 # ----------------------------- health & data view -----------------------------
@@ -2410,7 +2333,7 @@ server_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
 cat <<RESULT
 
 ===============================================================================
- ✔ ELK 설치 완료
+ ELK Auto Installer 완료
 ===============================================================================
  Hostname              : $(hostname)
  Elasticsearch         : $(systemctl is-active elasticsearch 2>/dev/null || echo n/a)
@@ -2465,5 +2388,4 @@ if istrue "$LS_BEATS_ENABLED"; then echo " Logstash Beats Input   : ${server_ip}
 if istrue "$LS_HTTP_ENABLED"; then echo " Logstash HTTP Input    : ${server_ip}:${LS_HTTP_PORT}"; fi
 
 echo
-ELK_DONE=1
-ok_msg "ELK 설치가 모두 완료되었습니다. (로그: $INSTALL_LOG)"
+log "완료"
