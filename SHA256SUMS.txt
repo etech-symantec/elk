@@ -1,3 +1,4 @@
+ff859af43a894d40b0bdfdb61690f3c448578a40eaf508cd10b2e819a57be83b  ./_internal/core/__pycache__/elk-report-web.cpython-313.pyc
 06f3c4433acd71d47fd746e275357a4613e32c88977d9215b7b32c2ae6199243  ./_internal/core/check-elk.sh
 2c6c78afbdbca385786ee16d6356d721ae57abb71e56ea81e217f33d55650ade  ./_internal/core/elk-color.sh
 9bf5a67e7daae742b6e27b788bbccf51cc59735a88bf7bf688f3ce68062f2af5  ./_internal/core/elk-health-monitor.sh
@@ -24,5 +25,5 @@ a67412800e1a782d934d86a21239931978965064ce2fb805a28d09f720b807ae  ./_internal/do
 40f283f1d2eae015a41c97e121d96ccbb064b8214e374c3298b63ef1cd147a0d  ./_internal/tools/open-config-gui.cmd
 a3a2f775905dd44e8cf46efc8b1371e67de91f7e6a9495c2133ae2bf19a84ab3  ./_internal/tools/open-config-gui.sh
 f41b590e2bd9dc0c2008274f75485c0c8da9b1e796654d23003362c5caf6f0cf  ./_internal/tools/run-remote-deploy.ps1
-62f7c816ebbf1145beedac3cc16c00da74f2558e93760a6c805de021b939fbd0  ./config-wizard.html
+26a9338c18825b9d4679e1ab3efa6e4ca659103a60af9ccde22f5c6b12bdc066  ./config-wizard.html
 89018ec01b9b4fb61ab8788e9153acb55f4d2c215e933d21d96efa658d91e5c2  ./run-remote-deploy.cmd
