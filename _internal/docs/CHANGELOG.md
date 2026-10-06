@@ -1,7 +1,9 @@
 # v2.9.5
 
+- **읽기 쉬운 Wizard 빌드 이름**: 기존 8자리 16진수 빌드 번호 대신 `calm-river-blue-star`처럼 사전적 의미가 있는 쉬운 영단어 4개 조합을 파일 내용에서 결정적으로 생성합니다. 같은 파일은 항상 같은 빌드 이름을 사용하고 내용이 바뀌면 이름도 바뀝니다.
+- **점검 웹 기본 포트 변경**: `elk-report-web` 기본 포트를 `8088/tcp`에서 `5602/tcp`로 변경했습니다. Kibana 기본 포트 5601 바로 다음 번호라 운영 시 구분하기 쉽습니다.
 - `elk-report`가 기존 터미널 출력과 동시에 시각적 HTML 리포트(`/var/lib/elk-report/report.html`)를 생성하도록 확장했습니다.
-- 새 `elk-report-web.py` / `elk-report-web.service`를 추가해 기본 `8088/tcp`에서 점검 HTML을 제공합니다. 웹 페이지에서 `elk-report`와 허용된 옵션만 실행해 최신 정보를 다시 불러올 수 있으며 임의 셸 명령은 거절합니다.
+- 새 `elk-report-web.py` / `elk-report-web.service`를 추가해 기본 `5602/tcp`에서 점검 HTML을 제공합니다. 웹 페이지에서 `elk-report`와 허용된 옵션만 실행해 최신 정보를 다시 불러올 수 있으며 임의 셸 명령은 거절합니다.
 - `elk-report`에 `cfg`(OneClick 구성 일치) 섹션을 추가해 설치 패키지, vm.max_map_count, Swap/swappiness, Elasticsearch/Kibana 주요 설정, Logstash Heap·pipeline, 관리 도구, ProxySG cron, 점검 웹 서비스를 `elk.env` 기대값과 비교합니다.
 - `check-elk.sh`도 관리 도구·sysctl·Swap·Logstash Heap/pipeline·ProxySG cron·점검 웹 누락/불일치를 검사합니다.
 - Config Wizard 점검 출력 예시를 현재 Swap 안전망 정책과 `cfg`/HTML 출력에 맞게 갱신하고, 점검 웹 Listen/Port/HTML 경로/UFW 허용 대역 설정을 추가했습니다.

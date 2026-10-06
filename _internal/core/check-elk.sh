@@ -59,7 +59,7 @@ source "$ENV_FILE"
 : "${PROXYSG_PROCESS_SCRIPT:=/usr/local/sbin/elk-proxysg-log-process}"
 : "${PROXYSG_PROCESS_CRON:=0 3 * * *}"
 : "${ELK_REPORT_WEB_ENABLED:=true}"
-: "${ELK_REPORT_WEB_PORT:=8088}"
+: "${ELK_REPORT_WEB_PORT:=5602}"
 : "${ES_CLUSTER_NAME:=elk-cluster}"
 : "${ES_NETWORK_HOST:=0.0.0.0}"
 

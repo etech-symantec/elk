@@ -10,12 +10,12 @@
 
 ## v2.9.5 · HTML 점검 리포트 / 웹 점검
 
-`sudo elk-report`는 터미널 리포트와 함께 `/var/lib/elk-report/report.html`을 갱신합니다. 기본 설정에서 `elk-report-web` 서비스가 `8088/tcp`로 이 HTML을 제공하며, 브라우저의 명령 입력칸에는 `elk-report`와 허용된 점검 옵션만 입력할 수 있습니다. 임의 셸 명령은 실행하지 않습니다.
+`sudo elk-report`는 터미널 리포트와 함께 `/var/lib/elk-report/report.html`을 갱신합니다. 기본 설정에서 `elk-report-web` 서비스가 `5602/tcp`로 이 HTML을 제공하며, 브라우저의 명령 입력칸에는 `elk-report`와 허용된 점검 옵션만 입력할 수 있습니다. 임의 셸 명령은 실행하지 않습니다.
 
 ```bash
 sudo elk-report
 systemctl status elk-report-web --no-pager
-# 브라우저: http://서버IP:8088/
+# 브라우저: http://서버IP:5602/
 ```
 
 점검 리포트에는 `OneClick 구성 일치` 섹션이 추가되어 설치 패키지, `vm.max_map_count`, Swap/swappiness, Logstash Heap·pipeline, ProxySG 처리 스크립트/cron, 관리 도구와 점검 웹 서비스가 `elk.env`의 기대값과 맞는지 확인합니다. 웹 Listen 주소·포트·HTML 경로와 UFW 허용 대역은 Config Wizard의 서비스/방화벽 설정에서 바꿀 수 있습니다.

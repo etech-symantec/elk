@@ -5,7 +5,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
 ap=argparse.ArgumentParser()
-ap.add_argument('--host',default='0.0.0.0'); ap.add_argument('--port',type=int,default=8088)
+ap.add_argument('--host',default='0.0.0.0'); ap.add_argument('--port',type=int,default=5602)
 ap.add_argument('--report',default='/usr/local/sbin/elk-report'); ap.add_argument('--html',default='/var/lib/elk-report/report.html')
 ap.add_argument('--env',default='/etc/elk-auto/elk.env')
 a=ap.parse_args()

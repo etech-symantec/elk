@@ -102,17 +102,38 @@ def find_obj(text, start_token):
     return j, k + 1
 
 
-BUILD_RE = re.compile(r"(const WIZARD_BUILD=')([0-9a-f]{8}|BUILDSTAMP)(')")
+BUILD_RE = re.compile(r"(const WIZARD_BUILD=')([0-9a-f]{8}|[a-z]+(?:-[a-z]+){3}|BUILDSTAMP)(')")
+
+# 사람이 기억하기 쉬운 빌드 이름. 파일 내용의 SHA-256에서 각 단어를 결정하므로
+# 같은 파일은 항상 같은 이름이고, 파일이 바뀌면 일반적으로 다른 이름이 됩니다.
+BUILD_ADJ = (
+    'bright','calm','clear','cool','fresh','gentle','happy','kind',
+    'light','lucky','merry','neat','quick','quiet','ready','safe',
+    'sharp','simple','smart','soft','steady','sunny','swift','warm',
+    'bold','clean','crisp','fair','fine','pure','solid','wise',
+)
+BUILD_NOUN = (
+    'river','forest','mountain','ocean','sky','cloud','star','moon',
+    'sun','field','garden','maple','pine','stone','bridge','road',
+    'path','hill','lake','spring','harbor','island','meadow','valley',
+    'breeze','dawn','wave','rain','snow','leaf','tree','bird',
+)
+
+
+def _build_words(base):
+    d = hashlib.sha256(base.encode('utf-8')).digest()
+    # 32 x 32 x 32 x 32 = 1,048,576개의 조합.
+    return f'{BUILD_ADJ[d[0] & 31]}-{BUILD_NOUN[d[1] & 31]}-{BUILD_ADJ[d[2] & 31]}-{BUILD_NOUN[d[3] & 31]}'
 
 
 def stamp(text):
-    """Wizard 파일의 '빌드 번호'를 계산해 넣는다. (파일 내용 − 번호 자리의 sha256 앞 8자리 → 내용이 바뀌면 번호도 바뀐다)
-    화면 왼쪽 아래에 표시되어, 수정본을 올렸는데 예전 화면이 보이는지(캐시/미반영) 바로 확인할 수 있다."""
+    """Wizard 파일의 빌드 이름을 쉬운 영단어 4개로 자동 생성한다.
+    화면 왼쪽 아래에 표시되어 수정본 반영 여부(캐시/배포 지연)를 확인하는 용도다."""
     if not BUILD_RE.search(text):
         raise SystemExit('config-wizard.html 에 const WIZARD_BUILD 가 없습니다.')
     base = BUILD_RE.sub(r"\1BUILDSTAMP\3", text)
-    h = hashlib.sha256(base.encode('utf-8')).hexdigest()[:8]
-    return BUILD_RE.sub(lambda m: m.group(1) + h + m.group(3), base)
+    name = _build_words(base)
+    return BUILD_RE.sub(lambda m: m.group(1) + name + m.group(3), base)
 
 
 def build(text):

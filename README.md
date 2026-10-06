@@ -13,12 +13,12 @@ Config Wizard 단독 주소는 `https://etech-symantec.github.io/elk/config-wiza
 
 ## v2.9.5 · HTML 점검 리포트 / 웹 점검
 
-`sudo elk-report`는 터미널 리포트와 함께 `/var/lib/elk-report/report.html`을 갱신합니다. 기본 설정에서 `elk-report-web` 서비스가 `8088/tcp`로 이 HTML을 제공하며, 브라우저의 명령 입력칸에는 `elk-report`와 허용된 점검 옵션만 입력할 수 있습니다. 임의 셸 명령은 실행하지 않습니다.
+`sudo elk-report`는 터미널 리포트와 함께 `/var/lib/elk-report/report.html`을 갱신합니다. 기본 설정에서 `elk-report-web` 서비스가 `5602/tcp`로 이 HTML을 제공하며, 브라우저의 명령 입력칸에는 `elk-report`와 허용된 점검 옵션만 입력할 수 있습니다. 임의 셸 명령은 실행하지 않습니다.
 
 ```bash
 sudo elk-report
 systemctl status elk-report-web --no-pager
-# 브라우저: http://서버IP:8088/
+# 브라우저: http://서버IP:5602/
 ```
 
 점검 리포트에는 `OneClick 구성 일치` 섹션이 추가되어 설치 패키지, `vm.max_map_count`, Swap/swappiness, Logstash Heap·pipeline, ProxySG 처리 스크립트/cron, 관리 도구와 점검 웹 서비스가 `elk.env`의 기대값과 맞는지 확인합니다. 웹 Listen 주소·포트·HTML 경로와 UFW 허용 대역은 Config Wizard의 서비스/방화벽 설정에서 바꿀 수 있습니다.
@@ -72,7 +72,7 @@ SHA256SUMS.txt                     패키지 파일 체크섬
 
 브라우저는 웹 페이지(특히 사이트 안에 들어 있는 Wizard iframe)를 캐시해 두기 때문에, 파일을 바꿔도 **예전 화면이 계속 보일 수 있습니다.** (GitHub Pages는 파일을 약 10분간 캐시하도록 안내합니다)
 
-1. **빌드 번호로 확인**: Wizard 왼쪽 아래(윤태리 선임 안내 문구 바로 아래)에 `v2.9.5 · 빌드 xxxxxxxx` 가 표시됩니다. 이 번호는 **파일 내용에서 계산**되어 파일이 바뀌면 달라집니다. 안내받은 번호와 다르면 예전 파일이 열려 있는 것입니다.
+1. **빌드 번호로 확인**: Wizard 왼쪽 아래(윤태리 선임 안내 문구 바로 아래)에 `v2.9.5 · 빌드 calm-river-blue-star` 가 표시됩니다. 빌드는 **파일 내용에서 계산한 쉬운 영단어 4개 조합**으로 표시되며 파일이 바뀌면 함께 달라집니다. 안내받은 번호와 다르면 예전 파일이 열려 있는 것입니다.
 2. **강력 새로고침**: `Ctrl + F5` (또는 `Ctrl + Shift + R`). 사이트 안의 Wizard는 사이트 주소창에서 새로고침하세요. 그래도 같으면 브라우저의 "캐시된 이미지 및 파일" 삭제 후 다시 여세요.
 3. **파일이 실제로 바뀌었는지 확인**: 저장소에 올렸다면 GitHub Pages 배포(Actions)가 끝났는지 확인하고, `https://…/config-wizard.html` 을 직접 열어 빌드 번호를 확인하세요.
 4. 사이트의 자동 구성 탭은 이제 Wizard를 **열 때마다 새로 받습니다**(주소 뒤에 시각을 붙임). 이 변경(`script.js`)이 반영된 뒤에는 사이트 안에서는 2번이 거의 필요 없습니다.

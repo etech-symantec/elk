@@ -169,7 +169,7 @@ tf() { [[ "${1,,}" =~ ^(1|true|yes|y|on)$ ]]; }
 : "${LOGSTASH_PIPELINE_FILE:=/etc/logstash/conf.d/logstash.conf}"; : "${LOGSTASH_HEAP_MIN:=2g}"; : "${LOGSTASH_HEAP_MAX:=2g}"
 : "${VM_MAX_MAP_COUNT:=1048576}"; : "${SYSTEM_SWAPPINESS:=1}"; : "${DISABLE_SWAP:=false}"
 : "${PROXYSG_PROCESS_SCRIPT:=/usr/local/sbin/elk-proxysg-log-process}"
-: "${ELK_REPORT_WEB_ENABLED:=true}"; : "${ELK_REPORT_WEB_HOST:=0.0.0.0}"; : "${ELK_REPORT_WEB_PORT:=8088}"
+: "${ELK_REPORT_WEB_ENABLED:=true}"; : "${ELK_REPORT_WEB_HOST:=0.0.0.0}"; : "${ELK_REPORT_WEB_PORT:=5602}"
 : "${ELK_REPORT_HTML_DIR:=/var/lib/elk-report}"; : "${ELK_REPORT_HTML_FILE:=${ELK_REPORT_HTML_DIR}/report.html}"
 [[ "$LOGSTASH_API_HOST" == "0.0.0.0" ]] && LOGSTASH_API_HOST=127.0.0.1
 if [[ -f "$SECRETS_FILE" ]]; then set +u; source "$SECRETS_FILE" 2>/dev/null; set -u; fi

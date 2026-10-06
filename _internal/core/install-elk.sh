@@ -322,7 +322,7 @@ unset _old_name _new_name
 : "${ELK_REPORT_HTML_FILE:=${ELK_REPORT_HTML_DIR}/report.html}"
 : "${ELK_REPORT_WEB_ENABLED:=true}"
 : "${ELK_REPORT_WEB_HOST:=0.0.0.0}"
-: "${ELK_REPORT_WEB_PORT:=8088}"
+: "${ELK_REPORT_WEB_PORT:=5602}"
 : "${LS_PARSE_JSON_MESSAGE:=false}"
 : "${LS_JSON_SOURCE_FIELD:=message}"
 : "${LS_JSON_TARGET_FIELD:=}"

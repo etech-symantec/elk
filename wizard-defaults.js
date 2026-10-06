@@ -372,7 +372,7 @@ window.ELK_DEFAULTS = {
     POST_INSTALL_SCRIPT: "",                                  // Post Install Script
     ELK_REPORT_WEB_ENABLED: true,                              // 점검 웹페이지 사용 [true | false]
     ELK_REPORT_WEB_HOST: "0.0.0.0",                           // 점검 웹 Listen 주소
-    ELK_REPORT_WEB_PORT: "8088",                              // 점검 웹 포트
+    ELK_REPORT_WEB_PORT: "5602",                              // 점검 웹 포트
     ELK_REPORT_HTML_DIR: "/var/lib/elk-report",               // 점검 HTML 저장 폴더
     ELK_REPORT_HTML_FILE: "/var/lib/elk-report/report.html",  // 점검 HTML 파일
 
