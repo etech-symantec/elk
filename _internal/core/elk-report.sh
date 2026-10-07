@@ -17,6 +17,9 @@ export LC_ALL=C.UTF-8 2>/dev/null || export LC_ALL=en_US.UTF-8 2>/dev/null || tr
 
 REPORT_VERSION="1"
 ELK_AUTO_VERSION="2.9.5"
+# Config Wizard / One-Click Installer와 동일한 빌드 번호
+ELK_AUTO_BUILD="${ELK_AUTO_BUILD:-steady-tree-quiet-bridge}"
+REPORT_BUILD="$ELK_AUTO_BUILD"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 ONLY=""; SKIP=""; STALE_H="${ELK_STALE_HOURS:-36}"; COLOR_MODE="${ELK_COLOR:-auto}"; SELF_DELETE=0
 HTML_OUT="${ELK_REPORT_HTML_FILE:-/var/lib/elk-report/report.html}"; WRITE_HTML=1
@@ -53,7 +56,7 @@ while [[ $# -gt 0 ]]; do
     --color=*) COLOR_MODE="${1#--color=}"; shift ;;
     --self-delete) SELF_DELETE=1; shift ;;
     --list) list_sections; exit 0 ;;
-    --version) echo "elk-report (ELK Auto Installer v${ELK_AUTO_VERSION})"; exit 0 ;;
+    --version) echo "elk-report v${REPORT_VERSION} · ELK Auto Installer v${ELK_AUTO_VERSION} · build ${ELK_AUTO_BUILD}"; exit 0 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "알 수 없는 옵션: $1  (--help 참고)" >&2; exit 2 ;;
   esac
@@ -214,7 +217,7 @@ DISK_TOTAL_B=0; DISK_USED_B=0; DISK_FREE_B=0; DISK_ES_B=0; DISK_LS_B=0; DISK_LOG
 kv() { printf '  %s%s%s %s\n' "$D" "$(pad "$1" 8)" "$R" "$2"; }
 _t=" ELK 정기점검 리포트"; dwv "$_t"; printf '\n%s%s%*s%s\n' "$H" "$_t" $(( COLS > DW ? COLS-DW : 0 )) '' "$R"
 kv "서버" "$(hostname)    ·    $(date '+%Y-%m-%d %H:%M:%S %Z')"
-kv "버전" "ELK Auto Installer v${ELK_AUTO_VERSION}    ·    환경파일 ${ENV_FILE}"
+kv "버전" "elk-report v${REPORT_VERSION} · ELK Auto Installer v${ELK_AUTO_VERSION} · build ${ELK_AUTO_BUILD}    ·    환경파일 ${ENV_FILE}"
 kv "범례" "${G}✔ 정상${R}   ${Y}⚠ 주의${R}   ${X}✖ 이상${R}   ${D}· 정보${R}"
 unset _t
 (( LEGACY_ENV )) && printf '  %s· 이전 버전(2.9.5 미만, GUIDE_*) 설정 파일을 읽어 점검합니다.%s\n' "$D" "$R"
@@ -647,7 +650,7 @@ write_html() {
 @media(max-width:520px){.compbody{grid-template-columns:1fr}.compdonut,.cpuring{width:148px;height:148px}.compdonut:after,.cpuring:before{inset:22px}.donutcard{grid-template-columns:1fr;text-align:center}.donut{margin:auto}.critpeek{grid-column:auto;text-align:left}.compitemtop{grid-template-columns:10px 1fr auto}.compitemtop em{grid-column:2/-1;text-align:right}}
 </style></head><body><div class="wrap"><div class="hero"><h1>ELK 서버 점검 리포트</h1>
 HTML_HEAD
-    printf '<div class="sub">서버 <b>%s</b> · 생성 %s · ELK Auto Installer v%s</div>\n' "$(html_esc "$(hostname)")" "$(html_esc "$(date '+%Y-%m-%d %H:%M:%S %Z')")" "$(html_esc "$ELK_AUTO_VERSION")"
+    printf '<div class="sub">서버 <b>%s</b> · 생성 %s · elk-report v%s · ELK Auto Installer v%s · build %s</div>\n' "$(html_esc "$(hostname)")" "$(html_esc "$(date '+%Y-%m-%d %H:%M:%S %Z')")" "$(html_esc "$REPORT_VERSION")" "$(html_esc "$ELK_AUTO_VERSION")" "$(html_esc "$ELK_AUTO_BUILD")"
     cat <<'HTML_RUN'
 <div class="runner"><input id="cmd" value="elk-report" aria-label="elk-report 명령"><button id="run">최신 정보 불러오기</button></div><div class="state" id="state">허용 명령: elk-report [--only ...] [--skip ...] [--stale-hours N] [--no-color]</div></div>
 HTML_RUN
