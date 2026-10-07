@@ -1,6 +1,5 @@
 807c7628551252560f57037972dc031340c9a7997025b481260bdb3ad94f2540  ./README.txt
 67ac52828cdfd9927edb6fd92c7e8009c71228167fb93c7ee21c33c63e4185b1  ./_internal/core/SHA256SUMS.txt
-147afa243904fe7398e34c67c834c181f63889f828c8f04b1796c70fdc1d5470  ./_internal/core/_internal/core/elk-report.sh
 06f3c4433acd71d47fd746e275357a4613e32c88977d9215b7b32c2ae6199243  ./_internal/core/check-elk.sh
 980073fda001bb8f3a10378fd82607cba27f02c9c676dbaab2d734a57eb43ed1  ./_internal/core/config-wizard.html
 2c6c78afbdbca385786ee16d6356d721ae57abb71e56ea81e217f33d55650ade  ./_internal/core/elk-color.sh
