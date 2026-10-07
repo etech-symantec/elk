@@ -1,3 +1,5 @@
+807c7628551252560f57037972dc031340c9a7997025b481260bdb3ad94f2540  ./README.txt
+67ac52828cdfd9927edb6fd92c7e8009c71228167fb93c7ee21c33c63e4185b1  ./_internal/core/SHA256SUMS.txt
 147afa243904fe7398e34c67c834c181f63889f828c8f04b1796c70fdc1d5470  ./_internal/core/_internal/core/elk-report.sh
 06f3c4433acd71d47fd746e275357a4613e32c88977d9215b7b32c2ae6199243  ./_internal/core/check-elk.sh
 980073fda001bb8f3a10378fd82607cba27f02c9c676dbaab2d734a57eb43ed1  ./_internal/core/config-wizard.html
@@ -13,7 +15,6 @@ d3236c3007e7fae32ab3e1de0af160253fe42a961664bf6a028e55be4dfbde2c  ./_internal/co
 5f6f5e2d9a15975b43b87e32d7dbeea2754a5d134d896e645c493ebe54c73de4  ./_internal/core/proxysg-lib.sh
 839868055b922824a0e04123584d4dce7f93b47f5b6e251d4bbcd07e2f5d8c99  ./_internal/core/proxysg-log-filter.conf
 211edd85f8ba405b117938aea7bbf2794a3caed7fd38e54caf40663563e00f37  ./_internal/core/proxysg-log-process.sh
-67ac52828cdfd9927edb6fd92c7e8009c71228167fb93c7ee21c33c63e4185b1  ./_internal/core/SHA256SUMS.txt
 4447c1ff7cdf81b66ef83ac18cdee42153ea4de67c31a188e7fcab94357f4dde  ./_internal/docs/CHANGELOG.md
 0eba7fb05486e9d0853f44fa7ae85b8faa0bcdc346c083497cbbc2b19025ab24  ./_internal/docs/INSTALL_STEP_MAPPING.md
 0138217f9d532e1fce59903eb5fbd41e1a4fa319aaf1588dc400c3909772381e  ./_internal/docs/README.md
@@ -29,5 +30,4 @@ a3a2f775905dd44e8cf46efc8b1371e67de91f7e6a9495c2133ae2bf19a84ab3  ./_internal/to
 8a87e760bf265e7c368b790912460a7c2f9e45526e98ee21c0fd470ae82e5f4b  ./_internal/tools/run-remote-deploy.ps1
 aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report-update.sh
 a1f2a3954b4d666aec7ba6a3db0a36cf35735ab92a831f6b2cfeff63d0405610  ./config-wizard.html
-807c7628551252560f57037972dc031340c9a7997025b481260bdb3ad94f2540  ./README.txt
 89018ec01b9b4fb61ab8788e9153acb55f4d2c215e933d21d96efa658d91e5c2  ./run-remote-deploy.cmd
