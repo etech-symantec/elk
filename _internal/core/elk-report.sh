@@ -382,14 +382,21 @@ if want disk; then
   for p in "${paths[@]}"; do
     [[ -n "$p" && -e "$p" ]] || continue
     line="$(df -PB1 "$p" 2>/dev/null | awk 'NR==2{print $1"|"$6"|"$2"|"$3"|"$4"|"$5}')"; [[ -n "$line" ]] || continue
-    IFS='|' read -r dev mnt tot usd av pc <<<"$line"; [[ -n "${SEEN[$mnt]:-}" ]] && continue; SEEN[$mnt]=1; pc="${pc%\%}"
+    IFS='|' read -r dev mnt tot usd av pc <<<"$line"
+    # 같은 파일시스템이 /, /var/log, /home 등에 bind/중복 mount 된 경우
+    # mount 경로가 아니라 실제 filesystem device 기준으로 한 번만 합산한다.
+    _fskey="${dev:-$mnt}"
+    [[ -n "${SEEN[$_fskey]:-}" ]] && continue
+    SEEN[$_fskey]=1
+    pc="${pc%\%}"
     DISK_TOTAL_B=$((DISK_TOTAL_B + tot)); DISK_USED_B=$((DISK_USED_B + usd)); DISK_FS_COUNT=$((DISK_FS_COUNT + 1))
     if (( pc >= 90 )); then st=crit; elif (( pc >= 85 )); then st=warn; else st=ok; fi
     lab="디스크 $mnt"; [[ "$mnt" == "/" ]] && lab="디스크 / (루트)"
     row "$st" "$lab" "${pc}%  (사용 $(bytes_h "$usd") / 전체 $(bytes_h "$tot") · 여유 $(bytes_h "$av"))"
     (( pc >= 85 )) && sub "Elasticsearch 는 85% 이상에서 새 샤드 배치를 멈추고, 95%에서 인덱스를 읽기 전용으로 바꿉니다."
   done
-  # 웹 리포트용 디스크 구성: 관련 파일시스템은 mount별 1회만 합산하고, 폴더 용량은 주요 용도로 분류한다.
+  # 웹 리포트용 디스크 구성: 같은 filesystem device는 한 번만 합산한다.
+  # /, /var/log, /home 등이 같은 장치를 여러 경로에 mount한 경우 용량이 중복 합산되지 않는다.
   _du_bytes(){ local _d="$1"; [[ -n "$_d" && -d "$_d" ]] || { echo 0; return; }; timeout 60 du -sb --apparent-size "$_d" 2>/dev/null | awk 'NR==1{print $1+0}'; }
   DISK_ES_B="$(_du_bytes "$ES_PATH_DATA")"; DISK_LS_B="$(_du_bytes "$LOGSTASH_PATH_DATA")"
   declare -A _DSEEN=(); DISK_LOG_B=0
@@ -744,7 +751,7 @@ function buildDashboard(){const rows=parseRows();const mount=document.getElement
   {label:'Logstash 작업 데이터',value:d.logstashData,color:'#8b5cf6',desc:'Persistent Queue 등 Logstash path.data'},
   {label:'로그 / 백업',value:d.logsBackup,color:'#f59e0b',desc:'수신·처리·백업 폴더와 ELK 서비스 로그'},
   {label:'기타 사용',value:d.other,color:'#64748b',desc:'Ubuntu OS · 패키지 · 기타 파일 사용량'}
- ],`${Number(d.filesystems)||0}개 FS 합산`, `<b>현재 디스크 사용률 ${partPct(d.used,diskTotal).toFixed(0)}%</b><br>관련 파일시스템 ${Number(d.filesystems)||0}개를 mount 기준으로 한 번씩만 합산했습니다.`, '전체 디스크 100% 중 실제 사용률까지만 색으로 채우고, 사용된 영역을 Elasticsearch·Logstash·로그/백업·기타 사용으로 나눕니다.', '여유 공간');
+ ],`${Number(d.filesystems)||0}개 FS 합산`, `<b>현재 디스크 사용률 ${partPct(d.used,diskTotal).toFixed(0)}%</b><br>관련 파일시스템 ${Number(d.filesystems)||0}개를 실제 filesystem device 기준으로 한 번씩만 합산했습니다.`, '전체 디스크 100% 중 실제 사용률까지만 색으로 채우고, 사용된 영역을 Elasticsearch·Logstash·로그/백업·기타 사용으로 나눕니다.', '여유 공간');
  const cpuCard=gaugeCard('CPU',cpu,'서버 전체 CPU의 현재 사용률입니다. 로그 파싱과 Elasticsearch 검색/색인 부하를 함께 반영합니다.',svcCpu);
  const svcRows=rows.filter(r=>r.section==='서비스');const crit=rows.filter(r=>r.status==='crit');const warn=rows.filter(r=>r.status==='warn');const ok=rows.filter(r=>r.status==='ok');const svcOk=svcRows.filter(r=>r.status==='ok').length,svcWarn=svcRows.filter(r=>r.status==='warn').length,svcCrit=svcRows.filter(r=>r.status==='crit').length;
  const allDetail=[...crit,...warn,...ok,...rows.filter(r=>r.status==='info')];const donuts=donutCard('detail-all','전체 점검 상태',ok.length,warn.length,crit.length,'점검 항목',allDetail)+donutCard('detail-service','서비스 상태',svcOk,svcWarn,svcCrit,'서비스',svcRows);
