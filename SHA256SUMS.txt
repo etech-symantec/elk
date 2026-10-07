@@ -8,7 +8,7 @@
 24cce110aea0e41cd724dbd05e62f380417a514894875edab9ce19b9745cf74d  ./_internal/core/elk-ops.sh
 6387412db7e62d02fbf82690e57859b2da31433aaea5c1afa8eb2f460f569d61  ./_internal/core/elk-patch.sh
 ae91c8747335de29a8f250c78fbb0e011f19f1c4858ff8442502e610ae0dfe64  ./_internal/core/elk-report-web.py
-147afa243904fe7398e34c67c834c181f63889f828c8f04b1796c70fdc1d5470  ./_internal/core/elk-report.sh
+80b1a84afe2f8640cbb24014a8e2164ecdfb71d452d774ac0496ab641b1e1a38  ./_internal/core/elk-report.sh
 ccb7600cf9e0828021e72ed02bd36e8fedb14fca4eff768b42735ae194a4f753  ./_internal/core/elk-tls-lib.sh
 51253b2dcf91ef5ccd5fd8028ed2394b166e78e43c2b3aa77073e21070da2ca0  ./_internal/core/install-elk.sh
 d3236c3007e7fae32ab3e1de0af160253fe42a961664bf6a028e55be4dfbde2c  ./_internal/core/log-ingest-manager.sh
@@ -29,5 +29,5 @@ a67412800e1a782d934d86a21239931978965064ce2fb805a28d09f720b807ae  ./_internal/do
 a3a2f775905dd44e8cf46efc8b1371e67de91f7e6a9495c2133ae2bf19a84ab3  ./_internal/tools/open-config-gui.sh
 8a87e760bf265e7c368b790912460a7c2f9e45526e98ee21c0fd470ae82e5f4b  ./_internal/tools/run-remote-deploy.ps1
 aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report-update.sh
-a1f2a3954b4d666aec7ba6a3db0a36cf35735ab92a831f6b2cfeff63d0405610  ./config-wizard.html
+c53288d7adf817dc5ae61db10e11866d54c7411d1ebc93a4d46b48b94bb85e48  ./config-wizard.html
 89018ec01b9b4fb61ab8788e9153acb55f4d2c215e933d21d96efa658d91e5c2  ./run-remote-deploy.cmd
