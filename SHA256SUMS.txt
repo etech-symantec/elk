@@ -30,5 +30,5 @@ a3a2f775905dd44e8cf46efc8b1371e67de91f7e6a9495c2133ae2bf19a84ab3  ./_internal/to
 8a87e760bf265e7c368b790912460a7c2f9e45526e98ee21c0fd470ae82e5f4b  ./_internal/tools/run-remote-deploy.ps1
 aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report-update.sh
 a57f33319a9175d3a366d4195c2276ab8e1adc7659c3d2c67a73dbee87d77c1a  ./bootstrap-update.sh
-ec682b421780493d29001c2b25b1fbff40fd30ccf67eba1b273acd6f89b2785e  ./config-wizard.html
+8361a344ee2e3215b0f28b231c650fb5747ffa0a562aee0a935a7d1ec2aa9aa1  ./config-wizard.html
 89018ec01b9b4fb61ab8788e9153acb55f4d2c215e933d21d96efa658d91e5c2  ./run-remote-deploy.cmd
