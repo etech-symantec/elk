@@ -242,6 +242,26 @@ if want sys; then
   case "$ntp" in yes) row ok "시간 동기화(NTP)" "동기화됨 ($(date +%Z))" ;; no) row warn "시간 동기화(NTP)" "동기화되지 않음 — 로그 시각이 어긋날 수 있습니다." ;; *) row info "시간 동기화(NTP)" "확인할 수 없음" ;; esac
 fi
 
+# ---------------------------------------------------------------- OneClick 설치 버전 / 빌드
+ONECLICK_RELEASE_FILE="${ELK_ONECLICK_RELEASE_FILE:-/etc/elk-auto/oneclick-release.env}"
+ONECLICK_INSTALLED_VERSION=""
+ONECLICK_INSTALLED_BUILD=""
+ONECLICK_INSTALLED_AT=""
+if [[ -f "$ONECLICK_RELEASE_FILE" ]]; then
+  set +u
+  # shellcheck disable=SC1090
+  source "$ONECLICK_RELEASE_FILE" 2>/dev/null || true
+  set -u
+  ONECLICK_INSTALLED_VERSION="${ONECLICK_VERSION:-}"
+  ONECLICK_INSTALLED_BUILD="${ONECLICK_BUILD:-}"
+  ONECLICK_INSTALLED_AT="${ONECLICK_INSTALLED_AT:-}"
+fi
+if [[ -z "$ONECLICK_INSTALLED_VERSION" && -f /var/log/elk-auto-install.log ]]; then
+  ONECLICK_INSTALLED_VERSION="$(grep -Eo 'ELK One-Click Installer v[0-9]+([.][0-9]+)+' /var/log/elk-auto-install.log 2>/dev/null | tail -1 | sed -E 's/.* v//' || true)"
+fi
+[[ -n "$ONECLICK_INSTALLED_VERSION" ]] || ONECLICK_INSTALLED_VERSION="확인 불가"
+[[ -n "$ONECLICK_INSTALLED_BUILD" ]] || ONECLICK_INSTALLED_BUILD="확인 불가"
+
 # ---------------------------------------------------------------- ver
 norm_ver() { local v="${1:-}"; v="${v#*:}"; v="${v%%-*}"; printf '%s' "$v"; }
 if want ver; then
@@ -257,6 +277,7 @@ if want ver; then
     elif [[ -n "$run" && "$run" != "$iv" ]]; then row warn "$lab Version" "설치본 $iv · 실행 중 $run  (재시작이 필요합니다)"
     else row ok "$lab Version" "$iv${run:+  (실행 중 $run)}"; fi
   done
+  row info "OneClick 설치 버전" "v${ONECLICK_INSTALLED_VERSION} · build ${ONECLICK_INSTALLED_BUILD}${ONECLICK_INSTALLED_AT:+ · 설치/갱신 ${ONECLICK_INSTALLED_AT}}"
   vs=(); for p in elasticsearch logstash kibana; do [[ -n "${INST[$p]}" ]] && vs+=("${INST[$p]}"); done
   if (( ${#vs[@]} > 1 )) && [[ "$(printf '%s\n' "${vs[@]}" | sort -u | wc -l)" -gt 1 ]]; then row warn "제품 간 버전 일치" "Elasticsearch / Logstash / Kibana 버전이 서로 다릅니다."; elif (( ${#vs[@]} > 1 )); then row ok "제품 간 버전 일치" "모두 ${vs[0]}"; fi
 fi
@@ -702,7 +723,7 @@ write_html() {
 @media(max-width:520px){.compbody{grid-template-columns:1fr}.compdonut,.cpuring{width:148px;height:148px}.compdonut:after,.cpuring:before{inset:22px}.donutcard{grid-template-columns:1fr;text-align:center}.donut{margin:auto}.critpeek{grid-column:auto;text-align:left}.compitemtop{grid-template-columns:10px 1fr auto}.compitemtop em{grid-column:2/-1;text-align:right}}
 .svcmini{margin-top:12px;padding-top:10px;border-top:1px solid #e8eef6;text-align:left}.svcminihead{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:7px}.svcminihead b{font-size:11px;color:#334155}.svcminihead span{font-size:9px;color:#94a3b8}.svcminilist{display:grid;gap:5px}.svcminirow{display:grid;grid-template-columns:minmax(76px,1fr) 48px 58px;gap:7px;align-items:center;font-size:10px}.svcminirow .name{font-weight:700;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.svcminirow .val{text-align:right;font-weight:800;color:#172033}.svcminirow .badge{justify-self:end;border-radius:999px;padding:2px 6px;font-size:9px;font-weight:900}.svcminirow .badge.ok{background:#d1fae5;color:#065f46}.svcminirow .badge.warn{background:#fef3c7;color:#92400e}.svcminirow .badge.crit{background:#fee2e2;color:#991b1b}.svcminirow .badge.info{background:#e2e8f0;color:#475569}.svcminibar{grid-column:1/-1;height:4px;border-radius:999px;background:#e8eef6;overflow:hidden;margin-top:-2px}.svcminibar i{display:block;height:100%;border-radius:999px;background:#10b981}.svcminibar.warn i{background:#f59e0b}.svcminibar.crit i{background:#ef4444}@media(max-width:760px){.hero-top{flex-direction:column}.hero-status{width:100%;justify-content:flex-start;flex-wrap:wrap}}</style></head><body><div class="wrap"><div class="hero"><div class="hero-top"><div class="hero-copy"><h1>ELK 서버 점검 리포트</h1>
 HTML_HEAD
-    printf '<div class="sub">서버 <b>%s</b> · 생성 %s · elk-report v%s · ELK Auto Installer v%s · build %s</div></div><div class="hero-status"><div class="hstat ok"><i></i><span>정상</span><strong>%d</strong></div><div class="hstat warn"><i></i><span>주의</span><strong>%d</strong></div><div class="hstat crit"><i></i><span>이상</span><strong>%d</strong></div></div></div>\n' "$(html_esc "$(hostname)")" "$(html_esc "$(date '+%Y-%m-%d %H:%M:%S %Z')")" "$(html_esc "$REPORT_VERSION")" "$(html_esc "$ELK_AUTO_VERSION")" "$(html_esc "$ELK_AUTO_BUILD")" "$N_OK" "$N_WARN" "$N_CRIT"
+    printf '<div class="sub">서버 <b>%s</b> · 생성 %s · elk-report v%s · 리포트 기준 v%s / build %s · 설치 OneClick <b>v%s</b> / build <b>%s</b></div></div><div class="hero-status"><div class="hstat ok"><i></i><span>정상</span><strong>%d</strong></div><div class="hstat warn"><i></i><span>주의</span><strong>%d</strong></div><div class="hstat crit"><i></i><span>이상</span><strong>%d</strong></div></div></div>\n' "$(html_esc "$(hostname)")" "$(html_esc "$(date '+%Y-%m-%d %H:%M:%S %Z')")" "$(html_esc "$REPORT_VERSION")" "$(html_esc "$ELK_AUTO_VERSION")" "$(html_esc "$ELK_AUTO_BUILD")" "$(html_esc "$ONECLICK_INSTALLED_VERSION")" "$(html_esc "$ONECLICK_INSTALLED_BUILD")" "$N_OK" "$N_WARN" "$N_CRIT"
     cat <<'HTML_RUN'
 <div class="runner"><input id="cmd" value="elk-report" aria-label="허용 명령 입력"><button id="run">실행</button></div>
 <div class="quickcmds">
@@ -734,6 +755,7 @@ function meaningFor(label,section){
   [/Elasticsearch Version/,'현재 설치·실행 중인 Elasticsearch 버전입니다.'],
   [/Logstash Version/,'현재 설치·실행 중인 Logstash 버전입니다.'],
   [/Kibana Version/,'현재 설치·실행 중인 Kibana 버전입니다.'],
+  [/OneClick 설치 버전/,'현재 서버에 마지막으로 설치 또는 업데이트된 OneClick Installer 버전과 빌드입니다.'],
   [/제품 간 버전 일치/,'Elasticsearch·Logstash·Kibana 버전이 서로 동일한지 확인합니다.'],
   [/CPU Usage/,'서버 전체 CPU의 현재 사용률입니다. 지속적으로 높으면 처리 지연 가능성이 있습니다.'],
   [/Load Average/,'최근 1·5·15분 동안 CPU를 기다린 작업량입니다. 코어 수와 함께 판단합니다.'],
