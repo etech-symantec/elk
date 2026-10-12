@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-# ELK Auto Installer v2.9.16
+# ELK Auto Installer v2.9.17
 # Target: Ubuntu 22.04 / 24.04, Elastic Stack 9.x
 # Usage: sudo bash install-elk.sh ./elk.env
 
@@ -326,7 +326,7 @@ unset _old_name _new_name
 : "${HEALTH_DISK_CRIT_PERCENT:=92}"
 : "${HEALTH_AUTO_PAUSE_FILE_INGEST_ON_CRITICAL:=false}"
 
-# 정기점검 HTML / Web Viewer (v2.9.16)
+# 정기점검 HTML / Web Viewer (v2.9.17)
 : "${ELK_REPORT_HTML_DIR:=/var/lib/elk-report}"
 : "${ELK_REPORT_HTML_FILE:=${ELK_REPORT_HTML_DIR}/report.html}"
 : "${ELK_REPORT_WEB_ENABLED:=true}"
@@ -1049,7 +1049,7 @@ extend_root_lvm() {
 }
 
 # ----------------------------- OS -----------------------------
-ELK_AUTO_VERSION="2.9.16"
+ELK_AUTO_VERSION="2.9.17"
 log "ELK Auto Installer v${ELK_AUTO_VERSION}"
 log "환경파일: $ENV_FILE"
 log "설치 로그: $INSTALL_LOG"
@@ -2308,6 +2308,12 @@ EOF_HEALTH_ROTATE
 fi
 systemctl daemon-reload
 
+# ----------------------------- existing ELK adopt tool -----------------------------
+if [[ -f "$SCRIPT_DIR/elk-oneclick-adopt.sh" ]]; then
+  install -m 755 "$SCRIPT_DIR/elk-oneclick-adopt.sh" /usr/local/sbin/elk-oneclick-adopt
+  log "기존 ELK 등록 도구 설치: /usr/local/sbin/elk-oneclick-adopt"
+fi
+
 # ----------------------------- partial patch tool -----------------------------
 # v2.9.4: 설치 후 일부 값만 바꿔 적용하는 도구를 서버에 남겨 둔다. (사용법: sudo elk-patch --list)
 if [[ -f "$SCRIPT_DIR/elk-patch.sh" && -f "$SCRIPT_DIR/proxysg-lib.sh" ]]; then
@@ -2319,7 +2325,7 @@ if [[ -f "$SCRIPT_DIR/elk-patch.sh" && -f "$SCRIPT_DIR/proxysg-lib.sh" ]]; then
   if [[ -s "$SCRIPT_DIR/custom-pipeline.conf" ]]; then install -m 644 "$SCRIPT_DIR/custom-pipeline.conf" /usr/local/lib/elk-auto/custom-pipeline.conf; else rm -f /usr/local/lib/elk-auto/custom-pipeline.conf; fi
   log "부분 패치 도구 설치: /usr/local/sbin/elk-patch  (예: sudo elk-patch --list)"
 fi
-# v2.9.16: 서버 정기점검 리포트 + HTML Web Viewer
+# v2.9.17: 서버 정기점검 리포트 + HTML Web Viewer
 if [[ -f "$SCRIPT_DIR/elk-report.sh" ]]; then
   install -m 755 "$SCRIPT_DIR/elk-report.sh" /usr/local/sbin/elk-report
   install -d -m 755 "$ELK_REPORT_HTML_DIR"

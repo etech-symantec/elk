@@ -93,6 +93,7 @@ target_for(){
     proxysg-lib.sh)            printf '%s' "/usr/local/lib/elk-auto/proxysg-lib.sh" ;;
     log-ingest-manager.sh)     printf '%s' "/usr/local/sbin/log-ingest-manager" ;;
     elk-oneclick-update.sh)    printf '%s' "/usr/local/sbin/elk-oneclick-update" ;;
+    elk-oneclick-adopt.sh)     printf '%s' "/usr/local/sbin/elk-oneclick-adopt" ;;
     *) return 1 ;;
   esac
 }
