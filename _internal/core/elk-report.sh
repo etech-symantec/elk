@@ -730,11 +730,10 @@ HTML_HEAD
 <div class="runner"><input id="cmd" value="elk-report" aria-label="허용 명령 입력"><button id="run">실행</button></div>
 <div class="quickcmds">
   <button type="button" data-cmd="elk-report">전체 점검</button>
-  <button type="button" data-cmd="elk-oneclick-version">OneClick 버전</button>
   <button type="button" data-cmd="elk-oneclick-update --check">GitHub 최신 버전 확인</button>
   <button type="button" data-cmd="elk-report --copy">HTML 코드 복사</button>
 </div>
-<div class="state" id="state">허용: elk-report · elk-report --copy · elk-oneclick-version · elk-oneclick-update --check &nbsp;|&nbsp; 변경 명령(--apply/--force)은 웹에서 차단</div>
+<div class="state" id="state">허용: elk-report · elk-report --copy · elk-oneclick-update --check &nbsp;|&nbsp; 변경 명령(--apply/--force)은 웹에서 차단</div>
 <div class="cmdconsole" id="cmdconsole"><div class="cmdconsole-head"><b id="cmdconsoleTitle">명령 실행 결과</b><button type="button" id="cmdconsoleClose">닫기</button></div><pre id="cmdconsoleOut"></pre></div></div>
 HTML_RUN
     printf '<div id="dashboard" class="dashboard"></div>\n'
@@ -926,11 +925,8 @@ async function runWebCommand(){
         }catch(_){}
         finally{if(ta&&ta.parentNode)ta.parentNode.removeChild(ta)}
       }
-      const kb=Math.max(1,Math.round((j.bytes||0)/1024));
-      s.textContent=copied?`완료 · HTML 전체 코드 ${kb}KB를 클립보드에 복사했습니다.`:'복사 실패 · 브라우저의 클립보드 권한을 확인하세요.';
-      ct.textContent='elk-report --copy';
-      co.textContent=copied?`[OK] HTML 전체 코드 복사 완료 (${kb} KB)`:'[ERROR] 클립보드 복사 실패';
-      cc.classList.add('show');
+      cc.classList.remove('show');
+      s.textContent=copied?'완료 · HTML 전체 코드를 클립보드에 복사했습니다.':'복사 실패 · 브라우저의 클립보드 권한을 확인하세요.';
     }else{
       s.textContent='완료 · '+(j.message||'명령 실행 완료');
       ct.textContent=command;
