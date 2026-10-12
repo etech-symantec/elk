@@ -5,7 +5,7 @@
 #   sudo bash elk-report.sh               # 같은 도구를 파일로 실행
 #   sudo elk-report --only sys,ver,disk   # 일부 항목만
 #   sudo elk-report --list                # 점검 항목 목록
-#   옵션: --only a,b  --skip a,b  --env FILE  --stale-hours N(기본 36)  --no-color | --color=always|never|auto  --self-delete  --version
+#   옵션: --only a,b  --skip a,b  --env FILE  --stale-hours N(기본 36)  --no-color | --color=always|never|auto  --copy  --self-delete  --version
 #
 # 항목:  sys(Ubuntu·Uptime) ver(Elastic/Logstash/Kibana 버전) cpu mem disk(파일시스템·로그 폴더·인덱스 용량)
 #        last(마지막 로그 시각: 파일·인덱스) svc(서비스) es(클러스터 상태) ingest(수집·처리 상태) cert(인증서) os(업데이트·장애)
@@ -21,7 +21,7 @@ ELK_AUTO_VERSION="2.9.5"
 ELK_AUTO_BUILD="${ELK_AUTO_BUILD:-steady-tree-quiet-bridge}"
 REPORT_BUILD="$ELK_AUTO_BUILD"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
-ONLY=""; SKIP=""; STALE_H="${ELK_STALE_HOURS:-36}"; COLOR_MODE="${ELK_COLOR:-auto}"; SELF_DELETE=0
+ONLY=""; SKIP=""; STALE_H="${ELK_STALE_HOURS:-36}"; COLOR_MODE="${ELK_COLOR:-auto}"; COPY_HTML=0; SELF_DELETE=0
 HTML_OUT="${ELK_REPORT_HTML_FILE:-/var/lib/elk-report/report.html}"; WRITE_HTML=1
 ALL_SECTIONS=(sys ver cpu mem proc disk last svc es ingest cfg cert os)
 
@@ -54,6 +54,7 @@ while [[ $# -gt 0 ]]; do
     --html) HTML_OUT="${2:-}"; WRITE_HTML=1; shift 2 ;;
     --no-html) WRITE_HTML=0; shift ;;
     --color=*) COLOR_MODE="${1#--color=}"; shift ;;
+    --copy) COPY_HTML=1; WRITE_HTML=1; COLOR_MODE=never; shift ;;
     --self-delete) SELF_DELETE=1; shift ;;
     --list) list_sections; exit 0 ;;
     --version) echo "elk-report v${REPORT_VERSION} · ELK Auto Installer v${ELK_AUTO_VERSION} · build ${ELK_AUTO_BUILD}"; exit 0 ;;
@@ -62,6 +63,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 if (( SELF_DELETE )); then trap 'rm -f -- "${BASH_SOURCE[0]}"' EXIT; fi
+if (( COPY_HTML )); then exec 3>&1; exec 1>/dev/null; fi
 [[ "$STALE_H" =~ ^[0-9]+$ && "$STALE_H" -ge 1 ]] || { echo "--stale-hours 는 1 이상의 숫자여야 합니다." >&2; exit 2; }
 
 # ---------------------------------------------------------------- 색상 / 출력 도우미
@@ -730,8 +732,9 @@ HTML_HEAD
   <button type="button" data-cmd="elk-report">전체 점검</button>
   <button type="button" data-cmd="elk-oneclick-version">OneClick 버전</button>
   <button type="button" data-cmd="elk-oneclick-update --check">GitHub 최신 버전 확인</button>
+  <button type="button" data-cmd="elk-report --copy">HTML 코드 복사</button>
 </div>
-<div class="state" id="state">허용: elk-report · elk-oneclick-version · elk-oneclick-update --check &nbsp;|&nbsp; 변경 명령(--apply/--force)은 웹에서 차단</div>
+<div class="state" id="state">허용: elk-report · elk-report --copy · elk-oneclick-version · elk-oneclick-update --check &nbsp;|&nbsp; 변경 명령(--apply/--force)은 웹에서 차단</div>
 <div class="cmdconsole" id="cmdconsole"><div class="cmdconsole-head"><b id="cmdconsoleTitle">명령 실행 결과</b><button type="button" id="cmdconsoleClose">닫기</button></div><pre id="cmdconsoleOut"></pre></div></div>
 HTML_RUN
     printf '<div id="dashboard" class="dashboard"></div>\n'
@@ -903,6 +906,31 @@ async function runWebCommand(){
     if(j.kind==='report'){
       s.textContent='완료 · '+(j.message||'리포트를 새로 불러옵니다.');
       setTimeout(()=>location.reload(),450);
+    }else if(j.kind==='copy_html'){
+      let copied=false;
+      try{
+        if(navigator.clipboard&&window.isSecureContext){
+          await navigator.clipboard.writeText(j.html||'');
+          copied=true;
+        }
+      }catch(_){}
+      if(!copied){
+        let ta;
+        try{
+          ta=document.createElement('textarea');
+          ta.value=j.html||'';
+          ta.setAttribute('readonly','');
+          ta.style.cssText='position:fixed;left:0;top:0;width:1px;height:1px;opacity:.01;z-index:-1';
+          document.body.appendChild(ta);ta.focus();ta.select();ta.setSelectionRange(0,ta.value.length);
+          copied=!!document.execCommand('copy');
+        }catch(_){}
+        finally{if(ta&&ta.parentNode)ta.parentNode.removeChild(ta)}
+      }
+      const kb=Math.max(1,Math.round((j.bytes||0)/1024));
+      s.textContent=copied?`완료 · HTML 전체 코드 ${kb}KB를 클립보드에 복사했습니다.`:'복사 실패 · 브라우저의 클립보드 권한을 확인하세요.';
+      ct.textContent='elk-report --copy';
+      co.textContent=copied?`[OK] HTML 전체 코드 복사 완료 (${kb} KB)`:'[ERROR] 클립보드 복사 실패';
+      cc.classList.add('show');
     }else{
       s.textContent='완료 · '+(j.message||'명령 실행 완료');
       ct.textContent=command;
@@ -927,6 +955,14 @@ HTML_TAIL
   printf '[HTML] %s\n' "$HTML_OUT"
 }
 write_html
+if (( COPY_HTML )); then
+  if [[ -f "$HTML_OUT" ]]; then
+    cat "$HTML_OUT" >&3
+  else
+    printf 'HTML 리포트 파일을 생성하지 못했습니다: %s\n' "$HTML_OUT" >&2
+    exit 3
+  fi
+fi
 (( N_CRIT > 0 )) && exit 2
 (( N_WARN > 0 )) && exit 1
 exit 0

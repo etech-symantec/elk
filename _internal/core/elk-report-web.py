@@ -32,7 +32,11 @@ def parse_command(text):
         return {'kind':'oneclick','args':[ONECLICK_UPDATE,parts[1]]}
 
     if parts[0] not in ('elk-report',REPORT):
-        raise ValueError('허용 명령: elk-report, elk-oneclick-version, elk-oneclick-update --check')
+        raise ValueError('허용 명령: elk-report, elk-report --copy, elk-oneclick-version, elk-oneclick-update --check')
+
+    if len(parts)==2 and parts[1]=='--copy':
+        return {'kind':'copy_html','args':[REPORT,'--html',str(HTML),'--env',a.env,'--no-color']}
+
     out=[REPORT]; i=1
     while i<len(parts):
         x=parts[i]
@@ -89,6 +93,11 @@ class H(BaseHTTPRequestHandler):
             if spec['kind']=='report':
                 rc,out=run_report(spec['args'])
                 self.send_json(200,{'ok':True,'kind':'report','status':rc,'message':'최신 점검 결과를 생성했습니다.','output':out,'reload':True})
+            elif spec['kind']=='copy_html':
+                rc,out=run_report(spec['args'])
+                if not HTML.exists(): raise RuntimeError('생성된 HTML 리포트 파일을 찾을 수 없습니다.')
+                html=HTML.read_text(encoding='utf-8',errors='replace')
+                self.send_json(200,{'ok':True,'kind':'copy_html','status':rc,'message':'HTML 전체 코드를 생성했습니다.','html':html,'bytes':len(html.encode('utf-8')),'reload':False})
             else:
                 rc,out=run_oneclick(spec['args'])
                 self.send_json(200,{'ok':True,'kind':'oneclick','status':rc,'message':'명령 실행이 완료되었습니다.','output':out,'reload':False})
