@@ -10,6 +10,12 @@ source "$ENV_FILE"
 : "${PROXYSG_MAIN_SOURCE_DIR:=/home/main}"
 : "${PROXYSG_SSL_SOURCE_DIR:=/home/ssl}"
 : "${PROXYSG_CLOUD_ENABLED:=false}"
+: "${PROXYSG_CLOUD_API_ENABLED:=true}"
+: "${PROXYSG_CLOUD_API_USERNAME:=}"
+: "${PROXYSG_CLOUD_API_PASSWORD:=}"
+: "${PROXYSG_CLOUD_API_URL:=https://portal.threatpulse.com:443/reportpod/logs/sync}"
+: "${PROXYSG_CLOUD_API_LOOKBACK_DAYS:=1}"
+: "${PROXYSG_CLOUD_API_INSECURE:=true}"
 : "${PROXYSG_CLOUD_SOURCE_DIR:=/home/cloud}"
 : "${PROXYSG_CLOUD_BACKUP_DIR:=/home/cloud_backup}"
 : "${PROXYSG_CLOUD_PROCESS_DIR:=/home/cloud_process}"
@@ -41,6 +47,119 @@ if [[ "$CLOUD_ON" == true ]]; then
 fi
 mkdir -p "${ALL_DIRS[@]}"
 chmod "$PROXYSG_DIR_MODE" "${ALL_DIRS[@]}" || true
+
+
+cloud_api_download() {
+  [[ "$CLOUD_ON" == true ]] || return 0
+  [[ "${PROXYSG_CLOUD_API_ENABLED,,}" == "true" ]] || {
+    log "CLOUD API: disabled; existing source files only"
+    return 0
+  }
+
+  if [[ -z "$PROXYSG_CLOUD_API_USERNAME" || -z "$PROXYSG_CLOUD_API_PASSWORD" ]]; then
+    log "CLOUD API ERROR: API ID/Password is empty; download skipped"
+    return 1
+  fi
+  [[ "$PROXYSG_CLOUD_API_LOOKBACK_DAYS" =~ ^[0-9]+$ ]] || {
+    log "CLOUD API ERROR: LOOKBACK_DAYS must be integer: $PROXYSG_CLOUD_API_LOOKBACK_DAYS"
+    return 1
+  }
+
+  command -v curl >/dev/null 2>&1 || { log "CLOUD API ERROR: curl not found"; return 1; }
+  command -v unzip >/dev/null 2>&1 || { log "CLOUD API ERROR: unzip not found"; return 1; }
+  command -v python3 >/dev/null 2>&1 || { log "CLOUD API ERROR: python3 not found"; return 1; }
+
+  local start_ms end_date token tmpdir zipfile url http_code
+  local extracted=0 moved=0 duplicate=0 bad=0 f base dest stem ext n
+  start_ms="$(python3 - "$PROXYSG_CLOUD_API_LOOKBACK_DAYS" <<'PY'
+import datetime, sys
+days=int(sys.argv[1])
+print(int((datetime.datetime.now() - datetime.timedelta(days=days)).timestamp()*1000))
+PY
+)"
+  end_date=0
+  token=none
+  url="${PROXYSG_CLOUD_API_URL}?startDate=${start_ms}&endDate=${end_date}&token=${token}"
+
+  tmpdir="$(mktemp -d "${PROXYSG_CLOUD_SOURCE_DIR%/}/.cloud-api.XXXXXX")" || {
+    log "CLOUD API ERROR: temp directory create failed"
+    return 1
+  }
+  zipfile="$tmpdir/cloud-log.zip"
+
+  local -a curl_opts=(--silent --show-error --fail --location
+    --connect-timeout 15 --max-time 600
+    -H "X-APIUsername: ${PROXYSG_CLOUD_API_USERNAME}"
+    -H "X-APIPassword: ${PROXYSG_CLOUD_API_PASSWORD}"
+    -o "$zipfile" -w "%{http_code}")
+  [[ "${PROXYSG_CLOUD_API_INSECURE,,}" == "true" ]] && curl_opts+=(--insecure)
+
+  log "CLOUD API: downloading logs (${PROXYSG_CLOUD_API_LOOKBACK_DAYS} day lookback)"
+  if ! http_code="$(curl "${curl_opts[@]}" "$url")"; then
+    log "CLOUD API ERROR: download failed"
+    rm -rf "$tmpdir"
+    return 1
+  fi
+  if [[ ! "$http_code" =~ ^2[0-9][0-9]$ || ! -s "$zipfile" ]]; then
+    log "CLOUD API ERROR: HTTP=$http_code or empty response"
+    rm -rf "$tmpdir"
+    return 1
+  fi
+
+  if ! unzip -tq "$zipfile" >/dev/null 2>&1; then
+    log "CLOUD API ERROR: downloaded file is not a valid ZIP"
+    rm -rf "$tmpdir"
+    return 1
+  fi
+
+  mkdir -p "$tmpdir/extracted"
+  if ! unzip -oq "$zipfile" -d "$tmpdir/extracted"; then
+    log "CLOUD API ERROR: ZIP extraction failed"
+    rm -rf "$tmpdir"
+    return 1
+  fi
+
+  # API ZIP 내부의 .log.gz만 기존 Cloud 수신 폴더로 넣는다.
+  # .gz 압축은 유지한다. 기존 Logstash file input은 *.log.gz를 읽고,
+  # 원본 백업도 .gz 상태로 보존하도록 통합되어 있다.
+  while IFS= read -r -d '' f; do
+    extracted=$((extracted+1))
+    base="$(basename "$f")"
+    dest="$PROXYSG_CLOUD_SOURCE_DIR/$base"
+
+    # 같은 이름이 이미 존재할 때 덮어쓰지 않는다.
+    # 내용이 같으면 중복으로 보고 버리고, 다르면 suffix를 붙여 보존한다.
+    if [[ -e "$dest" ]]; then
+      if cmp -s -- "$f" "$dest"; then
+        duplicate=$((duplicate+1))
+        continue
+      fi
+      stem="${base%.log.gz}"
+      n=1
+      while [[ -e "$PROXYSG_CLOUD_SOURCE_DIR/${stem}.api${n}.log.gz" ]]; do n=$((n+1)); done
+      dest="$PROXYSG_CLOUD_SOURCE_DIR/${stem}.api${n}.log.gz"
+    fi
+
+    if mv -- "$f" "${dest}.part.$$"; then
+      chmod 0644 "${dest}.part.$$" 2>/dev/null || true
+      mv -f -- "${dest}.part.$$" "$dest"
+      chown "$FTP_USER:$FTP_GROUP" "$dest" 2>/dev/null || true
+      moved=$((moved+1))
+    else
+      bad=$((bad+1))
+      rm -f -- "${dest}.part.$$" 2>/dev/null || true
+    fi
+  done < <(find "$tmpdir/extracted" -type f -name '*.log.gz' -print0)
+
+  rm -rf "$tmpdir"
+
+  if (( extracted == 0 )); then
+    log "CLOUD API WARNING: ZIP contained no *.log.gz files"
+    return 1
+  fi
+  log "CLOUD API SUCCESS: extracted=$extracted moved=$moved duplicate=$duplicate failed=$bad"
+  (( bad == 0 ))
+}
 
 process_dir() {
   local label="$1" source_dir="$2" process_dir="$3" backup_dir="$4"
@@ -98,6 +217,9 @@ log "File processing started"
 process_dir MAIN "$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_MAIN_BACKUP_DIR"
 process_dir SSL  "$PROXYSG_SSL_SOURCE_DIR"  "$PROXYSG_SSL_PROCESS_DIR"  "$PROXYSG_SSL_BACKUP_DIR"
 if [[ "$CLOUD_ON" == true ]]; then
+  if ! cloud_api_download; then
+    log "CLOUD API WARNING: download step failed; continuing with files already present in Cloud source directory"
+  fi
   process_dir CLOUD "$PROXYSG_CLOUD_SOURCE_DIR" "$PROXYSG_CLOUD_PROCESS_DIR" "$PROXYSG_CLOUD_BACKUP_DIR"
 fi
 log "File processing finished"

@@ -1,4 +1,4 @@
-// ELK Config Wizard defaults for v2.9.13
+// ELK Config Wizard defaults for v2.9.14
 /* =====================================================================
  *  ELK Config Wizard - 기본값 파일 (관리자용)
  *
@@ -390,7 +390,12 @@ window.ELK_DEFAULTS = {
 
 
     // ───── 새로 추가된 항목 (tools/gen_defaults.py) ─────
-    PROXYSG_CLOUD_ENABLED: false,                             // Cloud 로그 처리 사용  [true | false]
+    PROXYSG_CLOUD_ENABLED: false,
+    PROXYSG_CLOUD_API_ENABLED: true,
+    PROXYSG_CLOUD_API_USERNAME: "",
+    PROXYSG_CLOUD_API_URL: "https://portal.threatpulse.com:443/reportpod/logs/sync",
+    PROXYSG_CLOUD_API_LOOKBACK_DAYS: "1",
+    PROXYSG_CLOUD_API_INSECURE: true,                             // Cloud 로그 처리 사용  [true | false]
     PROXYSG_CLOUD_SOURCE_DIR: "/home/cloud",                  // Cloud FTP 수신 폴더
     PROXYSG_CLOUD_BACKUP_DIR: "/home/cloud_backup",           // Cloud 원본 백업 폴더
     PROXYSG_CLOUD_PROCESS_DIR: "/home/cloud_process",         // Cloud Logstash 처리 폴더

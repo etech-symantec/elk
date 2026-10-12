@@ -13,8 +13,8 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-PATCH_VERSION="9"
-ELK_AUTO_VERSION="2.9.13"
+PATCH_VERSION="10"
+ELK_AUTO_VERSION="2.9.14"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 도구 파일(proxysg-lib.sh 등)은 이 스크립트 옆에 있으면 그것을, 없으면 설치기가 넣어 둔 /usr/local/lib/elk-auto 를 사용
@@ -154,6 +154,12 @@ while IFS= read -r _old; do
 done < <(compgen -A variable GUIDE_ || true)
 unset _old _new
 : "${PROXYSG_FLOW_ENABLED:=false}"; : "${PROXYSG_CLOUD_ENABLED:=false}"
+: "${PROXYSG_CLOUD_API_ENABLED:=true}"
+: "${PROXYSG_CLOUD_API_USERNAME:=}"
+: "${PROXYSG_CLOUD_API_PASSWORD:=}"
+: "${PROXYSG_CLOUD_API_URL:=https://portal.threatpulse.com:443/reportpod/logs/sync}"
+: "${PROXYSG_CLOUD_API_LOOKBACK_DAYS:=1}"
+: "${PROXYSG_CLOUD_API_INSECURE:=true}"
 : "${PROXYSG_MAIN_SOURCE_DIR:=/home/main}"; : "${PROXYSG_SSL_SOURCE_DIR:=/home/ssl}"; : "${PROXYSG_CLOUD_SOURCE_DIR:=/home/cloud}"
 : "${PROXYSG_MAIN_BACKUP_DIR:=/home/main_backup}"; : "${PROXYSG_SSL_BACKUP_DIR:=/home/ssl_backup}"; : "${PROXYSG_CLOUD_BACKUP_DIR:=/home/cloud_backup}"
 : "${PROXYSG_MAIN_PROCESS_DIR:=/home/main_process}"; : "${PROXYSG_SSL_PROCESS_DIR:=/home/ssl_process}"; : "${PROXYSG_CLOUD_PROCESS_DIR:=/home/cloud_process}"
@@ -184,10 +190,14 @@ check_value() {
   case "$k" in
     PROXYSG_PROCESS_CRON) [[ "$v" =~ ^[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+$ ]] && [[ "$v" =~ ^[0-9*/,[:space:]-]+$ ]] || echo "cron은 5개 필드여야 합니다. 예: 0 3 * * *  (매분: * * * * *)" ;;
     ILM_DELETE_MIN_AGE) [[ "$v" =~ ^[0-9]+(ms|s|m|h|d|w)$ ]] || echo "보존기간 형식이 올바르지 않습니다. 예: 90d" ;;
-    ILM_DELETE_ENABLED|PROXYSG_CSV_FILTER_ENABLED|PROXYSG_CLOUD_ENABLED|KIBANA_CREATE_PROXYSG_DASHBOARD) [[ "${v,,}" =~ ^(true|false)$ ]] || echo "true 또는 false 여야 합니다." ;;
+    ILM_DELETE_ENABLED|PROXYSG_CSV_FILTER_ENABLED|PROXYSG_CLOUD_ENABLED|PROXYSG_CLOUD_API_ENABLED|PROXYSG_CLOUD_API_INSECURE|KIBANA_CREATE_PROXYSG_DASHBOARD) [[ "${v,,}" =~ ^(true|false)$ ]] || echo "true 또는 false 여야 합니다." ;;
     PROXYSG_*_LOG_FORMAT) [[ -n "${v//[[:space:]]/}" ]] || { echo "비어 있을 수 없습니다."; return; }; [[ "$v" =~ ^[A-Za-z0-9_.:()[:space:]-]+$ ]] || echo "허용되지 않는 문자가 있습니다. (영문/숫자, - _ . : ( ) 와 공백만)" ;;
     PROXYSG_*_INDEX_PREFIX) [[ "$v" =~ ^[a-z0-9][a-z0-9._-]*$ ]] || echo "소문자·숫자·-·_·. 만 쓰고 영문/숫자로 시작해야 합니다. 예: proxy-main" ;;
     PROXYSG_*_DATA_VIEW_NAME) [[ -n "${v//[[:space:]]/}" ]] || echo "비어 있을 수 없습니다." ;;
+    PROXYSG_CLOUD_API_USERNAME) [[ -n "${v//[[:space:]]/}" ]] || echo "Cloud API ID는 비어 있을 수 없습니다." ;;
+    PROXYSG_CLOUD_API_PASSWORD) [[ -n "$v" ]] || echo "Cloud API Password는 비어 있을 수 없습니다." ;;
+    PROXYSG_CLOUD_API_URL) [[ "$v" =~ ^https:// ]] || echo "https:// URL이어야 합니다." ;;
+    PROXYSG_CLOUD_API_LOOKBACK_DAYS) [[ "$v" =~ ^[0-9]+$ ]] && (( v <= 31 )) || echo "0~31 사이의 정수여야 합니다." ;;
     KIBANA_PROXYSG_DASHBOARD_TITLE) [[ -n "${v//[[:space:]]/}" ]] || echo "Dashboard 이름은 비어 있을 수 없습니다." ;;
     KIBANA_PROXYSG_DASHBOARD_WIDGETS)
       [[ -n "${v//[[:space:]]/}" ]] || { echo "Dashboard 위젯을 1개 이상 선택하세요."; return; }

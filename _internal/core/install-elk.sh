@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-# ELK Auto Installer v2.9.13
+# ELK Auto Installer v2.9.14
 # Target: Ubuntu 22.04 / 24.04, Elastic Stack 9.x
 # Usage: sudo bash install-elk.sh ./elk.env
 
@@ -249,6 +249,12 @@ unset _old_name _new_name
 
 : "${PROXYSG_FLOW_ENABLED:=false}"
 : "${PROXYSG_CLOUD_ENABLED:=false}"
+: "${PROXYSG_CLOUD_API_ENABLED:=true}"
+: "${PROXYSG_CLOUD_API_USERNAME:=}"
+: "${PROXYSG_CLOUD_API_PASSWORD:=}"
+: "${PROXYSG_CLOUD_API_URL:=https://portal.threatpulse.com:443/reportpod/logs/sync}"
+: "${PROXYSG_CLOUD_API_LOOKBACK_DAYS:=1}"
+: "${PROXYSG_CLOUD_API_INSECURE:=true}"
 : "${PROXYSG_MAIN_SOURCE_DIR:=/home/main}"
 : "${PROXYSG_SSL_SOURCE_DIR:=/home/ssl}"
 : "${PROXYSG_CLOUD_SOURCE_DIR:=/home/cloud}"
@@ -320,7 +326,7 @@ unset _old_name _new_name
 : "${HEALTH_DISK_CRIT_PERCENT:=92}"
 : "${HEALTH_AUTO_PAUSE_FILE_INGEST_ON_CRITICAL:=false}"
 
-# 정기점검 HTML / Web Viewer (v2.9.13)
+# 정기점검 HTML / Web Viewer (v2.9.14)
 : "${ELK_REPORT_HTML_DIR:=/var/lib/elk-report}"
 : "${ELK_REPORT_HTML_FILE:=${ELK_REPORT_HTML_DIR}/report.html}"
 : "${ELK_REPORT_WEB_ENABLED:=true}"
@@ -900,6 +906,13 @@ for _d in ES_CA_DAYS ES_CERT_DAYS NGINX_TLS_DAYS; do [[ "${!_d}" =~ ^[0-9]+$ && 
     case "${FILE_INGEST_DUPLICATE_ACTION,,}" in archive|delete|leave) ;; *) die "FILE_INGEST_DUPLICATE_ACTION은 archive/delete/leave 중 하나여야 합니다." ;; esac
     case "${FILE_INGEST_PLAIN_BACKUP_COMPRESSION,,}" in zstd|gzip|xz|none) ;; *) die "FILE_INGEST_PLAIN_BACKUP_COMPRESSION은 zstd/gzip/xz/none 중 하나여야 합니다." ;; esac
   fi
+  if istrue "$PROXYSG_CLOUD_ENABLED" && istrue "$PROXYSG_CLOUD_API_ENABLED"; then
+    [[ -n "$PROXYSG_CLOUD_API_USERNAME" ]] || die "Cloud API 자동 다운로드 사용 시 PROXYSG_CLOUD_API_USERNAME(API ID)이 필요합니다."
+    [[ -n "$PROXYSG_CLOUD_API_PASSWORD" ]] || die "Cloud API 자동 다운로드 사용 시 PROXYSG_CLOUD_API_PASSWORD가 필요합니다."
+    [[ "$PROXYSG_CLOUD_API_URL" =~ ^https:// ]] || die "PROXYSG_CLOUD_API_URL은 https:// URL이어야 합니다."
+    [[ "$PROXYSG_CLOUD_API_LOOKBACK_DAYS" =~ ^[0-9]+$ ]] || die "PROXYSG_CLOUD_API_LOOKBACK_DAYS는 0 이상의 정수여야 합니다."
+    (( PROXYSG_CLOUD_API_LOOKBACK_DAYS <= 31 )) || die "PROXYSG_CLOUD_API_LOOKBACK_DAYS는 31일 이하여야 합니다."
+  fi
   if istrue "$PROXYSG_CLOUD_ENABLED" && ! istrue "$PROXYSG_FLOW_ENABLED"; then
     warn "PROXYSG_CLOUD_ENABLED=true이지만 로그 처리 스크립트(PROXYSG_FLOW_ENABLED)가 꺼져 있어 Cloud 수신 폴더 복사는 자동으로 실행되지 않습니다. Cloud 처리 폴더에 파일을 직접 공급해야 합니다."
   fi
@@ -1036,7 +1049,7 @@ extend_root_lvm() {
 }
 
 # ----------------------------- OS -----------------------------
-ELK_AUTO_VERSION="2.9.13"
+ELK_AUTO_VERSION="2.9.14"
 log "ELK Auto Installer v${ELK_AUTO_VERSION}"
 log "환경파일: $ENV_FILE"
 log "설치 로그: $INSTALL_LOG"
@@ -2306,7 +2319,7 @@ if [[ -f "$SCRIPT_DIR/elk-patch.sh" && -f "$SCRIPT_DIR/proxysg-lib.sh" ]]; then
   if [[ -s "$SCRIPT_DIR/custom-pipeline.conf" ]]; then install -m 644 "$SCRIPT_DIR/custom-pipeline.conf" /usr/local/lib/elk-auto/custom-pipeline.conf; else rm -f /usr/local/lib/elk-auto/custom-pipeline.conf; fi
   log "부분 패치 도구 설치: /usr/local/sbin/elk-patch  (예: sudo elk-patch --list)"
 fi
-# v2.9.13: 서버 정기점검 리포트 + HTML Web Viewer
+# v2.9.14: 서버 정기점검 리포트 + HTML Web Viewer
 if [[ -f "$SCRIPT_DIR/elk-report.sh" ]]; then
   install -m 755 "$SCRIPT_DIR/elk-report.sh" /usr/local/sbin/elk-report
   install -d -m 755 "$ELK_REPORT_HTML_DIR"
