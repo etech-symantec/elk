@@ -13,8 +13,8 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-PATCH_VERSION="2"
-ELK_AUTO_VERSION="2.9.5"
+PATCH_VERSION="3"
+ELK_AUTO_VERSION="2.9.7"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 도구 파일(proxysg-lib.sh 등)은 이 스크립트 옆에 있으면 그것을, 없으면 설치기가 넣어 둔 /usr/local/lib/elk-auto 를 사용
@@ -61,7 +61,7 @@ declare -A KEY_ACTIONS=(
   [ES_CA_DAYS]="escerts" [ES_CERT_DAYS]="escerts" [NGINX_TLS_DAYS]="nginxcert"
 )
 # 값이 같아도 "지금 갱신"으로 실행하는 항목 (인증서는 값이 그대로여도 새로 발급할 수 있어야 한다)
-declare -A FORCE_KEYS=([ES_CA_DAYS]=1 [ES_CERT_DAYS]=1 [NGINX_TLS_DAYS]=1)
+declare -A FORCE_KEYS=([ES_CA_DAYS]=1 [ES_CERT_DAYS]=1 [NGINX_TLS_DAYS]=1 [KIBANA_PROXYSG_DASHBOARD_WIDGETS]=1)
 declare -A ACTION_TEXT=(
   [dirs]="로그 폴더 생성·권한 설정(없는 폴더만 새로 만듦)"
   [pipeline]="Logstash pipeline 다시 만들기 → 문법 검사 → Logstash 재시작 (검사 실패 시 자동 복구)"
@@ -231,7 +231,13 @@ echo "=== 적용 예정 변경 ($ENV_FILE) ==="
 changed=0
 for k in "${ORDER[@]}"; do
   o="$(cur "$k")"; n="${NEWV[$k]}"
-  if [[ "$o" == "$n" && -n "${FORCE_KEYS[$k]+x}" ]]; then changed=1; printf '  ! %-34s 값은 그대로(%s) — 인증서를 지금 새로 발급합니다\n' "$k" "${n:0:60}"
+  if [[ "$o" == "$n" && -n "${FORCE_KEYS[$k]+x}" ]]; then
+    changed=1
+    if [[ "$k" == "KIBANA_PROXYSG_DASHBOARD_WIDGETS" ]]; then
+      printf '  ! %-34s 값은 그대로 — Dashboard를 지금 다시 생성합니다\n' "$k"
+    else
+      printf '  ! %-34s 값은 그대로(%s) — 인증서를 지금 새로 발급합니다\n' "$k" "${n:0:60}"
+    fi
   elif [[ "$o" == "$n" ]]; then printf '  = %-34s 변경 없음 (%s)\n' "$k" "${n:0:60}"; else changed=1; printf '  ~ %-34s %s  →  %s\n' "$k" "${o:0:60}" "${n:0:60}"; fi
 done
 (( changed )) || { echo "바뀐 값이 없어 아무것도 하지 않습니다."; exit 0; }
@@ -469,28 +475,28 @@ act_dashboard() {
     local kind="$1" index="$2" field="$3"
     case "$kind" in
       metric_count)
-        printf '%s' "{\"\\$schema\":\"https://vega.github.io/schema/vega-lite/v5.json\",\"data\":{\"url\":{\"%context%\":true,\"%timefield%\":\"@timestamp\",\"index\":\"${index}\",\"body\":{\"size\":0,\"aggs\":{\"m\":{\"filters\":{\"filters\":[{\"match_all\":{}}],\"keyed\":false}}}}},\"format\":{\"property\":\"aggregations.m.buckets\"}},\"mark\":{\"type\":\"text\",\"fontSize\":34,\"fontWeight\":\"bold\"},\"encoding\":{\"text\":{\"field\":\"doc_count\",\"type\":\"quantitative\",\"format\":\",\"}},\"config\":{\"view\":{\"stroke\":null}}}"
+        printf '%s' "{\"\$schema\":\"https://vega.github.io/schema/vega-lite/v6.json\",\"data\":{\"url\":{\"%context%\":true,\"%timefield%\":\"@timestamp\",\"index\":\"${index}\",\"body\":{\"size\":0,\"aggs\":{\"m\":{\"filters\":{\"filters\":[{\"match_all\":{}}],\"keyed\":false}}}}},\"format\":{\"property\":\"aggregations.m.buckets\"}},\"mark\":{\"type\":\"text\",\"fontSize\":34,\"fontWeight\":\"bold\"},\"encoding\":{\"text\":{\"field\":\"doc_count\",\"type\":\"quantitative\",\"format\":\",\"}},\"config\":{\"view\":{\"stroke\":null}}}"
         ;;
       metric_bytes)
-        printf '%s' "{\"\\$schema\":\"https://vega.github.io/schema/vega-lite/v5.json\",\"data\":{\"url\":{\"%context%\":true,\"%timefield%\":\"@timestamp\",\"index\":\"${index}\",\"body\":{\"size\":0,\"aggs\":{\"m\":{\"filters\":{\"filters\":[{\"match_all\":{}}],\"keyed\":false},\"aggs\":{\"sc\":{\"sum\":{\"field\":\"sc_bytes\"}},\"cs\":{\"sum\":{\"field\":\"cs_bytes\"}}}}}}},\"format\":{\"property\":\"aggregations.m.buckets\"}},\"transform\":[{\"calculate\":\"datum.sc.value + datum.cs.value\",\"as\":\"bytes\"}],\"mark\":{\"type\":\"text\",\"fontSize\":32,\"fontWeight\":\"bold\"},\"encoding\":{\"text\":{\"field\":\"bytes\",\"type\":\"quantitative\",\"format\":\".3s\"}},\"config\":{\"view\":{\"stroke\":null}}}"
+        printf '%s' "{\"\$schema\":\"https://vega.github.io/schema/vega-lite/v6.json\",\"data\":{\"url\":{\"%context%\":true,\"%timefield%\":\"@timestamp\",\"index\":\"${index}\",\"body\":{\"size\":0,\"aggs\":{\"m\":{\"filters\":{\"filters\":[{\"match_all\":{}}],\"keyed\":false},\"aggs\":{\"sc\":{\"sum\":{\"field\":\"sc_bytes\"}},\"cs\":{\"sum\":{\"field\":\"cs_bytes\"}}}}}}},\"format\":{\"property\":\"aggregations.m.buckets\"}},\"transform\":[{\"calculate\":\"datum.sc.value + datum.cs.value\",\"as\":\"bytes\"}],\"mark\":{\"type\":\"text\",\"fontSize\":32,\"fontWeight\":\"bold\"},\"encoding\":{\"text\":{\"field\":\"bytes\",\"type\":\"quantitative\",\"format\":\".3s\"}},\"config\":{\"view\":{\"stroke\":null}}}"
         ;;
       metric_avg)
-        printf '%s' "{\"\\$schema\":\"https://vega.github.io/schema/vega-lite/v5.json\",\"data\":{\"url\":{\"%context%\":true,\"%timefield%\":\"@timestamp\",\"index\":\"${index}\",\"body\":{\"size\":0,\"aggs\":{\"m\":{\"filters\":{\"filters\":[{\"match_all\":{}}],\"keyed\":false},\"aggs\":{\"v\":{\"avg\":{\"field\":\"${field}\"}}}}}}},\"format\":{\"property\":\"aggregations.m.buckets\"}},\"transform\":[{\"calculate\":\"isValid(datum.v.value) ? datum.v.value : 0\",\"as\":\"value\"}],\"mark\":{\"type\":\"text\",\"fontSize\":32,\"fontWeight\":\"bold\"},\"encoding\":{\"text\":{\"field\":\"value\",\"type\":\"quantitative\",\"format\":\".1f\"}},\"config\":{\"view\":{\"stroke\":null}}}"
+        printf '%s' "{\"\$schema\":\"https://vega.github.io/schema/vega-lite/v6.json\",\"data\":{\"url\":{\"%context%\":true,\"%timefield%\":\"@timestamp\",\"index\":\"${index}\",\"body\":{\"size\":0,\"aggs\":{\"m\":{\"filters\":{\"filters\":[{\"match_all\":{}}],\"keyed\":false},\"aggs\":{\"v\":{\"avg\":{\"field\":\"${field}\"}}}}}}},\"format\":{\"property\":\"aggregations.m.buckets\"}},\"transform\":[{\"calculate\":\"isValid(datum.v.value) ? datum.v.value : 0\",\"as\":\"value\"}],\"mark\":{\"type\":\"text\",\"fontSize\":32,\"fontWeight\":\"bold\"},\"encoding\":{\"text\":{\"field\":\"value\",\"type\":\"quantitative\",\"format\":\".1f\"}},\"config\":{\"view\":{\"stroke\":null}}}"
         ;;
       metric_errors)
-        printf '%s' "{\"\\$schema\":\"https://vega.github.io/schema/vega-lite/v5.json\",\"data\":{\"url\":{\"%context%\":true,\"%timefield%\":\"@timestamp\",\"index\":\"${index}\",\"body\":{\"size\":0,\"aggs\":{\"m\":{\"filters\":{\"filters\":[{\"regexp\":{\"sc_status.keyword\":\"[45][0-9][0-9]\"}}],\"keyed\":false}}}}},\"format\":{\"property\":\"aggregations.m.buckets\"}},\"mark\":{\"type\":\"text\",\"fontSize\":34,\"fontWeight\":\"bold\"},\"encoding\":{\"text\":{\"field\":\"doc_count\",\"type\":\"quantitative\",\"format\":\",\"}},\"config\":{\"view\":{\"stroke\":null}}}"
+        printf '%s' "{\"\$schema\":\"https://vega.github.io/schema/vega-lite/v6.json\",\"data\":{\"url\":{\"%context%\":true,\"%timefield%\":\"@timestamp\",\"index\":\"${index}\",\"body\":{\"size\":0,\"aggs\":{\"m\":{\"filters\":{\"filters\":[{\"regexp\":{\"sc_status.keyword\":\"[45][0-9][0-9]\"}}],\"keyed\":false}}}}},\"format\":{\"property\":\"aggregations.m.buckets\"}},\"mark\":{\"type\":\"text\",\"fontSize\":34,\"fontWeight\":\"bold\"},\"encoding\":{\"text\":{\"field\":\"doc_count\",\"type\":\"quantitative\",\"format\":\",\"}},\"config\":{\"view\":{\"stroke\":null}}}"
         ;;
       time_count)
-        printf '%s' "{\"\\$schema\":\"https://vega.github.io/schema/vega-lite/v5.json\",\"data\":{\"url\":{\"%context%\":true,\"%timefield%\":\"@timestamp\",\"index\":\"${index}\",\"body\":{\"size\":0,\"aggs\":{\"t\":{\"date_histogram\":{\"field\":\"@timestamp\",\"fixed_interval\":\"1h\",\"min_doc_count\":0}}}}},\"format\":{\"property\":\"aggregations.t.buckets\"}},\"mark\":{\"type\":\"line\",\"point\":false},\"encoding\":{\"x\":{\"field\":\"key\",\"type\":\"temporal\",\"title\":\"시간\"},\"y\":{\"field\":\"doc_count\",\"type\":\"quantitative\",\"title\":\"요청\"}}}"
+        printf '%s' "{\"\$schema\":\"https://vega.github.io/schema/vega-lite/v6.json\",\"data\":{\"url\":{\"%context%\":true,\"%timefield%\":\"@timestamp\",\"index\":\"${index}\",\"body\":{\"size\":0,\"aggs\":{\"t\":{\"date_histogram\":{\"field\":\"@timestamp\",\"fixed_interval\":\"1h\",\"min_doc_count\":0}}}}},\"format\":{\"property\":\"aggregations.t.buckets\"}},\"mark\":{\"type\":\"line\",\"point\":false},\"encoding\":{\"x\":{\"field\":\"key\",\"type\":\"temporal\",\"title\":\"시간\"},\"y\":{\"field\":\"doc_count\",\"type\":\"quantitative\",\"title\":\"요청\"}}}"
         ;;
       time_bytes)
-        printf '%s' "{\"\\$schema\":\"https://vega.github.io/schema/vega-lite/v5.json\",\"data\":{\"url\":{\"%context%\":true,\"%timefield%\":\"@timestamp\",\"index\":\"${index}\",\"body\":{\"size\":0,\"aggs\":{\"t\":{\"date_histogram\":{\"field\":\"@timestamp\",\"fixed_interval\":\"1h\",\"min_doc_count\":0},\"aggs\":{\"sc\":{\"sum\":{\"field\":\"sc_bytes\"}},\"cs\":{\"sum\":{\"field\":\"cs_bytes\"}}}}}}},\"format\":{\"property\":\"aggregations.t.buckets\"}},\"transform\":[{\"calculate\":\"datum.sc.value + datum.cs.value\",\"as\":\"bytes\"}],\"mark\":{\"type\":\"area\",\"line\":true,\"opacity\":0.25},\"encoding\":{\"x\":{\"field\":\"key\",\"type\":\"temporal\",\"title\":\"시간\"},\"y\":{\"field\":\"bytes\",\"type\":\"quantitative\",\"title\":\"Bytes\"}}}"
+        printf '%s' "{\"\$schema\":\"https://vega.github.io/schema/vega-lite/v6.json\",\"data\":{\"url\":{\"%context%\":true,\"%timefield%\":\"@timestamp\",\"index\":\"${index}\",\"body\":{\"size\":0,\"aggs\":{\"t\":{\"date_histogram\":{\"field\":\"@timestamp\",\"fixed_interval\":\"1h\",\"min_doc_count\":0},\"aggs\":{\"sc\":{\"sum\":{\"field\":\"sc_bytes\"}},\"cs\":{\"sum\":{\"field\":\"cs_bytes\"}}}}}}},\"format\":{\"property\":\"aggregations.t.buckets\"}},\"transform\":[{\"calculate\":\"datum.sc.value + datum.cs.value\",\"as\":\"bytes\"}],\"mark\":{\"type\":\"area\",\"line\":true,\"opacity\":0.25},\"encoding\":{\"x\":{\"field\":\"key\",\"type\":\"temporal\",\"title\":\"시간\"},\"y\":{\"field\":\"bytes\",\"type\":\"quantitative\",\"title\":\"Bytes\"}}}"
         ;;
       time_avg)
-        printf '%s' "{\"\\$schema\":\"https://vega.github.io/schema/vega-lite/v5.json\",\"data\":{\"url\":{\"%context%\":true,\"%timefield%\":\"@timestamp\",\"index\":\"${index}\",\"body\":{\"size\":0,\"aggs\":{\"t\":{\"date_histogram\":{\"field\":\"@timestamp\",\"fixed_interval\":\"1h\",\"min_doc_count\":0},\"aggs\":{\"v\":{\"avg\":{\"field\":\"${field}\"}}}}}}},\"format\":{\"property\":\"aggregations.t.buckets\"}},\"mark\":{\"type\":\"line\",\"point\":false},\"encoding\":{\"x\":{\"field\":\"key\",\"type\":\"temporal\",\"title\":\"시간\"},\"y\":{\"field\":\"v.value\",\"type\":\"quantitative\",\"title\":\"ms\"}}}"
+        printf '%s' "{\"\$schema\":\"https://vega.github.io/schema/vega-lite/v6.json\",\"data\":{\"url\":{\"%context%\":true,\"%timefield%\":\"@timestamp\",\"index\":\"${index}\",\"body\":{\"size\":0,\"aggs\":{\"t\":{\"date_histogram\":{\"field\":\"@timestamp\",\"fixed_interval\":\"1h\",\"min_doc_count\":0},\"aggs\":{\"v\":{\"avg\":{\"field\":\"${field}\"}}}}}}},\"format\":{\"property\":\"aggregations.t.buckets\"}},\"mark\":{\"type\":\"line\",\"point\":false},\"encoding\":{\"x\":{\"field\":\"key\",\"type\":\"temporal\",\"title\":\"시간\"},\"y\":{\"field\":\"v.value\",\"type\":\"quantitative\",\"title\":\"ms\"}}}"
         ;;
       terms)
-        printf '%s' "{\"\\$schema\":\"https://vega.github.io/schema/vega-lite/v5.json\",\"data\":{\"url\":{\"%context%\":true,\"%timefield%\":\"@timestamp\",\"index\":\"${index}\",\"body\":{\"size\":0,\"aggs\":{\"top\":{\"terms\":{\"field\":\"${field}\",\"size\":10,\"missing\":\"(없음)\"}}}}},\"format\":{\"property\":\"aggregations.top.buckets\"}},\"mark\":\"bar\",\"encoding\":{\"y\":{\"field\":\"key\",\"type\":\"nominal\",\"sort\":\"-x\",\"title\":null},\"x\":{\"field\":\"doc_count\",\"type\":\"quantitative\",\"title\":\"건수\"},\"tooltip\":[{\"field\":\"key\",\"type\":\"nominal\",\"title\":\"값\"},{\"field\":\"doc_count\",\"type\":\"quantitative\",\"title\":\"건수\",\"format\":\",\"}]}}"
+        printf '%s' "{\"\$schema\":\"https://vega.github.io/schema/vega-lite/v6.json\",\"data\":{\"url\":{\"%context%\":true,\"%timefield%\":\"@timestamp\",\"index\":\"${index}\",\"body\":{\"size\":0,\"aggs\":{\"top\":{\"terms\":{\"field\":\"${field}\",\"size\":10,\"missing\":\"(없음)\"}}}}},\"format\":{\"property\":\"aggregations.top.buckets\"}},\"mark\":\"bar\",\"encoding\":{\"y\":{\"field\":\"key\",\"type\":\"nominal\",\"sort\":\"-x\",\"title\":null},\"x\":{\"field\":\"doc_count\",\"type\":\"quantitative\",\"title\":\"건수\"},\"tooltip\":[{\"field\":\"key\",\"type\":\"nominal\",\"title\":\"값\"},{\"field\":\"doc_count\",\"type\":\"quantitative\",\"title\":\"건수\",\"format\":\",\"}]}}"
         ;;
     esac
   }
