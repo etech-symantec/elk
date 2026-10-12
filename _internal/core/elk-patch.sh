@@ -13,8 +13,8 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-PATCH_VERSION="6"
-ELK_AUTO_VERSION="2.9.10"
+PATCH_VERSION="7"
+ELK_AUTO_VERSION="2.9.11"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 도구 파일(proxysg-lib.sh 등)은 이 스크립트 옆에 있으면 그것을, 없으면 설치기가 넣어 둔 /usr/local/lib/elk-auto 를 사용
@@ -572,7 +572,7 @@ EOF_VEGA
     fi
   }
 
-  local selected wid spec soid vis_state attrs body  local selected wid spec soid vis_state attrs body
+  local selected wid spec soid vis_state attrs body
   local created_ids=() created_titles=()
   IFS=',' read -ra selected <<<"$KIBANA_PROXYSG_DASHBOARD_WIDGETS"
   for wid in "${selected[@]}"; do
