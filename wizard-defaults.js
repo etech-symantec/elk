@@ -1,4 +1,4 @@
-// ELK Config Wizard defaults for v2.9.7
+// ELK Config Wizard defaults for v2.9.8
 /* =====================================================================
  *  ELK Config Wizard - 기본값 파일 (관리자용)
  *
@@ -94,7 +94,7 @@ window.ELK_DEFAULTS = {
     KIBANA_CREATE_DATA_VIEW: true,                            // Kibana Create Data View  [true | false]
 
     KIBANA_CREATE_PROXYSG_DASHBOARD: true,                    // ProxySG MAIN/SSL Dashboard 자동 생성
-    KIBANA_PROXYSG_DASHBOARD_TITLE: "ProxySG MAIN + SSL Overview", // Dashboard 이름
+    KIBANA_PROXYSG_DASHBOARD_TITLE: "ProxySG Traffic & Security Overview", // Dashboard 이름
     KIBANA_PROXYSG_DASHBOARD_WIDGETS: "requests_total,traffic_total,response_avg,error_requests,requests_timeline,traffic_timeline,response_timeline,status_top,client_ip_top,username_top,host_top,category_top,filter_result_top,action_top,method_top,application_top,threat_risk_top,threat_id_top,ssl_cert_errors,ssl_cipher_strength", // 선택 위젯
     KIBANA_DATA_VIEW_NAME: "ELK Logs",                        // Kibana Data View Name
     KIBANA_DATA_VIEW_TIME_FIELD: "@timestamp",                // Kibana Data View Time Field
