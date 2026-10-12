@@ -10,7 +10,6 @@ ap.add_argument('--report',default='/usr/local/sbin/elk-report'); ap.add_argumen
 ap.add_argument('--env',default='/etc/elk-auto/elk.env')
 a=ap.parse_args()
 HTML=Path(a.html); REPORT=a.report
-ONECLICK_VERSION='/usr/local/sbin/elk-oneclick-version'
 ONECLICK_UPDATE='/usr/local/sbin/elk-oneclick-update'
 ALLOWED_FLAGS={'--no-color','--no-html'}
 VALUE_FLAGS={'--only','--skip','--stale-hours','--env','--html'}
@@ -22,17 +21,13 @@ def parse_command(text):
     if not parts: raise ValueError('실행할 명령을 입력하세요.')
 
     # 읽기 전용 OneClick 명령만 허용한다. --apply/--force 등 변경 명령은 웹에서 차단.
-    if parts[0] in ('elk-oneclick-version',ONECLICK_VERSION):
-        if len(parts)!=1: raise ValueError('elk-oneclick-version에는 추가 옵션을 사용할 수 없습니다.')
-        return {'kind':'oneclick','args':[ONECLICK_VERSION]}
-
     if parts[0] in ('elk-oneclick-update',ONECLICK_UPDATE):
         if len(parts)!=2 or parts[1] not in ('--check','--version'):
             raise ValueError('웹에서는 elk-oneclick-update --check 또는 --version만 사용할 수 있습니다. --apply/--force는 차단됩니다.')
         return {'kind':'oneclick','args':[ONECLICK_UPDATE,parts[1]]}
 
     if parts[0] not in ('elk-report',REPORT):
-        raise ValueError('허용 명령: elk-report, elk-report --copy, elk-oneclick-version, elk-oneclick-update --check')
+        raise ValueError('허용 명령: elk-report, elk-report --copy, elk-oneclick-update --check')
 
     if len(parts)==2 and parts[1]=='--copy':
         return {'kind':'copy_html','args':[REPORT,'--html',str(HTML),'--env',a.env,'--no-color']}
