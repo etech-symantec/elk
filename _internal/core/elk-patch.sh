@@ -13,8 +13,8 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-PATCH_VERSION="8"
-ELK_AUTO_VERSION="2.9.12"
+PATCH_VERSION="9"
+ELK_AUTO_VERSION="2.9.13"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 도구 파일(proxysg-lib.sh 등)은 이 스크립트 옆에 있으면 그것을, 없으면 설치기가 넣어 둔 /usr/local/lib/elk-auto 를 사용
@@ -171,7 +171,7 @@ unset _old _new
 : "${KIBANA_SERVER_PORT:=5601}"; : "${KIBANA_CREATE_DATA_VIEW:=true}"; : "${KIBANA_DATA_VIEW_TIME_FIELD:=@timestamp}"; : "${KIBANA_DATA_VIEW_ALLOW_NO_INDEX:=true}"
 : "${KIBANA_CREATE_PROXYSG_DASHBOARD:=true}"
 : "${KIBANA_PROXYSG_DASHBOARD_TITLE:=ProxySG Traffic & Security Overview}"
-: "${KIBANA_PROXYSG_DASHBOARD_WIDGETS:=requests_total,traffic_total,response_avg,error_requests,requests_timeline,traffic_timeline,response_timeline,status_top,client_ip_top,username_top,host_top,category_top,filter_result_top,action_top,method_top,application_top,threat_risk_top,threat_id_top,ssl_cert_errors,ssl_cipher_strength}"
+: "${KIBANA_PROXYSG_DASHBOARD_WIDGETS:=requests_total,traffic_total,response_avg,error_requests,requests_timeline,user_agent_top,server_ip_top,status_top,client_ip_top,username_top,host_top,category_top,filter_result_top,action_top,method_top,application_top,threat_risk_top,threat_id_top,ssl_cert_errors,ssl_cipher_strength}"
 : "${LOGSTASH_PROFILE:=generic}"; : "${LOGSTASH_PIPELINE_FILE:=/etc/logstash/conf.d/10-main.conf}"; : "${LOGSTASH_ES_HOST:=}"
 : "${FTP_USER:=elkftp}"; : "${FTP_GROUP:=logstash}"; : "${INSTALL_LOGSTASH:=true}"
 : "${STATE_DIR:=/root/.elk-auto-installer}"; : "${SECRETS_FILE:=${STATE_DIR}/secrets.env}"
@@ -191,7 +191,7 @@ check_value() {
     KIBANA_PROXYSG_DASHBOARD_TITLE) [[ -n "${v//[[:space:]]/}" ]] || echo "Dashboard 이름은 비어 있을 수 없습니다." ;;
     KIBANA_PROXYSG_DASHBOARD_WIDGETS)
       [[ -n "${v//[[:space:]]/}" ]] || { echo "Dashboard 위젯을 1개 이상 선택하세요."; return; }
-      local _allowed=" requests_total traffic_total response_avg error_requests requests_timeline traffic_timeline response_timeline status_top client_ip_top username_top host_top category_top filter_result_top action_top method_top application_top threat_risk_top threat_id_top ssl_cert_errors ssl_cipher_strength " _x
+      local _allowed=" requests_total traffic_total response_avg error_requests requests_timeline user_agent_top server_ip_top status_top client_ip_top username_top host_top category_top filter_result_top action_top method_top application_top threat_risk_top threat_id_top ssl_cert_errors ssl_cipher_strength " _x
       IFS=',' read -ra _wa <<<"$v"
       for _x in "${_wa[@]}"; do _x="${_x//[[:space:]]/}"; [[ "$_allowed" == *" $_x "* ]] || { echo "지원하지 않는 Dashboard 위젯 ID: $_x"; return; }; done
       ;;
@@ -406,7 +406,7 @@ act_dashboard() {
   local main_index="${PROXYSG_MAIN_INDEX_PREFIX}-*"
   local ssl_index="${PROXYSG_SSL_INDEX_PREFIX}-*"
   local both_index="${main_index},${ssl_index}"
-  local all_ids="requests_total traffic_total response_avg error_requests requests_timeline traffic_timeline response_timeline status_top client_ip_top username_top host_top category_top filter_result_top action_top method_top application_top threat_risk_top threat_id_top ssl_cert_errors ssl_cipher_strength"
+  local all_ids="requests_total traffic_total response_avg error_requests requests_timeline user_agent_top server_ip_top status_top client_ip_top username_top host_top category_top filter_result_top action_top method_top application_top threat_risk_top threat_id_top ssl_cert_errors ssl_cipher_strength"
 
   kibana_so_request() {
     local method="$1" path="$2" body="${3:-}" out code
@@ -466,8 +466,8 @@ act_dashboard() {
       response_avg)        DW_TITLE="응답시간 Avg · P95"; DW_KIND="metric_latency" ;;
       error_requests)      DW_TITLE="HTTP 오류율"; DW_KIND="metric_error_rate"; DW_FIELD_BASE="sc_status" ;;
       requests_timeline)   DW_TITLE="요청 · 오류 추이"; DW_KIND="time_requests_errors"; DW_FIELD_BASE="sc_status" ;;
-      traffic_timeline)    DW_TITLE="송수신 트래픽 추이"; DW_KIND="time_traffic_split" ;;
-      response_timeline)   DW_TITLE="응답시간 Avg · P95 추이"; DW_KIND="time_latency" ;;
+      user_agent_top)      DW_TITLE="User Agent 분포"; DW_KIND="terms_donut"; DW_FIELD_BASE="cs_User_Agent" ;;
+      server_ip_top)       DW_TITLE="Top Server IP"; DW_KIND="terms_bar"; DW_FIELD_BASE="s_ip" ;;
       status_top)          DW_TITLE="HTTP 상태코드 분포"; DW_KIND="terms_donut"; DW_FIELD_BASE="sc_status" ;;
       client_ip_top)       DW_TITLE="Top Client IP"; DW_FIELD_BASE="c_ip" ;;
       username_top)        DW_TITLE="Top 사용자"; DW_FIELD_BASE="cs_username" ;;
@@ -516,16 +516,6 @@ EOF_VEGA
       time_requests_errors)
         cat <<EOF_VEGA
 {"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"t":{"date_histogram":{"field":"@timestamp","fixed_interval":"1h","extended_bounds":{"min":{"%timefilter%":"min"},"max":{"%timefilter%":"max"}},"min_doc_count":0},"aggs":{"errors":{"filter":{"regexp":{"${_field}":"[45][0-9][0-9]"}}}}}}}},"format":{"property":"aggregations.t.buckets"}},"layer":[{"mark":{"type":"area","color":"#14B8A6","opacity":0.16,"line":{"color":"#14B8A6","strokeWidth":2}},"encoding":{"x":{"field":"key","type":"temporal","title":null,"axis":{"grid":false,"labelColor":"#64748B"}},"y":{"field":"doc_count","type":"quantitative","title":"요청","axis":{"gridColor":"#EEF2F7","labelColor":"#64748B"}},"tooltip":[{"field":"key_as_string","type":"nominal","title":"시각"},{"field":"doc_count","type":"quantitative","title":"전체 요청","format":","}]}},{"mark":{"type":"line","color":"#EF4444","strokeWidth":2.2,"point":{"filled":true,"size":22}},"encoding":{"x":{"field":"key","type":"temporal"},"y":{"field":"errors.doc_count","type":"quantitative"},"tooltip":[{"field":"errors.doc_count","type":"quantitative","title":"HTTP 오류","format":","}]}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
-EOF_VEGA
-        ;;
-      time_traffic_split)
-        cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"t":{"date_histogram":{"field":"@timestamp","fixed_interval":"1h","extended_bounds":{"min":{"%timefilter%":"min"},"max":{"%timefilter%":"max"}},"min_doc_count":0},"aggs":{"response_bytes":{"sum":{"field":"sc_bytes"}},"request_bytes":{"sum":{"field":"cs_bytes"}}}}}},"format":{"property":"aggregations.t.buckets"}},"layer":[{"mark":{"type":"area","color":"#0284C7","opacity":0.15,"line":{"color":"#0284C7","strokeWidth":2}},"encoding":{"x":{"field":"key","type":"temporal","title":null,"axis":{"grid":false,"labelColor":"#64748B"}},"y":{"field":"response_bytes.value","type":"quantitative","title":"Bytes","axis":{"gridColor":"#EEF2F7","labelColor":"#64748B"}},"tooltip":[{"field":"key_as_string","type":"nominal","title":"시각"},{"field":"response_bytes.value","type":"quantitative","title":"Response Bytes","format":".3s"}]}},{"mark":{"type":"line","color":"#F59E0B","strokeWidth":2.1,"point":{"filled":true,"size":18}},"encoding":{"x":{"field":"key","type":"temporal"},"y":{"field":"request_bytes.value","type":"quantitative"},"tooltip":[{"field":"request_bytes.value","type":"quantitative","title":"Request Bytes","format":".3s"}]}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}}
-EOF_VEGA
-        ;;
-      time_latency)
-        cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"t":{"date_histogram":{"field":"@timestamp","fixed_interval":"1h","extended_bounds":{"min":{"%timefilter%":"min"},"max":{"%timefilter%":"max"}},"min_doc_count":0},"aggs":{"avg":{"avg":{"field":"time_taken"}},"p95":{"percentiles":{"field":"time_taken","percents":[95]}}}}}},"format":{"property":"aggregations.t.buckets"}},"transform":[{"calculate":"datum.avg.value","as":"avg_ms"},{"calculate":"datum.p95.values['95.0']","as":"p95_ms"}],"layer":[{"mark":{"type":"line","color":"#7C3AED","strokeWidth":2.2,"point":{"filled":true,"size":18}},"encoding":{"x":{"field":"key","type":"temporal","title":null,"axis":{"grid":false,"labelColor":"#64748B"}},"y":{"field":"avg_ms","type":"quantitative","title":"ms","axis":{"gridColor":"#EEF2F7","labelColor":"#64748B"}},"tooltip":[{"field":"key_as_string","type":"nominal","title":"시각"},{"field":"avg_ms","type":"quantitative","title":"평균","format":".1f"}]}},{"mark":{"type":"line","color":"#EC4899","strokeWidth":2.2,"strokeDash":[5,3]},"encoding":{"x":{"field":"key","type":"temporal"},"y":{"field":"p95_ms","type":"quantitative"},"tooltip":[{"field":"p95_ms","type":"quantitative","title":"P95","format":".1f"}]}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}}
 EOF_VEGA
         ;;
       terms_donut)

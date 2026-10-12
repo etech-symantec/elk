@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-# ELK Auto Installer v2.9.12
+# ELK Auto Installer v2.9.13
 # Target: Ubuntu 22.04 / 24.04, Elastic Stack 9.x
 # Usage: sudo bash install-elk.sh ./elk.env
 
@@ -120,7 +120,7 @@ unset _old_name _new_name
 : "${KIBANA_DATA_VIEW_ALLOW_NO_INDEX:=true}"
 : "${KIBANA_CREATE_PROXYSG_DASHBOARD:=true}"
 : "${KIBANA_PROXYSG_DASHBOARD_TITLE:=ProxySG Traffic & Security Overview}"
-: "${KIBANA_PROXYSG_DASHBOARD_WIDGETS:=requests_total,traffic_total,response_avg,error_requests,requests_timeline,traffic_timeline,response_timeline,status_top,client_ip_top,username_top,host_top,category_top,filter_result_top,action_top,method_top,application_top,threat_risk_top,threat_id_top,ssl_cert_errors,ssl_cipher_strength}"
+: "${KIBANA_PROXYSG_DASHBOARD_WIDGETS:=requests_total,traffic_total,response_avg,error_requests,requests_timeline,user_agent_top,server_ip_top,status_top,client_ip_top,username_top,host_top,category_top,filter_result_top,action_top,method_top,application_top,threat_risk_top,threat_id_top,ssl_cert_errors,ssl_cipher_strength}"
 : "${KIBANA_CREATE_INITIAL_USER:=false}"
 : "${KIBANA_INITIAL_USER_NAME:=}"
 : "${KIBANA_INITIAL_USER_PASSWORD:=}"
@@ -320,7 +320,7 @@ unset _old_name _new_name
 : "${HEALTH_DISK_CRIT_PERCENT:=92}"
 : "${HEALTH_AUTO_PAUSE_FILE_INGEST_ON_CRITICAL:=false}"
 
-# 정기점검 HTML / Web Viewer (v2.9.12)
+# 정기점검 HTML / Web Viewer (v2.9.13)
 : "${ELK_REPORT_HTML_DIR:=/var/lib/elk-report}"
 : "${ELK_REPORT_HTML_FILE:=${ELK_REPORT_HTML_DIR}/report.html}"
 : "${ELK_REPORT_WEB_ENABLED:=true}"
@@ -923,7 +923,7 @@ for _d in ES_CA_DAYS ES_CERT_DAYS NGINX_TLS_DAYS; do [[ "${!_d}" =~ ^[0-9]+$ && 
     [[ "$PROXYSG_PROCESS_CRON" =~ ^[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+$ ]] || die "PROXYSG_PROCESS_CRON은 5개 필드 cron 형식이어야 합니다. 예: 0 3 * * *"
   fi
   if istrue "$KIBANA_CREATE_PROXYSG_DASHBOARD"; then
-    _dash_allowed=" requests_total traffic_total response_avg error_requests requests_timeline traffic_timeline response_timeline status_top client_ip_top username_top host_top category_top filter_result_top action_top method_top application_top threat_risk_top threat_id_top ssl_cert_errors ssl_cipher_strength "
+    _dash_allowed=" requests_total traffic_total response_avg error_requests requests_timeline user_agent_top server_ip_top status_top client_ip_top username_top host_top category_top filter_result_top action_top method_top application_top threat_risk_top threat_id_top ssl_cert_errors ssl_cipher_strength "
     IFS=',' read -ra _dash_sel <<<"$KIBANA_PROXYSG_DASHBOARD_WIDGETS"
     (( ${#_dash_sel[@]} > 0 )) || die "KIBANA_PROXYSG_DASHBOARD_WIDGETS가 비어 있습니다."
     for _wid in "${_dash_sel[@]}"; do
@@ -1036,7 +1036,7 @@ extend_root_lvm() {
 }
 
 # ----------------------------- OS -----------------------------
-ELK_AUTO_VERSION="2.9.12"
+ELK_AUTO_VERSION="2.9.13"
 log "ELK Auto Installer v${ELK_AUTO_VERSION}"
 log "환경파일: $ENV_FILE"
 log "설치 로그: $INSTALL_LOG"
@@ -2306,7 +2306,7 @@ if [[ -f "$SCRIPT_DIR/elk-patch.sh" && -f "$SCRIPT_DIR/proxysg-lib.sh" ]]; then
   if [[ -s "$SCRIPT_DIR/custom-pipeline.conf" ]]; then install -m 644 "$SCRIPT_DIR/custom-pipeline.conf" /usr/local/lib/elk-auto/custom-pipeline.conf; else rm -f /usr/local/lib/elk-auto/custom-pipeline.conf; fi
   log "부분 패치 도구 설치: /usr/local/sbin/elk-patch  (예: sudo elk-patch --list)"
 fi
-# v2.9.12: 서버 정기점검 리포트 + HTML Web Viewer
+# v2.9.13: 서버 정기점검 리포트 + HTML Web Viewer
 if [[ -f "$SCRIPT_DIR/elk-report.sh" ]]; then
   install -m 755 "$SCRIPT_DIR/elk-report.sh" /usr/local/sbin/elk-report
   install -d -m 755 "$ELK_REPORT_HTML_DIR"
@@ -2549,8 +2549,8 @@ if istrue "$START_SERVICES_AFTER_INSTALL"; then
           response_avg)        DW_TITLE="응답시간 Avg · P95"; DW_KIND="metric_latency" ;;
           error_requests)      DW_TITLE="HTTP 오류율"; DW_KIND="metric_error_rate"; DW_FIELD_BASE="sc_status" ;;
           requests_timeline)   DW_TITLE="요청 · 오류 추이"; DW_KIND="time_requests_errors"; DW_FIELD_BASE="sc_status" ;;
-          traffic_timeline)    DW_TITLE="송수신 트래픽 추이"; DW_KIND="time_traffic_split" ;;
-          response_timeline)   DW_TITLE="응답시간 Avg · P95 추이"; DW_KIND="time_latency" ;;
+          user_agent_top)      DW_TITLE="User Agent 분포"; DW_KIND="terms_donut"; DW_FIELD_BASE="cs_User_Agent" ;;
+          server_ip_top)       DW_TITLE="Top Server IP"; DW_KIND="terms_bar"; DW_FIELD_BASE="s_ip" ;;
           status_top)          DW_TITLE="HTTP 상태코드 분포"; DW_KIND="terms_donut"; DW_FIELD_BASE="sc_status" ;;
           client_ip_top)       DW_TITLE="Top Client IP"; DW_FIELD_BASE="c_ip" ;;
           username_top)        DW_TITLE="Top 사용자"; DW_FIELD_BASE="cs_username" ;;
@@ -2599,16 +2599,6 @@ EOF_VEGA
           time_requests_errors)
             cat <<EOF_VEGA
 {"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"t":{"date_histogram":{"field":"@timestamp","fixed_interval":"1h","extended_bounds":{"min":{"%timefilter%":"min"},"max":{"%timefilter%":"max"}},"min_doc_count":0},"aggs":{"errors":{"filter":{"regexp":{"${_field}":"[45][0-9][0-9]"}}}}}}}},"format":{"property":"aggregations.t.buckets"}},"layer":[{"mark":{"type":"area","color":"#14B8A6","opacity":0.16,"line":{"color":"#14B8A6","strokeWidth":2}},"encoding":{"x":{"field":"key","type":"temporal","title":null,"axis":{"grid":false,"labelColor":"#64748B"}},"y":{"field":"doc_count","type":"quantitative","title":"요청","axis":{"gridColor":"#EEF2F7","labelColor":"#64748B"}},"tooltip":[{"field":"key_as_string","type":"nominal","title":"시각"},{"field":"doc_count","type":"quantitative","title":"전체 요청","format":","}]}},{"mark":{"type":"line","color":"#EF4444","strokeWidth":2.2,"point":{"filled":true,"size":22}},"encoding":{"x":{"field":"key","type":"temporal"},"y":{"field":"errors.doc_count","type":"quantitative"},"tooltip":[{"field":"errors.doc_count","type":"quantitative","title":"HTTP 오류","format":","}]}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
-EOF_VEGA
-            ;;
-          time_traffic_split)
-            cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"t":{"date_histogram":{"field":"@timestamp","fixed_interval":"1h","extended_bounds":{"min":{"%timefilter%":"min"},"max":{"%timefilter%":"max"}},"min_doc_count":0},"aggs":{"response_bytes":{"sum":{"field":"sc_bytes"}},"request_bytes":{"sum":{"field":"cs_bytes"}}}}}},"format":{"property":"aggregations.t.buckets"}},"layer":[{"mark":{"type":"area","color":"#0284C7","opacity":0.15,"line":{"color":"#0284C7","strokeWidth":2}},"encoding":{"x":{"field":"key","type":"temporal","title":null,"axis":{"grid":false,"labelColor":"#64748B"}},"y":{"field":"response_bytes.value","type":"quantitative","title":"Bytes","axis":{"gridColor":"#EEF2F7","labelColor":"#64748B"}},"tooltip":[{"field":"key_as_string","type":"nominal","title":"시각"},{"field":"response_bytes.value","type":"quantitative","title":"Response Bytes","format":".3s"}]}},{"mark":{"type":"line","color":"#F59E0B","strokeWidth":2.1,"point":{"filled":true,"size":18}},"encoding":{"x":{"field":"key","type":"temporal"},"y":{"field":"request_bytes.value","type":"quantitative"},"tooltip":[{"field":"request_bytes.value","type":"quantitative","title":"Request Bytes","format":".3s"}]}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}}
-EOF_VEGA
-            ;;
-          time_latency)
-            cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"t":{"date_histogram":{"field":"@timestamp","fixed_interval":"1h","extended_bounds":{"min":{"%timefilter%":"min"},"max":{"%timefilter%":"max"}},"min_doc_count":0},"aggs":{"avg":{"avg":{"field":"time_taken"}},"p95":{"percentiles":{"field":"time_taken","percents":[95]}}}}}},"format":{"property":"aggregations.t.buckets"}},"transform":[{"calculate":"datum.avg.value","as":"avg_ms"},{"calculate":"datum.p95.values['95.0']","as":"p95_ms"}],"layer":[{"mark":{"type":"line","color":"#7C3AED","strokeWidth":2.2,"point":{"filled":true,"size":18}},"encoding":{"x":{"field":"key","type":"temporal","title":null,"axis":{"grid":false,"labelColor":"#64748B"}},"y":{"field":"avg_ms","type":"quantitative","title":"ms","axis":{"gridColor":"#EEF2F7","labelColor":"#64748B"}},"tooltip":[{"field":"key_as_string","type":"nominal","title":"시각"},{"field":"avg_ms","type":"quantitative","title":"평균","format":".1f"}]}},{"mark":{"type":"line","color":"#EC4899","strokeWidth":2.2,"strokeDash":[5,3]},"encoding":{"x":{"field":"key","type":"temporal"},"y":{"field":"p95_ms","type":"quantitative"},"tooltip":[{"field":"p95_ms","type":"quantitative","title":"P95","format":".1f"}]}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}}
 EOF_VEGA
             ;;
           terms_donut)
