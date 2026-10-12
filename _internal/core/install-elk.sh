@@ -118,6 +118,9 @@ unset _old_name _new_name
 : "${KIBANA_DATA_VIEW_NAME:=ELK Logs}"
 : "${KIBANA_DATA_VIEW_TIME_FIELD:=@timestamp}"
 : "${KIBANA_DATA_VIEW_ALLOW_NO_INDEX:=true}"
+: "${KIBANA_CREATE_PROXYSG_DASHBOARD:=true}"
+: "${KIBANA_PROXYSG_DASHBOARD_TITLE:=ProxySG MAIN + SSL Overview}"
+: "${KIBANA_PROXYSG_DASHBOARD_WIDGETS:=requests_total,traffic_total,response_avg,error_requests,requests_timeline,traffic_timeline,response_timeline,status_top,client_ip_top,username_top,host_top,category_top,filter_result_top,action_top,method_top,application_top,threat_risk_top,threat_id_top,ssl_cert_errors,ssl_cipher_strength}"
 : "${KIBANA_CREATE_INITIAL_USER:=false}"
 : "${KIBANA_INITIAL_USER_NAME:=}"
 : "${KIBANA_INITIAL_USER_PASSWORD:=}"
@@ -918,6 +921,16 @@ for _d in ES_CA_DAYS ES_CERT_DAYS NGINX_TLS_DAYS; do [[ "${!_d}" =~ ^[0-9]+$ && 
     for _p in "${_dvn[@]}"; do [[ -n "${_p//[[:space:]]/}" ]] || die "Data View 이름이 비어 있습니다."; done
     [[ -z "$(printf '%s\n' "${_dvn[@]}" | sort | uniq -d)" ]] || die "MAIN/SSL/Cloud Data View 이름은 서로 달라야 합니다: ${_dvn[*]}"
     [[ "$PROXYSG_PROCESS_CRON" =~ ^[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+$ ]] || die "PROXYSG_PROCESS_CRON은 5개 필드 cron 형식이어야 합니다. 예: 0 3 * * *"
+  fi
+  if istrue "$KIBANA_CREATE_PROXYSG_DASHBOARD"; then
+    _dash_allowed=" requests_total traffic_total response_avg error_requests requests_timeline traffic_timeline response_timeline status_top client_ip_top username_top host_top category_top filter_result_top action_top method_top application_top threat_risk_top threat_id_top ssl_cert_errors ssl_cipher_strength "
+    IFS=',' read -ra _dash_sel <<<"$KIBANA_PROXYSG_DASHBOARD_WIDGETS"
+    (( ${#_dash_sel[@]} > 0 )) || die "KIBANA_PROXYSG_DASHBOARD_WIDGETS가 비어 있습니다."
+    for _wid in "${_dash_sel[@]}"; do
+      _wid="${_wid//[[:space:]]/}"
+      [[ -n "$_wid" ]] || continue
+      [[ "$_dash_allowed" == *" $_wid "* ]] || die "지원하지 않는 Dashboard 위젯 ID: $_wid"
+    done
   fi
   if istrue "$ILM_DELETE_ENABLED" && [[ ! "$ILM_DELETE_MIN_AGE" =~ ^[0-9]+(ms|s|m|h|d|w)$ ]]; then
     die "ILM_DELETE_MIN_AGE 형식이 올바르지 않습니다. 예: 90d (현재: '$ILM_DELETE_MIN_AGE')"
@@ -2487,8 +2500,149 @@ if istrue "$START_SERVICES_AFTER_INSTALL"; then
         create_data_view "$PROXYSG_MAIN_DATA_VIEW_NAME" "${PROXYSG_MAIN_INDEX_PREFIX}-*"
         create_data_view "$PROXYSG_SSL_DATA_VIEW_NAME" "${PROXYSG_SSL_INDEX_PREFIX}-*"
         if istrue "$PROXYSG_CLOUD_ENABLED"; then create_data_view "$PROXYSG_CLOUD_DATA_VIEW_NAME" "${PROXYSG_CLOUD_INDEX_PREFIX}-*"; fi
+
       else
         create_data_view "$KIBANA_DATA_VIEW_NAME" "$INDEX_MATCH_PATTERN"
+      fi
+    fi
+
+    # ---------------- ProxySG MAIN + SSL dashboard ----------------
+    if istrue "$KIBANA_CREATE_PROXYSG_DASHBOARD" && istrue "$PROXYSG_FLOW_ENABLED" && istrue "$ES_SECURITY_ENABLED"; then
+      _dash_main="${PROXYSG_MAIN_INDEX_PREFIX}-*"
+      _dash_ssl="${PROXYSG_SSL_INDEX_PREFIX}-*"
+      _dash_both="${_dash_main},${_dash_ssl}"
+      _dash_id="elk-auto-proxysg-main-ssl"
+      _dash_created=()
+      _dash_titles=()
+      _dash_panel=0
+
+      kibana_so_put() {
+        local _type="$1" _id="$2" _body="$3" _out _code
+        _out="$(curl -sS -w '\n%{http_code}' -u "${ELASTIC_USERNAME}:${ELASTIC_PASSWORD}" \
+          -H 'kbn-xsrf: true' -H 'Content-Type: application/json' \
+          -X POST "${KIBANA_LOCAL_URL}/api/saved_objects/${_type}/${_id}?overwrite=true" -d "$_body" || true)"
+        _code="$(echo "$_out" | tail -n1)"
+        [[ "$_code" == "200" ]] || { warn "Kibana Saved Object 생성 실패: ${_type}/${_id} HTTP=${_code}"; return 1; }
+        return 0
+      }
+
+      dash_widget_def() {
+        local _id="$1"
+        DW_INDEX="$_dash_both"; DW_KIND="terms"; DW_FIELD=""; DW_TITLE=""; DW_SIZE=10
+        case "$_id" in
+          requests_total)      DW_TITLE="전체 요청 수"; DW_KIND="metric_count" ;;
+          traffic_total)       DW_TITLE="전체 트래픽"; DW_KIND="metric_bytes" ;;
+          response_avg)        DW_TITLE="평균 응답시간 (ms)"; DW_KIND="metric_avg"; DW_FIELD="time_taken" ;;
+          error_requests)      DW_TITLE="HTTP 4xx/5xx 요청"; DW_KIND="metric_errors" ;;
+          requests_timeline)   DW_TITLE="요청 추이"; DW_KIND="time_count" ;;
+          traffic_timeline)    DW_TITLE="트래픽 추이"; DW_KIND="time_bytes" ;;
+          response_timeline)   DW_TITLE="평균 응답시간 추이"; DW_KIND="time_avg"; DW_FIELD="time_taken" ;;
+          status_top)          DW_TITLE="HTTP 상태코드"; DW_FIELD="sc_status.keyword" ;;
+          client_ip_top)       DW_TITLE="Top Client IP"; DW_FIELD="c_ip.keyword" ;;
+          username_top)        DW_TITLE="Top 사용자"; DW_FIELD="cs_username.keyword" ;;
+          host_top)            DW_TITLE="Top 목적지 Host"; DW_FIELD="cs_host.keyword" ;;
+          category_top)        DW_TITLE="Top 카테고리"; DW_FIELD="cs_categories.keyword" ;;
+          filter_result_top)   DW_TITLE="필터 결과"; DW_FIELD="sc_filter_result.keyword" ;;
+          action_top)          DW_TITLE="Proxy Action"; DW_FIELD="s_action.keyword" ;;
+          method_top)          DW_TITLE="HTTP Method"; DW_FIELD="cs_method.keyword" ;;
+          application_top)     DW_TITLE="Top Application"; DW_FIELD="x_bluecoat_application_name.keyword"; DW_INDEX="$_dash_main" ;;
+          threat_risk_top)     DW_TITLE="Threat Risk"; DW_FIELD="cs_threat_risk.keyword" ;;
+          threat_id_top)       DW_TITLE="Top Threat ID"; DW_FIELD="cs_threat_id.keyword" ;;
+          ssl_cert_errors)     DW_TITLE="SSL 인증서 오류"; DW_FIELD="x_rs_certificate_observed_errors.keyword"; DW_INDEX="$_dash_ssl" ;;
+          ssl_cipher_strength) DW_TITLE="SSL Cipher Strength"; DW_FIELD="x_rs_connection_negotiated_cipher_strength.keyword"; DW_INDEX="$_dash_ssl" ;;
+          *) return 1 ;;
+        esac
+      }
+
+      dash_vega_spec() {
+        local _kind="$1" _index="$2" _field="$3" _title="$4"
+        case "$_kind" in
+          metric_count)
+            cat <<EOF_VEGA
+{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}}],"keyed":false}}}}},"format":{"property":"aggregations.m.buckets"}},"mark":{"type":"text","fontSize":34,"fontWeight":"bold"},"encoding":{"text":{"field":"doc_count","type":"quantitative","format":","}},"config":{"view":{"stroke":null}}}
+EOF_VEGA
+            ;;
+          metric_bytes)
+            cat <<EOF_VEGA
+{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}}],"keyed":false},"aggs":{"sc":{"sum":{"field":"sc_bytes"}},"cs":{"sum":{"field":"cs_bytes"}}}}}}},"format":{"property":"aggregations.m.buckets"}},"transform":[{"calculate":"datum.sc.value + datum.cs.value","as":"bytes"}],"mark":{"type":"text","fontSize":32,"fontWeight":"bold"},"encoding":{"text":{"field":"bytes","type":"quantitative","format":".3s"}},"config":{"view":{"stroke":null}}}
+EOF_VEGA
+            ;;
+          metric_avg)
+            cat <<EOF_VEGA
+{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}}],"keyed":false},"aggs":{"v":{"avg":{"field":"${_field}"}}}}}}},"format":{"property":"aggregations.m.buckets"}},"transform":[{"calculate":"isValid(datum.v.value) ? datum.v.value : 0","as":"value"}],"mark":{"type":"text","fontSize":32,"fontWeight":"bold"},"encoding":{"text":{"field":"value","type":"quantitative","format":".1f"}},"config":{"view":{"stroke":null}}}
+EOF_VEGA
+            ;;
+          metric_errors)
+            cat <<EOF_VEGA
+{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"regexp":{"sc_status.keyword":"[45][0-9][0-9]"}}],"keyed":false}}}}},"format":{"property":"aggregations.m.buckets"}},"mark":{"type":"text","fontSize":34,"fontWeight":"bold"},"encoding":{"text":{"field":"doc_count","type":"quantitative","format":","}},"config":{"view":{"stroke":null}}}
+EOF_VEGA
+            ;;
+          time_count)
+            cat <<EOF_VEGA
+{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"t":{"date_histogram":{"field":"@timestamp","fixed_interval":"1h","min_doc_count":0}}}}},"format":{"property":"aggregations.t.buckets"}},"mark":{"type":"line","point":false},"encoding":{"x":{"field":"key","type":"temporal","title":"시간"},"y":{"field":"doc_count","type":"quantitative","title":"요청"}}}
+EOF_VEGA
+            ;;
+          time_bytes)
+            cat <<EOF_VEGA
+{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"t":{"date_histogram":{"field":"@timestamp","fixed_interval":"1h","min_doc_count":0},"aggs":{"sc":{"sum":{"field":"sc_bytes"}},"cs":{"sum":{"field":"cs_bytes"}}}}}}},"format":{"property":"aggregations.t.buckets"}},"transform":[{"calculate":"datum.sc.value + datum.cs.value","as":"bytes"}],"mark":{"type":"area","line":true,"opacity":0.25},"encoding":{"x":{"field":"key","type":"temporal","title":"시간"},"y":{"field":"bytes","type":"quantitative","title":"Bytes"}}}
+EOF_VEGA
+            ;;
+          time_avg)
+            cat <<EOF_VEGA
+{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"t":{"date_histogram":{"field":"@timestamp","fixed_interval":"1h","min_doc_count":0},"aggs":{"v":{"avg":{"field":"${_field}"}}}}}}},"format":{"property":"aggregations.t.buckets"}},"mark":{"type":"line","point":false},"encoding":{"x":{"field":"key","type":"temporal","title":"시간"},"y":{"field":"v.value","type":"quantitative","title":"ms"}}}
+EOF_VEGA
+            ;;
+          terms)
+            cat <<EOF_VEGA
+{"$schema":"https://vega.github.io/schema/vega-lite/v5.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"top":{"terms":{"field":"${_field}","size":10,"missing":"(없음)"}}}}},"format":{"property":"aggregations.top.buckets"}},"mark":"bar","encoding":{"y":{"field":"key","type":"nominal","sort":"-x","title":null},"x":{"field":"doc_count","type":"quantitative","title":"건수"},"tooltip":[{"field":"key","type":"nominal","title":"값"},{"field":"doc_count","type":"quantitative","title":"건수","format":","}]}}
+EOF_VEGA
+            ;;
+        esac
+      }
+
+      create_dash_widget() {
+        local _wid="$1" _spec _vis_state _attrs _body _soid
+        dash_widget_def "$_wid" || return 1
+        _spec="$(dash_vega_spec "$DW_KIND" "$DW_INDEX" "$DW_FIELD" "$DW_TITLE")"
+        _soid="elk-auto-proxysg-${_wid}"
+        _vis_state="$(jq -cn --arg t "$DW_TITLE" --arg s "$_spec" '{title:$t,type:"vega",params:{spec:$s,enableExternalUrls:false},aggs:[]}')"
+        _attrs="$(jq -cn --arg t "$DW_TITLE" --arg vs "$_vis_state" \
+          '{title:$t,description:"ELK Auto Installer · ProxySG MAIN/SSL",visState:$vs,uiStateJSON:"{}",version:1,kibanaSavedObjectMeta:{searchSourceJSON:"{}"}}')"
+        _body="$(jq -cn --argjson a "$_attrs" '{attributes:$a,references:[]}')"
+        if kibana_so_put visualization "$_soid" "$_body"; then
+          _dash_created+=("$_soid"); _dash_titles+=("$DW_TITLE")
+          log "Kibana Dashboard 위젯 생성: $DW_TITLE"
+        fi
+      }
+
+      IFS=',' read -ra _dash_selected <<<"$KIBANA_PROXYSG_DASHBOARD_WIDGETS"
+      for _wid in "${_dash_selected[@]}"; do
+        _wid="${_wid//[[:space:]]/}"
+        [[ -n "$_wid" ]] && create_dash_widget "$_wid" || true
+      done
+
+      if (( ${#_dash_created[@]} > 0 )); then
+        _panels='[]'; _refs='[]'
+        for _i in "${!_dash_created[@]}"; do
+          _soid="${_dash_created[_i]}"
+          if (( _i < 4 )); then
+            _w=12; _h=8; _x=$((_i*12)); _y=0
+          else
+            _j=$((_i-4)); _w=24; _h=15; _x=$(((_j%2)*24)); _y=$((8+(_j/2)*15))
+          fi
+          _panels="$(jq -c --arg i "$_i" --arg x "$_x" --arg y "$_y" --arg w "$_w" --arg h "$_h" \
+            '. + [{version:"9.0.0",type:"visualization",gridData:{x:($x|tonumber),y:($y|tonumber),w:($w|tonumber),h:($h|tonumber),i:$i},panelIndex:$i,embeddableConfig:{},panelRefName:("panel_"+$i)}]' <<<"$_panels")"
+          _refs="$(jq -c --arg i "$_i" --arg id "$_soid" \
+            '. + [{name:("panel_"+$i),type:"visualization",id:$id}]' <<<"$_refs")"
+        done
+        _dash_attrs="$(jq -cn --arg t "$KIBANA_PROXYSG_DASHBOARD_TITLE" --arg p "$_panels" \
+          '{title:$t,description:"ELK Auto Installer · ProxySG MAIN + SSL 기본 운영 대시보드",hits:0,panelsJSON:$p,optionsJSON:"{\"useMargins\":true,\"syncColors\":false,\"syncCursor\":true,\"syncTooltips\":true,\"hidePanelTitles\":false}",version:1,timeRestore:false,kibanaSavedObjectMeta:{searchSourceJSON:"{}"}}')"
+        _dash_body="$(jq -cn --argjson a "$_dash_attrs" --argjson r "$_refs" '{attributes:$a,references:$r}')"
+        if kibana_so_put dashboard "$_dash_id" "$_dash_body"; then
+          log "Kibana Dashboard 생성/갱신: $KIBANA_PROXYSG_DASHBOARD_TITLE (${#_dash_created[@]}개 위젯)"
+        fi
+      else
+        warn "선택된 Dashboard 위젯을 생성하지 못해 Dashboard 생성을 건너뜁니다."
       fi
     fi
   fi
