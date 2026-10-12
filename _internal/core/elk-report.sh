@@ -8,7 +8,7 @@
 #   옵션: --only a,b  --skip a,b  --env FILE  --stale-hours N(기본 36)  --no-color | --color=always|never|auto  --copy  --self-delete  --version
 #
 # 항목:  sys(Ubuntu·Uptime) ver(Elastic/Logstash/Kibana 버전) cpu mem disk(파일시스템·로그 폴더·인덱스 용량)
-#        last(마지막 로그 시각: 파일·인덱스) svc(서비스) es(클러스터 상태) ingest(수집·처리 상태) cert(인증서) os(업데이트·장애)
+#        last(마지막 로그 시각: 파일·인덱스) svc(서비스) es(클러스터 상태) ingest(수집·처리 상태) cert(인증서) os(업데이트·장애) event(Warning 이상 이벤트)
 # 종료 코드: 0=모두 정상, 1=주의 있음, 2=이상 있음 (cron/모니터링에서 쓸 수 있음)
 #
 # 한 항목의 점검이 실패해도 리포트는 끝까지 나옵니다. (set -e 를 쓰지 않음)
@@ -23,7 +23,7 @@ REPORT_BUILD="$ELK_AUTO_BUILD"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 ONLY=""; SKIP=""; STALE_H="${ELK_STALE_HOURS:-36}"; COLOR_MODE="${ELK_COLOR:-auto}"; COPY_HTML=0; SELF_DELETE=0
 HTML_OUT="${ELK_REPORT_HTML_FILE:-/var/lib/elk-report/report.html}"; WRITE_HTML=1
-ALL_SECTIONS=(sys ver cpu mem proc disk last svc es ingest cfg cert os)
+ALL_SECTIONS=(sys ver cpu mem proc disk last svc es ingest cfg cert os event)
 
 usage() { sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 list_sections() {
@@ -42,6 +42,7 @@ list_sections() {
   cfg     OneClick 설치 구성 일치 여부 (패키지 · 설정 · 도구 · cron · sysctl)
   cert    인증서 만료일 (Elasticsearch CA · Nginx)
   os      업데이트 · 실패한 서비스 · OOM · 프로세스 종료 이력
+  event   Ubuntu + ELK Warning 이상 이벤트 로그 (최근 7일 · 시간순)
 EOF
 }
 while [[ $# -gt 0 ]]; do
@@ -162,6 +163,7 @@ unset _old _new
 [[ "${LOGSTASH_PROFILE:-}" == "proxysg_guide" ]] && LOGSTASH_PROFILE="proxysg"
 tf() { [[ "${1,,}" =~ ^(1|true|yes|y|on)$ ]]; }
 : "${STATE_DIR:=/root/.elk-auto-installer}"; : "${SECRETS_FILE:=${STATE_DIR}/secrets.env}"
+: "${EVENT_LOG_DAYS:=7}"; : "${EVENT_LOG_MAX:=60}"
 : "${ES_HTTP_PORT:=9200}"; : "${ELASTIC_USERNAME:=elastic}"; : "${ES_SECURITY_ENABLED:=true}"; : "${ES_PATH_DATA:=/var/lib/elasticsearch}"
 : "${LOGSTASH_PATH_DATA:=/var/lib/logstash}"; : "${LOGSTASH_PATH_LOGS:=/var/log/logstash}"
 : "${INDEX_PREFIX:=network-log}"; : "${PROXYSG_FLOW_ENABLED:=false}"; : "${PROXYSG_CLOUD_ENABLED:=false}"
@@ -647,6 +649,89 @@ if want cert; then
     fi
   fi
   (( any )) || row info "인증서" "점검할 인증서 파일이 없습니다."
+fi
+
+# ---------------------------------------------------------------- event
+# Ubuntu/systemd journal에서 Warning(4) 이상만 수집하고,
+# Elasticsearch/Logstash/Kibana unit은 ELK로 분류해 한 타임라인에 합칩니다.
+# 너무 많은 이벤트가 리포트를 압도하지 않도록 최근 EVENT_LOG_MAX건만 표시합니다.
+if want event; then
+  section "이벤트 로그  ·  Warning 이상 · 최근 ${EVENT_LOG_DAYS}일"
+  _ev_tmp="$(mktemp /tmp/elk-report-events.XXXXXX)"
+  _ev_raw="${_ev_tmp}.raw"
+  : >"$_ev_tmp"; : >"$_ev_raw"
+
+  if command -v journalctl >/dev/null 2>&1; then
+    # priority 0(emerg)~4(warning), local timestamp, unit/source/message를 JSON으로 안전하게 추출
+    journalctl --since "${EVENT_LOG_DAYS} days ago" -p warning..emerg -o json --no-pager -q 2>/dev/null |
+      jq -r '
+        def clean: tostring | gsub("[\\r\\n\\t]+";" ") | gsub("  +";" ");
+        select(.__REALTIME_TIMESTAMP != null) |
+        [
+          ((.__REALTIME_TIMESTAMP|tonumber/1000000)|floor|tostring),
+          (.PRIORITY // "4"),
+          (._SYSTEMD_UNIT // .SYSLOG_IDENTIFIER // ._COMM // "system" | clean),
+          (.MESSAGE // "" | clean)
+        ] | @tsv
+      ' 2>/dev/null >"$_ev_raw" || true
+
+    while IFS=$'\t' read -r _epoch _pri _src _msg; do
+      [[ "$_epoch" =~ ^[0-9]+$ && "$_pri" =~ ^[0-4]$ && -n "$_msg" ]] || continue
+
+      _origin="Ubuntu"
+      if grep -qiE '(^|[.@_-])(elasticsearch|logstash|kibana)([.@_-]|$)' <<<"$_src"; then
+        _origin="ELK"
+      fi
+
+      case "$_pri" in
+        0) _sev="EMERG"; _st="crit" ;;
+        1) _sev="ALERT"; _st="crit" ;;
+        2) _sev="CRIT";  _st="crit" ;;
+        3) _sev="ERROR"; _st="crit" ;;
+        *) _sev="WARNING"; _st="warn" ;;
+      esac
+
+      # epoch|status|severity|origin|source|message
+      printf '%s|%s|%s|%s|%s|%s\n' \
+        "$_epoch" "$_st" "$_sev" "$_origin" "$_src" "$_msg" >>"$_ev_tmp"
+    done <"$_ev_raw"
+  fi
+
+  _ev_total="$(wc -l <"$_ev_tmp" 2>/dev/null | tr -d ' ' || echo 0)"
+  [[ "$_ev_total" =~ ^[0-9]+$ ]] || _ev_total=0
+
+  if (( _ev_total == 0 )); then
+    row ok "Warning 이상 이벤트" "최근 ${EVENT_LOG_DAYS}일 동안 Ubuntu/ELK journal에서 Warning 이상 이벤트가 없습니다."
+  else
+    _ev_crit="$(awk -F'|' '$2=="crit"{n++} END{print n+0}' "$_ev_tmp")"
+    _ev_warn="$(awk -F'|' '$2=="warn"{n++} END{print n+0}' "$_ev_tmp")"
+    _ev_show="$_ev_total"
+    (( _ev_show > EVENT_LOG_MAX )) && _ev_show="$EVENT_LOG_MAX"
+
+    # 이 요약 행 하나만 섹션 상태에 반영하고, 개별 이벤트는 아래 타임라인 행으로 표시합니다.
+    if (( _ev_crit > 0 )); then
+      row crit "이벤트 요약" "총 ${_ev_total}건 · Error 이상 ${_ev_crit}건 · Warning ${_ev_warn}건 · 최근 ${_ev_show}건 표시"
+    else
+      row warn "이벤트 요약" "총 ${_ev_total}건 · Warning ${_ev_warn}건 · 최근 ${_ev_show}건 표시"
+    fi
+
+    # 오래된 → 최신 순서. 개별 이벤트는 ROW 배열에 직접 추가하여 조치 필요 목록 중복은 피합니다.
+    while IFS='|' read -r _epoch _st _sev _origin _src _msg; do
+      _ts="$(date -d "@${_epoch}" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "$_epoch")"
+      ROW_SEC+=("${SEC_NAME[CUR_IDX]}")
+      ROW_ST+=("$_st")
+      ROW_LB+=("$_ts")
+      ROW_VAL+=("${_sev} · ${_origin} · ${_src} · ${_msg}")
+      # 터미널에도 동일하게 출력하되 전체 정상/주의/이상 카운트는 요약 행만 반영
+      if [[ "$_st" == "crit" ]]; then _ec="$X"; _eg="✖"; else _ec="$Y"; _eg="⚠"; fi
+      dwv "$_ts"; _lw=$DW; wrapv "${_sev} · ${_origin} · ${_src} · ${_msg}" "$VAVAIL"
+      printf '  %s%s%s %s%s%*s%s  %s\n' "$_ec" "$_eg" "$R" "$B" "$_ts" $((LABW-_lw>0?LABW-_lw:0)) '' "$R" "${WL[0]:-}"
+      for ((_wi=1;_wi<${#WL[@]};_wi++)); do printf '%*s%s\n' "$VCOL" '' "${WL[_wi]}"; done
+    done < <(sort -t'|' -k1,1n "$_ev_tmp" | tail -n "$EVENT_LOG_MAX")
+  fi
+
+  rm -f "$_ev_tmp" "$_ev_raw"
+  unset _ev_tmp _ev_raw _ev_total _ev_crit _ev_warn _ev_show _epoch _pri _src _msg _origin _sev _st _ts _ec _eg _lw _wi 2>/dev/null || true
 fi
 
 # ---------------------------------------------------------------- os
