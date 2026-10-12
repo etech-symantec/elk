@@ -2,9 +2,9 @@
 # Bootstrap GitHub updater onto an existing / legacy ELK One-Click installation.
 set -Eeuo pipefail
 
-OWNER="${ELK_ONECLICK_GITHUB_OWNER:etech-symantec}"
-REPO="${ELK_ONECLICK_GITHUB_REPO:elk}"
-BRANCH="${ELK_ONECLICK_GITHUB_BRANCH:main}"
+OWNER="${ELK_ONECLICK_GITHUB_OWNER:-etech-symantec}"
+REPO="${ELK_ONECLICK_GITHUB_REPO:-elk}"
+BRANCH="${ELK_ONECLICK_GITHUB_BRANCH:-main}"
 ENVF="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 RELEASE="${ELK_ONECLICK_RELEASE_FILE:-/etc/elk-auto/oneclick-release.env}"
 BIN="${ELK_ONECLICK_UPDATE_BIN:-/usr/local/sbin/elk-oneclick-update}"
