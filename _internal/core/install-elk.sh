@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-# ELK Auto Installer v2.9.15
+# ELK Auto Installer v2.9.16
 # Target: Ubuntu 22.04 / 24.04, Elastic Stack 9.x
 # Usage: sudo bash install-elk.sh ./elk.env
 
@@ -326,7 +326,7 @@ unset _old_name _new_name
 : "${HEALTH_DISK_CRIT_PERCENT:=92}"
 : "${HEALTH_AUTO_PAUSE_FILE_INGEST_ON_CRITICAL:=false}"
 
-# 정기점검 HTML / Web Viewer (v2.9.15)
+# 정기점검 HTML / Web Viewer (v2.9.16)
 : "${ELK_REPORT_HTML_DIR:=/var/lib/elk-report}"
 : "${ELK_REPORT_HTML_FILE:=${ELK_REPORT_HTML_DIR}/report.html}"
 : "${ELK_REPORT_WEB_ENABLED:=true}"
@@ -1049,7 +1049,7 @@ extend_root_lvm() {
 }
 
 # ----------------------------- OS -----------------------------
-ELK_AUTO_VERSION="2.9.15"
+ELK_AUTO_VERSION="2.9.16"
 log "ELK Auto Installer v${ELK_AUTO_VERSION}"
 log "환경파일: $ENV_FILE"
 log "설치 로그: $INSTALL_LOG"
@@ -2319,7 +2319,7 @@ if [[ -f "$SCRIPT_DIR/elk-patch.sh" && -f "$SCRIPT_DIR/proxysg-lib.sh" ]]; then
   if [[ -s "$SCRIPT_DIR/custom-pipeline.conf" ]]; then install -m 644 "$SCRIPT_DIR/custom-pipeline.conf" /usr/local/lib/elk-auto/custom-pipeline.conf; else rm -f /usr/local/lib/elk-auto/custom-pipeline.conf; fi
   log "부분 패치 도구 설치: /usr/local/sbin/elk-patch  (예: sudo elk-patch --list)"
 fi
-# v2.9.15: 서버 정기점검 리포트 + HTML Web Viewer
+# v2.9.16: 서버 정기점검 리포트 + HTML Web Viewer
 if [[ -f "$SCRIPT_DIR/elk-report.sh" ]]; then
   install -m 755 "$SCRIPT_DIR/elk-report.sh" /usr/local/sbin/elk-report
   install -d -m 755 "$ELK_REPORT_HTML_DIR"
@@ -2586,27 +2586,27 @@ if istrue "$START_SERVICES_AFTER_INSTALL"; then
         case "$_kind" in
           empty)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"values":[{"msg":"${_note}"}]},"layer":[{"mark":{"type":"text","fontSize":28,"fontWeight":"bold","color":"#94A3B8","dy":-10},"encoding":{"text":{"value":"데이터 없음"}}},{"mark":{"type":"text","fontSize":11,"color":"#64748B","dy":24},"encoding":{"text":{"field":"msg","type":"nominal"}}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"values":[{"msg":"${_note}"}]},"layer":[{"mark":{"type":"text","fontSize":28,"fontWeight":"bold","color":"#94A3B8","dy":-10},"encoding":{"text":{"value":"데이터 없음"}}},{"mark":{"type":"text","fontSize":9.5,"color":"#64748B","dy":24},"encoding":{"text":{"field":"msg","type":"nominal"}}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
 EOF_VEGA
             ;;
           metric_count)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}}],"keyed":false}}}}},"format":{"property":"aggregations.m.buckets"}},"layer":[{"mark":{"type":"text","fontSize":38,"fontWeight":"bold","color":"#0F766E","dy":-8},"encoding":{"text":{"field":"doc_count","type":"quantitative","format":","}}},{"mark":{"type":"text","fontSize":11,"color":"#64748B","dy":25},"encoding":{"text":{"value":"선택 기간 요청 건수"}}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}}],"keyed":false}}}}},"format":{"property":"aggregations.m.buckets"}},"layer":[{"mark":{"type":"text","fontSize":30,"fontWeight":"bold","color":"#0F766E","dy":-8},"encoding":{"text":{"field":"doc_count","type":"quantitative","format":","}}},{"mark":{"type":"text","fontSize":9.5,"color":"#64748B","dy":25},"encoding":{"text":{"value":"선택 기간 요청 건수"}}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
 EOF_VEGA
             ;;
           metric_bytes)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}}],"keyed":false},"aggs":{"sc":{"sum":{"field":"sc_bytes"}},"cs":{"sum":{"field":"cs_bytes"}}}}}}},"format":{"property":"aggregations.m.buckets"}},"transform":[{"calculate":"datum.sc.value + datum.cs.value","as":"bytes"}],"layer":[{"mark":{"type":"text","fontSize":37,"fontWeight":"bold","color":"#0284C7","dy":-8},"encoding":{"text":{"field":"bytes","type":"quantitative","format":".3s"}}},{"mark":{"type":"text","fontSize":11,"color":"#64748B","dy":25},"encoding":{"text":{"value":"Response + Request Bytes"}}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}}],"keyed":false},"aggs":{"sc":{"sum":{"field":"sc_bytes"}},"cs":{"sum":{"field":"cs_bytes"}}}}}}},"format":{"property":"aggregations.m.buckets"}},"transform":[{"calculate":"datum.sc.value + datum.cs.value","as":"bytes"}],"layer":[{"mark":{"type":"text","fontSize":30,"fontWeight":"bold","color":"#0284C7","dy":-8},"encoding":{"text":{"field":"bytes","type":"quantitative","format":".3s"}}},{"mark":{"type":"text","fontSize":9.5,"color":"#64748B","dy":25},"encoding":{"text":{"value":"Response + Request Bytes"}}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
 EOF_VEGA
             ;;
           metric_latency)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}}],"keyed":false},"aggs":{"avg":{"avg":{"field":"time_taken"}},"p95":{"percentiles":{"field":"time_taken","percents":[95]}}}}}}},"format":{"property":"aggregations.m.buckets"}},"transform":[{"calculate":"isValid(datum.avg.value) ? datum.avg.value : 0","as":"avg_ms"},{"calculate":"isValid(datum.p95.values['95.0']) ? datum.p95.values['95.0'] : 0","as":"p95_ms"},{"calculate":"'P95 ' + format(datum.p95_ms,'.1f') + ' ms'","as":"p95_label"}],"layer":[{"mark":{"type":"text","fontSize":35,"fontWeight":"bold","color":"#7C3AED","dy":-10},"encoding":{"text":{"field":"avg_ms","type":"quantitative","format":".1f"}}},{"mark":{"type":"text","fontSize":11,"color":"#64748B","dx":42,"dy":-10},"encoding":{"text":{"value":"ms"}}},{"mark":{"type":"text","fontSize":11,"color":"#64748B","dy":24},"encoding":{"text":{"field":"p95_label","type":"nominal"}}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}}],"keyed":false},"aggs":{"avg":{"avg":{"field":"time_taken"}},"p95":{"percentiles":{"field":"time_taken","percents":[95]}}}}}}},"format":{"property":"aggregations.m.buckets"}},"transform":[{"calculate":"isValid(datum.avg.value) ? datum.avg.value : 0","as":"avg_ms"},{"calculate":"isValid(datum.p95.values['95.0']) ? datum.p95.values['95.0'] : 0","as":"p95_ms"},{"calculate":"'P95 ' + format(datum.p95_ms,'.1f') + ' ms'","as":"p95_label"}],"layer":[{"mark":{"type":"text","fontSize":29,"fontWeight":"bold","color":"#7C3AED","dy":-10},"encoding":{"text":{"field":"avg_ms","type":"quantitative","format":".1f"}}},{"mark":{"type":"text","fontSize":9.5,"color":"#64748B","dx":42,"dy":-10},"encoding":{"text":{"value":"ms"}}},{"mark":{"type":"text","fontSize":9.5,"color":"#64748B","dy":24},"encoding":{"text":{"field":"p95_label","type":"nominal"}}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
 EOF_VEGA
             ;;
           metric_error_rate)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}},{"regexp":{"${_field}":"[45][0-9][0-9]"}}],"keyed":false}}}}},"format":{"property":"aggregations.m.buckets"}},"transform":[{"calculate":"toNumber(datum.key)==0 ? datum.doc_count : 0","as":"all_n"},{"calculate":"toNumber(datum.key)==1 ? datum.doc_count : 0","as":"err_n"},{"joinaggregate":[{"op":"sum","field":"all_n","as":"all_total"},{"op":"sum","field":"err_n","as":"err_total"}]},{"filter":"toNumber(datum.key)==0"},{"calculate":"datum.all_total>0 ? datum.err_total/datum.all_total*100 : 0","as":"rate"},{"calculate":"format(datum.rate,'.2f') + '%'","as":"rate_label"},{"calculate":"format(datum.err_total,',') + '건 오류'","as":"err_label"}],"layer":[{"mark":{"type":"text","fontSize":36,"fontWeight":"bold","color":"#DC2626","dy":-9},"encoding":{"text":{"field":"rate_label","type":"nominal"}}},{"mark":{"type":"text","fontSize":11,"color":"#64748B","dy":24},"encoding":{"text":{"field":"err_label","type":"nominal"}}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}},{"regexp":{"${_field}":"[45][0-9][0-9]"}}],"keyed":false}}}}},"format":{"property":"aggregations.m.buckets"}},"transform":[{"calculate":"toNumber(datum.key)==0 ? datum.doc_count : 0","as":"all_n"},{"calculate":"toNumber(datum.key)==1 ? datum.doc_count : 0","as":"err_n"},{"joinaggregate":[{"op":"sum","field":"all_n","as":"all_total"},{"op":"sum","field":"err_n","as":"err_total"}]},{"filter":"toNumber(datum.key)==0"},{"calculate":"datum.all_total>0 ? datum.err_total/datum.all_total*100 : 0","as":"rate"},{"calculate":"format(datum.rate,'.2f') + '%'","as":"rate_label"},{"calculate":"format(datum.err_total,',') + '건 오류'","as":"err_label"}],"layer":[{"mark":{"type":"text","fontSize":30,"fontWeight":"bold","color":"#DC2626","dy":-9},"encoding":{"text":{"field":"rate_label","type":"nominal"}}},{"mark":{"type":"text","fontSize":9.5,"color":"#64748B","dy":24},"encoding":{"text":{"field":"err_label","type":"nominal"}}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
 EOF_VEGA
             ;;
           time_requests_errors)
@@ -2616,17 +2616,17 @@ EOF_VEGA
             ;;
           terms_donut)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"top":{"terms":{"field":"${_field}","size":8,"missing":"(없음)"}}}}},"format":{"property":"aggregations.top.buckets"}},"mark":{"type":"arc","innerRadius":52,"outerRadius":90,"cornerRadius":3,"padAngle":0.02},"encoding":{"theta":{"field":"doc_count","type":"quantitative"},"color":{"field":"key","type":"nominal","scale":{"scheme":"tableau10"},"legend":{"title":null,"orient":"right","labelLimit":150}},"tooltip":[{"field":"key","type":"nominal","title":"값"},{"field":"doc_count","type":"quantitative","title":"건수","format":","}]},"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"top":{"terms":{"field":"${_field}","size":8,"missing":"(없음)"}}}}},"format":{"property":"aggregations.top.buckets"}},"mark":{"type":"arc","innerRadius":36,"outerRadius":62,"cornerRadius":3,"padAngle":0.02},"encoding":{"theta":{"field":"doc_count","type":"quantitative"},"color":{"field":"key","type":"nominal","scale":{"scheme":"tableau10"},"legend":{"title":null,"orient":"right","labelLimit":95}},"tooltip":[{"field":"key","type":"nominal","title":"값"},{"field":"doc_count","type":"quantitative","title":"건수","format":","}]},"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
 EOF_VEGA
             ;;
           terms_bar_nonempty)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"top":{"terms":{"field":"${_field}","size":10}}}}},"format":{"property":"aggregations.top.buckets"}},"transform":[{"filter":"datum.key != '-' && datum.key != 'none' && datum.key != 'unavailable' && datum.key != ''"}],"mark":{"type":"bar","color":"#F97316","cornerRadiusEnd":5},"encoding":{"y":{"field":"key","type":"nominal","sort":"-x","title":null,"axis":{"labelLimit":210,"labelColor":"#475569"}},"x":{"field":"doc_count","type":"quantitative","title":"건수","axis":{"gridColor":"#EEF2F7","labelColor":"#64748B"}},"tooltip":[{"field":"key","type":"nominal","title":"값"},{"field":"doc_count","type":"quantitative","title":"건수","format":","}]},"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"top":{"terms":{"field":"${_field}","size":10}}}}},"format":{"property":"aggregations.top.buckets"}},"transform":[{"filter":"datum.key != '-' && datum.key != 'none' && datum.key != 'unavailable' && datum.key != ''"}],"mark":{"type":"bar","color":"#F97316","cornerRadiusEnd":5},"encoding":{"y":{"field":"key","type":"nominal","sort":"-x","title":null,"axis":{"labelLimit":120,"labelColor":"#475569"}},"x":{"field":"doc_count","type":"quantitative","title":"건수","axis":{"gridColor":"#EEF2F7","labelColor":"#64748B"}},"tooltip":[{"field":"key","type":"nominal","title":"값"},{"field":"doc_count","type":"quantitative","title":"건수","format":","}]},"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
 EOF_VEGA
             ;;
           terms_bar)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"top":{"terms":{"field":"${_field}","size":10,"missing":"(없음)"}}}}},"format":{"property":"aggregations.top.buckets"}},"mark":{"type":"bar","color":"#14B8A6","cornerRadiusEnd":5},"encoding":{"y":{"field":"key","type":"nominal","sort":"-x","title":null,"axis":{"labelLimit":210,"labelColor":"#475569"}},"x":{"field":"doc_count","type":"quantitative","title":"건수","axis":{"gridColor":"#EEF2F7","labelColor":"#64748B"}},"tooltip":[{"field":"key","type":"nominal","title":"값"},{"field":"doc_count","type":"quantitative","title":"건수","format":","}]},"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"top":{"terms":{"field":"${_field}","size":10,"missing":"(없음)"}}}}},"format":{"property":"aggregations.top.buckets"}},"mark":{"type":"bar","color":"#14B8A6","cornerRadiusEnd":5},"encoding":{"y":{"field":"key","type":"nominal","sort":"-x","title":null,"axis":{"labelLimit":120,"labelColor":"#475569"}},"x":{"field":"doc_count","type":"quantitative","title":"건수","axis":{"gridColor":"#EEF2F7","labelColor":"#64748B"}},"tooltip":[{"field":"key","type":"nominal","title":"값"},{"field":"doc_count","type":"quantitative","title":"건수","format":","}]},"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
 EOF_VEGA
             ;;
         esac
@@ -2668,15 +2668,13 @@ EOF_VEGA
         _panels='[]'; _refs='[]'
         for _i in "${!_dash_created[@]}"; do
           _soid="${_dash_created[_i]}"
-          if (( _i < 4 )); then
-            _w=12; _h=7; _x=$(( _i * 12 )); _y=0
-          elif (( _i < 7 )); then
-            _j=$(( _i - 4 )); _w=16; _h=15; _x=$(( (_j % 3) * 16 )); _y=7
-          elif (( _i < 11 )); then
-            _j=$(( _i - 7 )); _w=12; _h=15; _x=$(( (_j % 4) * 12 )); _y=22
-          else
-            _j=$(( _i - 11 )); _w=16; _h=15; _x=$(( (_j % 3) * 16 )); _y=$(( 37 + (_j / 3) * 15 ))
-          fi
+          # Compact layout: 5 columns x 4 rows (20 widgets)
+          # 기존 분석 카드 대비 높이를 약 절반으로 줄이고 폭도 축소해
+          # 20개 위젯을 가능한 한 한 화면에 많이 표시합니다.
+          _w=9
+          _h=7
+          _x=$(( (_i % 5) * 9 ))
+          _y=$(( (_i / 5) * 7 ))
           _panels="$(jq -c --arg i "$_i" --arg x "$_x" --arg y "$_y" --arg w "$_w" --arg h "$_h" \
             '. + [{version:"9.0.0",type:"visualization",gridData:{x:($x|tonumber),y:($y|tonumber),w:($w|tonumber),h:($h|tonumber),i:$i},panelIndex:$i,embeddableConfig:{},panelRefName:("panel_"+$i)}]' <<<"$_panels")"
           _refs="$(jq -c --arg i "$_i" --arg id "$_soid" \
