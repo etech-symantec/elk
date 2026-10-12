@@ -118,6 +118,15 @@ BK="${ENVF}.before-github-update-${LV}-$(date +%Y%m%d-%H%M%S)"
 cp -a "$ENVF" "$BK"
 say "  설정 백업: $BK"
 
+# install-elk.sh는 전달받은 env 파일을 최종 위치(/etc/elk-auto/elk.env)에
+# install/copy 하므로, 이미 그 최종 파일 자체를 인자로 넘기면
+# "source and destination are the same file" 오류가 발생한다.
+# 항상 임시 복사본을 만들어 설치기에 전달한다.
+PATCH_ENV="$T/elk.env"
+cp -a "$ENVF" "$PATCH_ENV"
+chmod 600 "$PATCH_ENV"
+say "  설치 입력 설정: $PATCH_ENV (기존 elk.env의 임시 복사본)"
+
 # Logstash가 실행 중이면 persistent queue의 .lock을 잡고 있으므로
 # 최신 install-elk.sh의 config.test_and_exit가 LockException으로 실패할 수 있다.
 # 패치 직전에만 중지하고, 성공/실패와 관계없이 원래 실행 상태를 복원한다.
@@ -145,13 +154,13 @@ PATCH_OK=0
 trap 'rc=$?; if (( PATCH_OK == 0 )); then restore_logstash; fi; rm -rf "$T"; exit $rc' EXIT
 
 say "[1/3] 최신 설치기 검증"
-if ! bash "$T/install-elk.sh" "$ENVF" --validate; then
+if ! bash "$T/install-elk.sh" "$PATCH_ENV" --validate; then
   say "[ERROR] 최신 설치기 검증 실패. 기존 설정은 백업되어 있으며 Logstash는 원래 상태로 복원합니다."
   exit 1
 fi
 
 say "[2/3] 최신 구성 적용"
-if ! bash "$T/install-elk.sh" "$ENVF"; then
+if ! bash "$T/install-elk.sh" "$PATCH_ENV"; then
   say "[ERROR] 최신 구성 적용 실패. Logstash를 원래 실행 상태로 복원합니다."
   exit 1
 fi
