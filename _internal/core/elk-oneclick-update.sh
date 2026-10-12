@@ -88,7 +88,6 @@ jq -e 'type=="array"' >/dev/null <<<"$LIST" || \
   die "GitHub API 응답 형식이 올바르지 않습니다. API rate limit도 확인하세요."
 
 T="$(mktemp -d /tmp/elk-oneclick-update.XXXXXX)"
-trap 'rm -rf "$T"' EXIT
 mapfile -t NAMES < <(jq -r '.[]|select(.type=="file")|.name' <<<"$LIST" | sort)
 (( ${#NAMES[@]} > 0 )) || die "_internal/core 파일 목록이 비어 있습니다."
 
@@ -119,17 +118,55 @@ BK="${ENVF}.before-github-update-${LV}-$(date +%Y%m%d-%H%M%S)"
 cp -a "$ENVF" "$BK"
 say "  설정 백업: $BK"
 
+# Logstash가 실행 중이면 persistent queue의 .lock을 잡고 있으므로
+# 최신 install-elk.sh의 config.test_and_exit가 LockException으로 실패할 수 있다.
+# 패치 직전에만 중지하고, 성공/실패와 관계없이 원래 실행 상태를 복원한다.
+LOGSTASH_WAS_ACTIVE=0
+restore_logstash(){
+  if (( LOGSTASH_WAS_ACTIVE )); then
+    say "[INFO] Logstash 서비스를 다시 시작합니다."
+    systemctl start logstash >/dev/null 2>&1 || true
+  fi
+}
+if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet logstash 2>/dev/null; then
+  LOGSTASH_WAS_ACTIVE=1
+  say "[INFO] Logstash 설정 검증을 위해 서비스를 잠시 중지합니다. (persistent queue lock 해제)"
+  systemctl stop logstash
+  for _i in {1..30}; do
+    systemctl is-active --quiet logstash 2>/dev/null || break
+    sleep 1
+  done
+  if systemctl is-active --quiet logstash 2>/dev/null; then
+    die "Logstash 서비스가 30초 안에 중지되지 않았습니다. 패치를 중단합니다."
+  fi
+fi
+
+PATCH_OK=0
+trap 'rc=$?; if (( PATCH_OK == 0 )); then restore_logstash; fi; rm -rf "$T"; exit $rc' EXIT
+
 say "[1/3] 최신 설치기 검증"
-bash "$T/install-elk.sh" "$ENVF" --validate
+if ! bash "$T/install-elk.sh" "$ENVF" --validate; then
+  say "[ERROR] 최신 설치기 검증 실패. 기존 설정은 백업되어 있으며 Logstash는 원래 상태로 복원합니다."
+  exit 1
+fi
 
 say "[2/3] 최신 구성 적용"
-bash "$T/install-elk.sh" "$ENVF"
+if ! bash "$T/install-elk.sh" "$ENVF"; then
+  say "[ERROR] 최신 구성 적용 실패. Logstash를 원래 실행 상태로 복원합니다."
+  exit 1
+fi
+
+# 설치기가 Logstash를 시작했을 수 있으므로 상태 확인 후 필요할 때만 복원
+if (( LOGSTASH_WAS_ACTIVE )) && ! systemctl is-active --quiet logstash 2>/dev/null; then
+  restore_logstash
+fi
 
 sleep 5
 if [[ -f "$T/check-elk.sh" ]]; then
   say "[3/3] 전체 상태 점검"
   bash "$T/check-elk.sh" "$ENVF"
 fi
+PATCH_OK=1
 
 install -d -m 755 "$(dirname "$RELEASE")"
 cat > "$RELEASE" <<META
