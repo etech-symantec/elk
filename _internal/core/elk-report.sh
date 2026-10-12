@@ -16,7 +16,7 @@ set -uo pipefail
 export LC_ALL=C.UTF-8 2>/dev/null || export LC_ALL=en_US.UTF-8 2>/dev/null || true
 
 REPORT_VERSION="1"
-ELK_AUTO_VERSION="2.9.5"
+ELK_AUTO_VERSION="2.9.8"
 # Config Wizard / One-Click Installer와 동일한 빌드 번호
 ELK_AUTO_BUILD="${ELK_AUTO_BUILD:-steady-tree-quiet-bridge}"
 REPORT_BUILD="$ELK_AUTO_BUILD"
@@ -221,7 +221,7 @@ MEM_PCT_CUR=""
 DISK_PCT_CUR=""
 RESOURCE_HISTORY_FILE="${ELK_REPORT_HISTORY_FILE:-/var/lib/elk-report/resource-history.tsv}"
 RESOURCE_HISTORY_DAYS="${ELK_REPORT_HISTORY_DAYS:-30}"
-RESOURCE_HISTORY_MAX_POINTS="${ELK_REPORT_HISTORY_MAX_POINTS:-9000}"
+RESOURCE_HISTORY_MAX_POINTS="${ELK_REPORT_HISTORY_MAX_POINTS:-744}"
 RESOURCE_HISTORY_MIN_INTERVAL="${ELK_REPORT_HISTORY_MIN_INTERVAL:-300}"
 
 
@@ -232,7 +232,7 @@ kv "서버" "$(hostname)    ·    $(date '+%Y-%m-%d %H:%M:%S %Z')"
 kv "버전" "elk-report v${REPORT_VERSION} · ELK Auto Installer v${ELK_AUTO_VERSION} · build ${ELK_AUTO_BUILD}    ·    환경파일 ${ENV_FILE}"
 kv "범례" "${G}✔ 정상${R}   ${Y}⚠ 주의${R}   ${X}✖ 이상${R}   ${D}· 정보${R}"
 unset _t
-(( LEGACY_ENV )) && printf '  %s· 이전 버전(2.9.5 미만, GUIDE_*) 설정 파일을 읽어 점검합니다.%s\n' "$D" "$R"
+(( LEGACY_ENV )) && printf '  %s· 이전 버전(2.9.8 미만, GUIDE_*) 설정 파일을 읽어 점검합니다.%s\n' "$D" "$R"
 [[ -n "${ENV_MISSING:-}" ]] && printf '  %s⚠ elk.env 를 찾지 못해 기본값으로 점검합니다: %s%s\n' "$Y" "$ENV_FILE" "$R"
 (( HAVE_JQ )) || printf '  %s⚠ jq 가 없어 Elasticsearch 항목은 건너뜁니다. (sudo apt-get install -y jq)%s\n' "$Y" "$R"
 
@@ -809,7 +809,7 @@ html_esc() { local z="$1"; z="${z//&/&amp;}"; z="${z//</&lt;}"; z="${z//>/&gt;}"
 
 # ---------------------------------------------------------------- CPU / MEM / DISK 최근 30일 이력
 # elk-report가 실행될 때마다 현재 사용률을 1개 샘플로 저장합니다.
-# 기존 과거 데이터는 새 기능 적용 전에는 존재하지 않으므로, 적용 시점부터 5분 단위로 누적됩니다.
+# 원본 데이터는 적용 시점부터 5분 단위로 누적되고, HTML 그래프에서는 1시간 평균으로 집계합니다.
 update_resource_history() {
   [[ -n "${CPU_PCT_CUR:-}" && -n "${MEM_PCT_CUR:-}" && -n "${DISK_PCT_CUR:-}" ]] || return 0
   local dir tmp cutoff now
@@ -840,8 +840,22 @@ resource_history_json() {
   local cutoff now
   now="$(date +%s)"
   cutoff=$((now - RESOURCE_HISTORY_DAYS*86400))
-  # 시간순. 화면이 너무 무거워지지 않도록 마지막 N개 샘플만 삽입.
-  awk -F'\t' -v c="$cutoff" '$1 ~ /^[0-9]+$/ && $1>=c && $2 ~ /^[0-9.]+$/ && $3 ~ /^[0-9.]+$/ && $4 ~ /^[0-9.]+$/ {print}' "$RESOURCE_HISTORY_FILE" |
+
+  # 원본은 5분 단위로 계속 저장하되, 그래프는 '시간 단위 평균'으로 집계합니다.
+  # 30일이면 최대 약 720~744 포인트라 시간축과 툴팁을 자세히 볼 수 있습니다.
+  awk -F'\t' -v c="$cutoff" '
+    $1 ~ /^[0-9]+$/ && $1>=c &&
+    $2 ~ /^[0-9.]+$/ && $3 ~ /^[0-9.]+$/ && $4 ~ /^[0-9.]+$/ {
+      h=int($1/3600)*3600
+      cpu[h]+=$2; mem[h]+=$3; disk[h]+=$4; n[h]++
+    }
+    END {
+      for (h in n) {
+        printf "%d\t%.2f\t%.2f\t%.2f\n", h, cpu[h]/n[h], mem[h]/n[h], disk[h]/n[h]
+      }
+    }
+  ' "$RESOURCE_HISTORY_FILE" |
+    sort -n -k1,1 |
     tail -n "$RESOURCE_HISTORY_MAX_POINTS" |
     jq -Rsc '
       split("\n") | map(select(length>0) | split("\t")) |
@@ -987,14 +1001,14 @@ function readResourceData(){try{return JSON.parse(document.getElementById('resou
 function readResourceHistory(){try{return JSON.parse(document.getElementById('resourceHistory')?.textContent||'[]')}catch(e){return []}}
 function sparkline(kind,label){
  const data=readResourceHistory().filter(x=>Number.isFinite(Number(x?.ts))&&Number.isFinite(Number(x?.[kind]))).map(x=>({ts:Number(x.ts),v:Math.max(0,Math.min(100,Number(x[kind])))}));
- if(data.length<2)return `<div class="trendbox ${kind}"><div class="trendhead"><b>최근 30일 사용률</b><span>${data.length?`${data.length}개 샘플`:'수집 시작 전'}</span></div><div class="sparkempty">5분 단위로 이력이 누적되며, 샘플 2개부터 그래프가 표시됩니다.</div></div>`;
+ if(data.length<2)return `<div class="trendbox ${kind}"><div class="trendhead"><b>최근 30일 사용률</b><span>${data.length?`${data.length}개 샘플`:'수집 시작 전'}</span></div><div class="sparkempty">원본은 5분 단위로 수집하고 그래프는 1시간 평균으로 표시됩니다. 시간 데이터 2개부터 그래프가 표시됩니다.</div></div>`;
  const w=320,hg=64,p=5,minTs=data[0].ts,maxTs=data[data.length-1].ts,span=Math.max(1,maxTs-minTs);
  const pts=data.map(x=>{const xx=p+(w-2*p)*(x.ts-minTs)/span,yy=p+(hg-2*p)*(1-x.v/100);return [xx,yy]}),line=pts.map(x=>x.join(',')).join(' ');
  const area=`${p},${hg-p} ${line} ${w-p},${hg-p}`;
  const min=Math.min(...data.map(x=>x.v)),max=Math.max(...data.map(x=>x.v)),last=data[data.length-1].v;
  const fmt=t=>new Date(t*1000).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
  const safe=encodeURIComponent(JSON.stringify(data));
- return `<div class="trendbox ${kind}"><div class="trendhead"><b>최근 30일 사용률</b><span>최저 ${min.toFixed(0)}% · 최고 ${max.toFixed(0)}% · 최근 ${last.toFixed(0)}%</span></div><svg class="spark" viewBox="0 0 ${w} ${hg}" preserveAspectRatio="none" role="img" aria-label="${escText(label)} 최근 30일 사용률 그래프" data-kind="${kind}" data-label="${escText(label)}" data-points="${safe}" onmousemove="sparkMove(event,this)" onmouseleave="sparkLeave(this)"><line class="grid" x1="${p}" y1="${p}" x2="${w-p}" y2="${p}"></line><line class="grid" x1="${p}" y1="${hg/2}" x2="${w-p}" y2="${hg/2}"></line><line class="grid" x1="${p}" y1="${hg-p}" x2="${w-p}" y2="${hg-p}"></line><polygon class="area" points="${area}"></polygon><polyline class="line" points="${line}"></polyline><line class="hoverline" x1="0" y1="${p}" x2="0" y2="${hg-p}" style="display:none"></line><circle class="hoverdot" cx="0" cy="0" r="3.2" style="display:none"></circle><rect class="sparkhit" x="0" y="0" width="${w}" height="${hg}"></rect></svg><div class="sparktooltip"></div><div class="trendfoot"><span>${escText(fmt(data[0].ts))}</span><span>${data.length}개 샘플 · 5분 단위</span><span>${escText(fmt(data[data.length-1].ts))}</span></div></div>`;
+ return `<div class="trendbox ${kind}"><div class="trendhead"><b>최근 30일 사용률</b><span>최저 ${min.toFixed(0)}% · 최고 ${max.toFixed(0)}% · 최근 ${last.toFixed(0)}%</span></div><svg class="spark" viewBox="0 0 ${w} ${hg}" preserveAspectRatio="none" role="img" aria-label="${escText(label)} 최근 30일 시간별 평균 사용률 그래프" data-kind="${kind}" data-label="${escText(label)}" data-points="${safe}" onmousemove="sparkMove(event,this)" onmouseleave="sparkLeave(this)"><line class="grid" x1="${p}" y1="${p}" x2="${w-p}" y2="${p}"></line><line class="grid" x1="${p}" y1="${hg/2}" x2="${w-p}" y2="${hg/2}"></line><line class="grid" x1="${p}" y1="${hg-p}" x2="${w-p}" y2="${hg-p}"></line><polygon class="area" points="${area}"></polygon><polyline class="line" points="${line}"></polyline><line class="hoverline" x1="0" y1="${p}" x2="0" y2="${hg-p}" style="display:none"></line><circle class="hoverdot" cx="0" cy="0" r="3.2" style="display:none"></circle><rect class="sparkhit" x="0" y="0" width="${w}" height="${hg}"></rect></svg><div class="sparktooltip"></div><div class="trendfoot"><span>${escText(fmt(data[0].ts))}</span><span>${data.length}시간 · 1시간 평균</span><span>${escText(fmt(data[data.length-1].ts))}</span></div></div>`;
 }
 function sparkMove(ev,svg){
  try{
@@ -1008,7 +1022,7 @@ function sparkMove(ev,svg){
   line.setAttribute('x1',x);line.setAttribute('x2',x);line.style.display='';
   dot.setAttribute('cx',x);dot.setAttribute('cy',y);dot.style.display='';
   const tip=svg.parentElement.querySelector('.sparktooltip'),dt=new Date(d.ts*1000);
-  tip.innerHTML=`<b>${escText(svg.dataset.label||'사용률')} ${Number(d.v).toFixed(1)}%</b>${escText(dt.toLocaleString('ko-KR'))}`;
+  tip.innerHTML=`<b>${escText(svg.dataset.label||'사용률')} ${Number(d.v).toFixed(1)}%</b>${escText(dt.toLocaleString('ko-KR',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit'}))}<br><span style="opacity:.72">해당 1시간 평균</span>`;
   tip.style.display='block';
   const px=(x/w)*100; tip.style.left=`${Math.max(12,Math.min(88,px))}%`; tip.style.top=`${svg.offsetTop+y*(box.height/h)}px`;
  }catch(_){}
@@ -1069,7 +1083,7 @@ function buildDashboard(){const rows=parseRows();const mount=document.getElement
  const cpuCard=gaugeCard('CPU',cpu,'서버 전체 CPU의 현재 사용률입니다. 로그 파싱과 Elasticsearch 검색/색인 부하를 함께 반영합니다.',svcCpu+sparkline('cpu','CPU'));
  const svcRows=rows.filter(r=>r.section==='서비스');const crit=rows.filter(r=>r.status==='crit');const warn=rows.filter(r=>r.status==='warn');const ok=rows.filter(r=>r.status==='ok');const svcOk=svcRows.filter(r=>r.status==='ok').length,svcWarn=svcRows.filter(r=>r.status==='warn').length,svcCrit=svcRows.filter(r=>r.status==='crit').length;
  const allDetail=[...crit,...warn,...ok,...rows.filter(r=>r.status==='info')];const donuts=donutCard('detail-all','전체 점검 상태',ok.length,warn.length,crit.length,'점검 항목',allDetail)+donutCard('detail-service','서비스 상태',svcOk,svcWarn,svcCrit,'서비스',svcRows);
- mount.innerHTML=`<div class="panel ringpanel"><h3>원형 상태판</h3><div class="helper">CPU·메모리·디스크 카드에서 현재 사용량과 함께 최근 30일 사용률 흐름을 시간순으로 확인할 수 있습니다. 이력은 elk-report 실행 시점마다 누적됩니다.</div><div class="resourcegrid">${cpuCard||''}${memoryCard}${diskCard}</div><div class="donutwrap">${donuts}</div></div>`;wireDonuts()}
+ mount.innerHTML=`<div class="panel ringpanel"><h3>원형 상태판</h3><div class="helper">CPU·메모리·디스크 카드에서 현재 사용량과 함께 최근 30일 시간별 평균 사용률 흐름을 시간순으로 확인할 수 있습니다. 이력은 elk-report 실행 시점마다 누적됩니다.</div><div class="resourcegrid">${cpuCard||''}${memoryCard}${diskCard}</div><div class="donutwrap">${donuts}</div></div>`;wireDonuts()}
 const b=document.getElementById('run'),s=document.getElementById('state'),c=document.getElementById('cmd'),cc=document.getElementById('cmdconsole'),co=document.getElementById('cmdconsoleOut'),ct=document.getElementById('cmdconsoleTitle');
 async function runWebCommand(){
   const command=c.value.trim();if(!command)return;
