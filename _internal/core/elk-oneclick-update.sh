@@ -2,9 +2,9 @@
 # ELK One-Click public GitHub updater
 set -Eeuo pipefail
 
-OWNER="${ELK_ONECLICK_GITHUB_OWNER:-etech-symantec}"
-REPO="${ELK_ONECLICK_GITHUB_REPO:-elk}"
-BRANCH="${ELK_ONECLICK_GITHUB_BRANCH:-main}"
+OWNER="${ELK_ONECLICK_GITHUB_OWNER:etech-symantec}"
+REPO="${ELK_ONECLICK_GITHUB_REPO:elk}"
+BRANCH="${ELK_ONECLICK_GITHUB_BRANCH:main}"
 ENVF="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 RELEASE="${ELK_ONECLICK_RELEASE_FILE:-/etc/elk-auto/oneclick-release.env}"
 MODE="${1:---check}"
