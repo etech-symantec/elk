@@ -4,7 +4,7 @@
 980073fda001bb8f3a10378fd82607cba27f02c9c676dbaab2d734a57eb43ed1  ./_internal/core/config-wizard.html
 2c6c78afbdbca385786ee16d6356d721ae57abb71e56ea81e217f33d55650ade  ./_internal/core/elk-color.sh
 9bf5a67e7daae742b6e27b788bbccf51cc59735a88bf7bf688f3ce68062f2af5  ./_internal/core/elk-health-monitor.sh
-45ac2267d7d6a15e19444e12a8346040cea28180defbdebe86221809711e3fd6  ./_internal/core/elk-oneclick-update.sh
+4d175bbf8c0a6b7226630e43a32dc38c8e164d08c35d44cc3df3fa50d59cb01a  ./_internal/core/elk-oneclick-update.sh
 24cce110aea0e41cd724dbd05e62f380417a514894875edab9ce19b9745cf74d  ./_internal/core/elk-ops.sh
 6387412db7e62d02fbf82690e57859b2da31433aaea5c1afa8eb2f460f569d61  ./_internal/core/elk-patch.sh
 8358bd26056c4e53f7ef4dd053c8d272a8acc81a81a139977110b199b18b2b3e  ./_internal/core/elk-report-web.py
