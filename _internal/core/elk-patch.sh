@@ -13,8 +13,8 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-PATCH_VERSION="10"
-ELK_AUTO_VERSION="2.9.14"
+PATCH_VERSION="11"
+ELK_AUTO_VERSION="2.9.15"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 도구 파일(proxysg-lib.sh 등)은 이 스크립트 옆에 있으면 그것을, 없으면 설치기가 넣어 둔 /usr/local/lib/elk-auto 를 사용
@@ -231,6 +231,15 @@ done
 if [[ -n "${ACTIONS[escerts]+x}" ]]; then
   _ca="${NEWV[ES_CA_DAYS]:-${ES_CA_DAYS:-7300}}"; _ce="${NEWV[ES_CERT_DAYS]:-${ES_CERT_DAYS:-7300}}"
   if (( _ce > _ca )); then echo "[거절] ES_CERT_DAYS : 서버 인증서 유효기간(${_ce}일)은 CA 유효기간(${_ca}일)보다 길 수 없습니다. ES_CA_DAYS 도 함께 늘리세요." >&2; bad=1; fi
+fi
+_target_cloud="${NEWV[PROXYSG_CLOUD_ENABLED]:-${PROXYSG_CLOUD_ENABLED:-false}}"
+_target_api_user="${NEWV[PROXYSG_CLOUD_API_USERNAME]:-${PROXYSG_CLOUD_API_USERNAME:-}}"
+_target_api_pass="${NEWV[PROXYSG_CLOUD_API_PASSWORD]:-${PROXYSG_CLOUD_API_PASSWORD:-}}"
+_target_api_url="${NEWV[PROXYSG_CLOUD_API_URL]:-${PROXYSG_CLOUD_API_URL:-https://portal.threatpulse.com:443/reportpod/logs/sync}}"
+if istrue "$_target_cloud"; then
+  [[ -n "${_target_api_user//[[:space:]]/}" ]] || { echo "[거절] Cloud 로그 사용 시 PROXYSG_CLOUD_API_USERNAME(API ID)은 필수입니다." >&2; bad=1; }
+  [[ -n "$_target_api_pass" ]] || { echo "[거절] Cloud 로그 사용 시 PROXYSG_CLOUD_API_PASSWORD는 필수입니다." >&2; bad=1; }
+  [[ "$_target_api_url" =~ ^https:// ]] || { echo "[거절] Cloud 로그 사용 시 PROXYSG_CLOUD_API_URL은 https:// URL이어야 합니다." >&2; bad=1; }
 fi
 (( bad )) && die "잘못된 항목이 있어 아무것도 바꾸지 않았습니다."
 
