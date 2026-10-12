@@ -1,40 +1,46 @@
 #!/usr/bin/env bash
-# ELK One-Click public GitHub incremental updater
-# 기본 --apply는 "변경된 런타임 파일만" 교체합니다.
-# 전체 install-elk 재적용은 명시적으로 --full 을 사용해야 합니다.
+# ELK One-Click public GitHub delta-only updater
+#
+# 기본 동작
+#   --check : GitHub 메타데이터만 조회하여 변경 파일 확인. core 파일 다운로드 없음.
+#   --apply : 실제로 변경된 런타임 파일만 다운로드 + 교체.
+#   --force : 런타임 파일 전체를 다시 다운로드 + 교체.
+#   --full  : 명시적으로 전체 install-elk 재적용.
+#
+# 핵심: --apply에서는 install-elk.sh를 실행하지 않으며, 변경되지 않은 core 파일도
+#       다운로드하지 않습니다.
 set -Eeuo pipefail
 
 OWNER="${ELK_ONECLICK_GITHUB_OWNER:-etech-symantec}"
 REPO="${ELK_ONECLICK_GITHUB_REPO:-elk}"
 BRANCH="${ELK_ONECLICK_GITHUB_BRANCH:-main}"
+
 ENVF="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 RELEASE="${ELK_ONECLICK_RELEASE_FILE:-/etc/elk-auto/oneclick-release.env}"
-MANIFEST="${ELK_ONECLICK_MANIFEST_FILE:-/etc/elk-auto/oneclick-files.sha256}"
-CACHE_DIR="${ELK_ONECLICK_CACHE_DIR:-/usr/local/lib/elk-auto/update-cache/core}"
+REMOTE_MANIFEST="${ELK_ONECLICK_REMOTE_MANIFEST:-/etc/elk-auto/oneclick-github-blobs.tsv}"
 BACKUP_ROOT="${ELK_ONECLICK_BACKUP_DIR:-/var/backups/elk-oneclick}"
+
 MODE="${1:---check}"
 
 say(){ printf '%s\n' "$*"; }
 die(){ say "[ERROR] $*" >&2; exit 1; }
 need(){ command -v "$1" >/dev/null 2>&1 || die "$1 명령이 필요합니다."; }
 
-need curl
-need jq
-need sha256sum
-need sort
-need cmp
+for c in curl jq sha1sum sha256sum stat cmp sort; do need "$c"; done
 
 [[ "$OWNER" != CHANGE_ME_* && "$REPO" != CHANGE_ME_* ]] || \
   die "GitHub 저장소가 설정되지 않았습니다. ELK_ONECLICK_GITHUB_OWNER/REPO를 지정하세요."
 
 case "$MODE" in
-  --check|check|--version|--apply|apply|--force|--full|full) ;;
+  --check|check|--version|--apply|apply|--force|force|--full|full) ;;
   *)
-    say "사용:"
-    say "  sudo elk-oneclick-update --check   # 변경 파일 확인"
-    say "  sudo elk-oneclick-update --apply   # 변경된 파일만 업데이트 (기본)"
-    say "  sudo elk-oneclick-update --force   # 런타임 파일 전체 재복사"
-    say "  sudo elk-oneclick-update --full    # 전체 install-elk 재적용"
+    cat <<'USAGE'
+사용:
+  sudo elk-oneclick-update --check   # 변경 파일 확인 (core 파일 다운로드 없음)
+  sudo elk-oneclick-update --apply   # 변경된 런타임 파일만 다운로드/교체
+  sudo elk-oneclick-update --force   # 런타임 파일 전체 재다운로드/교체
+  sudo elk-oneclick-update --full    # 전체 install-elk 재적용
+USAGE
     exit 2
     ;;
 esac
@@ -55,7 +61,14 @@ cmpver(){
   [[ "$top" == "$a" ]] && echo 1 || echo -1
 }
 
-# 기존 설정은 "읽기만" 해서 런타임 스크립트 경로를 알아냅니다.
+# GitHub Contents API가 반환하는 .sha는 Git blob SHA-1입니다.
+# 실제 설치 파일의 Git blob SHA를 계산하면 파일 다운로드 없이 변경 여부를 판별할 수 있습니다.
+git_blob_sha_file(){
+  local f="$1" sz
+  sz="$(stat -c %s "$f")" || return 1
+  { printf 'blob %s\0' "$sz"; cat "$f"; } | sha1sum | awk '{print $1}'
+}
+
 PROXYSG_PROCESS_SCRIPT_CURRENT="/usr/local/sbin/elk-proxysg-log-process"
 if [[ -r "$ENVF" ]]; then
   set +u
@@ -65,8 +78,6 @@ if [[ -r "$ENVF" ]]; then
   PROXYSG_PROCESS_SCRIPT_CURRENT="${PROXYSG_PROCESS_SCRIPT:-$PROXYSG_PROCESS_SCRIPT_CURRENT}"
 fi
 
-# GitHub core 파일 -> 실제 서버에서 동작 중인 파일
-# install-elk.sh 자체는 설치 엔진이므로 기본 incremental 모드에서는 실행하지 않습니다.
 target_for(){
   case "$1" in
     check-elk.sh)              printf '%s' "/usr/local/sbin/elk-check" ;;
@@ -82,7 +93,7 @@ target_for(){
     proxysg-lib.sh)            printf '%s' "/usr/local/lib/elk-auto/proxysg-lib.sh" ;;
     log-ingest-manager.sh)     printf '%s' "/usr/local/sbin/log-ingest-manager" ;;
     elk-oneclick-update.sh)    printf '%s' "/usr/local/sbin/elk-oneclick-update" ;;
-    *)                         return 1 ;;
+    *) return 1 ;;
   esac
 }
 
@@ -104,6 +115,7 @@ fi
 LV="$(GET "$RAW/_internal/docs/VERSION" | tr -d '\r\n ')"
 [[ -n "$LV" ]] || die "GitHub VERSION 파일을 읽지 못했습니다."
 
+# build 정보는 config-wizard.html 헤더만 읽음 (core 파일과 무관)
 WIZ="$(GET "$RAW/config-wizard.html")" || die "config-wizard.html을 읽지 못했습니다."
 LB="$(grep -oE "WIZARD_BUILD=['\"][^'\"]+" <<<"$WIZ" | head -1 | sed -E "s/.*['\"]//")"
 [[ -n "$LB" ]] || LB="unknown"
@@ -112,14 +124,11 @@ C=-1
 if [[ "$IV" =~ ^[0-9]+([.][0-9]+)*([._-][A-Za-z0-9.-]+)?$ ]]; then
   C="$(cmpver "$IV" "$LV")"
 fi
-if [[ "$C" == 1 && "$MODE" != "--force" ]]; then
+if [[ "$C" == 1 && "$MODE" != "--force" && "$MODE" != "force" ]]; then
   die "설치된 v$IV가 GitHub v$LV보다 새 버전입니다. 자동 다운그레이드는 차단합니다."
 fi
 
-T="$(mktemp -d /tmp/elk-oneclick-update.XXXXXX)"
-cleanup(){ rm -rf "$T"; }
-trap cleanup EXIT
-
+# GitHub core 디렉터리는 Contents API 메타데이터만 읽습니다.
 LIST="$(GET "$API")" || die "GitHub _internal/core 파일 목록을 가져오지 못했습니다."
 jq -e 'type=="array"' >/dev/null <<<"$LIST" || \
   die "GitHub API 응답 형식이 올바르지 않습니다. API rate limit도 확인하세요."
@@ -127,46 +136,46 @@ jq -e 'type=="array"' >/dev/null <<<"$LIST" || \
 mapfile -t NAMES < <(jq -r '.[]|select(.type=="file")|.name' <<<"$LIST" | sort)
 (( ${#NAMES[@]} > 0 )) || die "_internal/core 파일 목록이 비어 있습니다."
 
+declare -A REMOTE_SHA=()
 for N in "${NAMES[@]}"; do
   [[ "$N" =~ ^[A-Za-z0-9._-]+$ ]] || die "잘못된 파일명: $N"
-  curl -fsSL --connect-timeout 10 --max-time 120 \
-    "$RAW/_internal/core/$N" -o "$T/$N" || die "다운로드 실패: $N"
+  REMOTE_SHA["$N"]="$(jq -r --arg n "$N" '.[]|select(.type=="file" and .name==$n)|.sha' <<<"$LIST" | head -1)"
+  [[ "${REMOTE_SHA[$N]}" =~ ^[0-9a-f]{40}$ ]] || die "GitHub blob SHA 확인 실패: $N"
 done
 
-SUMS="$(GET "$RAW/SHA256SUMS.txt" 2>/dev/null || true)"
-if [[ -n "$SUMS" ]]; then
-  bad=0
-  for N in "${NAMES[@]}"; do
-    EXP="$(awk -v p="_internal/core/$N" '$2==p{print $1}' <<<"$SUMS" | tail -1)"
-    [[ -z "$EXP" ]] && continue
-    ACT="$(sha256sum "$T/$N" | awk '{print $1}')"
-    [[ "$ACT" == "$EXP" ]] || { say "[ERROR] SHA256 불일치: $N"; bad=1; }
-  done
-  (( bad == 0 )) || die "파일 무결성 검증에 실패했습니다."
-else
-  say "[WARN] SHA256SUMS.txt를 읽지 못해 repository hash 검증을 생략합니다."
+declare -A PREV_SHA=()
+if [[ -r "$REMOTE_MANIFEST" ]]; then
+  while IFS=$'\t' read -r sha name; do
+    [[ "$sha" =~ ^[0-9a-f]{40}$ && "$name" =~ ^[A-Za-z0-9._-]+$ ]] || continue
+    PREV_SHA["$name"]="$sha"
+  done < "$REMOTE_MANIFEST"
 fi
 
-# 변경 판정:
-# 1) 실제 런타임 대상이 있는 파일은 서버의 실제 파일과 직접 비교
-# 2) 설치 엔진/비런타임 파일은 지난 업데이트 때 저장한 cache와 비교
 declare -a CHANGED_RUNTIME=()
-declare -a CHANGED_SOURCE=()
 declare -a SAME_RUNTIME=()
+declare -a CHANGED_SOURCE=()
 declare -a BASELINE_SOURCE=()
+
+FORCE=0
+[[ "$MODE" == "--force" || "$MODE" == "force" ]] && FORCE=1
 
 for N in "${NAMES[@]}"; do
   if DEST="$(target_for "$N" 2>/dev/null)"; then
-    if [[ "$MODE" == "--force" ]]; then
+    if (( FORCE )); then
       CHANGED_RUNTIME+=("$N")
-    elif [[ ! -f "$DEST" ]] || ! cmp -s "$T/$N" "$DEST"; then
+    elif [[ ! -f "$DEST" ]]; then
       CHANGED_RUNTIME+=("$N")
     else
-      SAME_RUNTIME+=("$N")
+      LOCAL_SHA="$(git_blob_sha_file "$DEST" 2>/dev/null || true)"
+      if [[ "$LOCAL_SHA" == "${REMOTE_SHA[$N]}" ]]; then
+        SAME_RUNTIME+=("$N")
+      else
+        CHANGED_RUNTIME+=("$N")
+      fi
     fi
   else
-    if [[ -f "$CACHE_DIR/$N" ]]; then
-      if ! cmp -s "$T/$N" "$CACHE_DIR/$N"; then
+    if [[ -n "${PREV_SHA[$N]:-}" ]]; then
+      if [[ "${PREV_SHA[$N]}" != "${REMOTE_SHA[$N]}" ]]; then
         CHANGED_SOURCE+=("$N")
       fi
     else
@@ -175,55 +184,101 @@ for N in "${NAMES[@]}"; do
   fi
 done
 
-say "ELK One-Click GitHub 업데이트 확인"
+say "ELK One-Click GitHub 증분 업데이트 확인"
 say "  저장소       : https://github.com/$OWNER/$REPO ($BRANCH)"
 say "  설치 버전    : ${IV:-확인 불가}"
 say "  설치 빌드    : ${IB:-확인 불가}"
 say "  GitHub 버전  : $LV"
 say "  GitHub 빌드  : $LB"
-say "  업데이트 방식: 변경 파일만 교체 (incremental)"
+say "  모드         : delta-only"
+say "  비교 방식    : GitHub blob SHA ↔ 실제 설치 파일"
 
 if (( ${#CHANGED_RUNTIME[@]} )); then
   say
-  say "  [변경된 런타임 파일]"
+  say "  [실제 업데이트 대상]"
   for N in "${CHANGED_RUNTIME[@]}"; do
-    DEST="$(target_for "$N")"
-    say "    · $N  ->  $DEST"
+    say "    · $N -> $(target_for "$N")"
   done
+else
+  say
+  say "  [실제 업데이트 대상] 없음"
 fi
 
 if (( ${#CHANGED_SOURCE[@]} )); then
   say
-  say "  [설치 엔진/소스 변경]"
-  for N in "${CHANGED_SOURCE[@]}"; do
-    say "    · $N"
-  done
-  say "    ※ 기본 --apply에서는 실행하지 않고 최신 소스만 보관합니다."
-  say "       현재 ELK 구성을 전체 재적용하려면 --full을 사용하세요."
+  say "  [설치 엔진/소스 변경 - 기본 --apply에서는 적용하지 않음]"
+  for N in "${CHANGED_SOURCE[@]}"; do say "    · $N"; done
+  say "    ※ 전체 설치 구성을 다시 적용할 때만 --full 사용"
 fi
 
 if (( ${#BASELINE_SOURCE[@]} )); then
   say
-  say "  [최초 기준 등록]"
+  say "  [소스 비교 기준 최초 등록]"
   for N in "${BASELINE_SOURCE[@]}"; do say "    · $N"; done
-  say "    ※ 런타임 파일이 아닌 항목은 이번 실행에서 비교 기준만 저장합니다."
+  say "    ※ 파일 다운로드 없이 GitHub SHA만 기준값으로 등록합니다."
 fi
 
-TOTAL_CHANGED=$(( ${#CHANGED_RUNTIME[@]} + ${#CHANGED_SOURCE[@]} ))
-if (( TOTAL_CHANGED == 0 )); then
-  say "  상태         : 변경된 런타임 파일 없음"
-else
-  say "  상태         : 변경 ${TOTAL_CHANGED}개"
-fi
+TOTAL_RUNTIME=${#CHANGED_RUNTIME[@]}
+TOTAL_SOURCE=${#CHANGED_SOURCE[@]}
 
 if [[ "$MODE" == "--check" || "$MODE" == "check" || "$MODE" == "--version" ]]; then
-  (( TOTAL_CHANGED > 0 )) && exit 10 || exit 0
+  say
+  say "  core 파일 다운로드 : 0개"
+  say "  런타임 변경        : $TOTAL_RUNTIME개"
+  say "  소스 변경          : $TOTAL_SOURCE개"
+  (( TOTAL_RUNTIME + TOTAL_SOURCE > 0 )) && exit 10 || exit 0
 fi
 
 [[ ${EUID:-$(id -u)} -eq 0 ]] || die "적용은 root 권한이 필요합니다. sudo를 사용하세요."
 [[ -f "$ENVF" ]] || die "기존 설치 설정을 찾을 수 없습니다: $ENVF"
 
-# --full은 예전 방식의 전체 reconcile을 명시적으로 요청했을 때만 수행
+T="$(mktemp -d /tmp/elk-oneclick-update.XXXXXX)"
+cleanup(){ rm -rf "$T"; }
+trap cleanup EXIT
+
+download_one(){
+  local n="$1"
+  say "  [DOWNLOAD] $n"
+  curl -fsSL --connect-timeout 10 --max-time 120 \
+    "$RAW/_internal/core/$n" -o "$T/$n" || die "다운로드 실패: $n"
+}
+
+declare -a DOWNLOAD_NAMES=()
+
+if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
+  # full은 사용자가 명시적으로 요청한 경우에만 전체 core 다운로드.
+  DOWNLOAD_NAMES=("${NAMES[@]}")
+else
+  # 기본 --apply / --force는 실제 런타임 변경 파일만 다운로드.
+  DOWNLOAD_NAMES=("${CHANGED_RUNTIME[@]}")
+fi
+
+say
+say "[다운로드]"
+if (( ${#DOWNLOAD_NAMES[@]} == 0 )); then
+  say "  변경된 런타임 파일이 없어 core 다운로드를 수행하지 않습니다."
+else
+  say "  ${#DOWNLOAD_NAMES[@]}개 파일만 다운로드합니다."
+  for N in "${DOWNLOAD_NAMES[@]}"; do download_one "$N"; done
+fi
+
+# 다운로드한 파일만 SHA256 검증.
+if (( ${#DOWNLOAD_NAMES[@]} > 0 )); then
+  SUMS="$(GET "$RAW/SHA256SUMS.txt" 2>/dev/null || true)"
+  if [[ -n "$SUMS" ]]; then
+    bad=0
+    for N in "${DOWNLOAD_NAMES[@]}"; do
+      EXP="$(awk -v p="_internal/core/$N" '$2==p{print $1}' <<<"$SUMS" | tail -1)"
+      [[ -z "$EXP" ]] && continue
+      ACT="$(sha256sum "$T/$N" | awk '{print $1}')"
+      [[ "$ACT" == "$EXP" ]] || { say "[ERROR] SHA256 불일치: $N"; bad=1; }
+    done
+    (( bad == 0 )) || die "파일 무결성 검증에 실패했습니다."
+  else
+    say "[WARN] SHA256SUMS.txt를 읽지 못해 다운로드 파일의 repository hash 검증을 생략합니다."
+  fi
+fi
+
 if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
   [[ -f "$T/install-elk.sh" ]] || die "업데이트에 install-elk.sh가 없습니다."
 
@@ -242,6 +297,7 @@ if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
       systemctl start logstash >/dev/null 2>&1 || true
     fi
   }
+
   if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet logstash 2>/dev/null; then
     LOGSTASH_WAS_ACTIVE=1
     say "[INFO] 전체 재적용 검증을 위해 Logstash를 잠시 중지합니다."
@@ -279,103 +335,97 @@ if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
     set -e
     (( CHECK_RC == 0 )) || say "[WARN] 상태 점검에서 확인할 항목이 있습니다. (rc=$CHECK_RC)"
   fi
+
   FULL_OK=1
   trap cleanup EXIT
 else
-  # 기본 incremental 적용
-  if (( ${#CHANGED_RUNTIME[@]} == 0 && ${#CHANGED_SOURCE[@]} == 0 && ${#BASELINE_SOURCE[@]} == 0 )); then
-    say "[OK] 이미 최신 파일 상태입니다. ELK 재설치는 수행하지 않았습니다."
-    exit 0
-  fi
+  if (( ${#CHANGED_RUNTIME[@]} == 0 )); then
+    say "[OK] 변경된 런타임 파일이 없습니다."
+    say "     install-elk.sh / ELK 패키지 / Logstash 구성 재적용은 수행하지 않았습니다."
+  else
+    TS="$(date +%Y%m%d-%H%M%S)"
+    BKDIR="$BACKUP_ROOT/$TS"
+    install -d -m 700 "$BKDIR"
 
-  TS="$(date +%Y%m%d-%H%M%S)"
-  BKDIR="$BACKUP_ROOT/$TS"
-  install -d -m 700 "$BKDIR"
+    WEB_CHANGED=0
+    REPORT_CHANGED=0
+    SELF_UPDATE=0
+    APPLIED=0
 
-  WEB_CHANGED=0
-  REPORT_CHANGED=0
-  SELF_UPDATE=0
-  APPLIED=0
+    say
+    say "[적용] 다운로드한 변경 파일만 교체합니다."
 
-  say
-  say "[적용] 변경된 파일만 교체합니다."
-  for N in "${CHANGED_RUNTIME[@]}"; do
-    DEST="$(target_for "$N")"
-    MODE_N="$(mode_for "$N")"
+    for N in "${CHANGED_RUNTIME[@]}"; do
+      DEST="$(target_for "$N")"
+      MODE_N="$(mode_for "$N")"
 
-    # 실행 중인 updater는 마지막에 자기 자신을 교체
-    if [[ "$N" == "elk-oneclick-update.sh" ]]; then
-      SELF_UPDATE=1
-      continue
+      if [[ "$N" == "elk-oneclick-update.sh" ]]; then
+        SELF_UPDATE=1
+        continue
+      fi
+
+      install -d -m 755 "$(dirname "$DEST")"
+      [[ -f "$DEST" ]] && cp -a "$DEST" "$BKDIR/$(basename "$DEST").before"
+      install -m "$MODE_N" "$T/$N" "$DEST"
+
+      say "  [UPDATED] $N -> $DEST"
+      APPLIED=$((APPLIED+1))
+
+      [[ "$N" == "elk-report-web.py" ]] && WEB_CHANGED=1
+      [[ "$N" == "elk-report.sh" ]] && REPORT_CHANGED=1
+    done
+
+    if (( WEB_CHANGED )) && command -v systemctl >/dev/null 2>&1; then
+      if systemctl is-enabled --quiet elk-report-web.service 2>/dev/null || \
+         systemctl is-active --quiet elk-report-web.service 2>/dev/null; then
+        say "  [RESTART] elk-report-web.service"
+        systemctl restart elk-report-web.service
+      fi
     fi
 
-    install -d -m 755 "$(dirname "$DEST")"
-    if [[ -f "$DEST" ]]; then
-      cp -a "$DEST" "$BKDIR/$(basename "$DEST").before"
+    if (( REPORT_CHANGED )) && [[ -x /usr/local/sbin/elk-report ]]; then
+      say "  [REFRESH] ELK 점검 리포트 재생성"
+      /usr/local/sbin/elk-report --no-color >/dev/null 2>&1 || true
     fi
-    install -m "$MODE_N" "$T/$N" "$DEST"
-    say "  [UPDATED] $N -> $DEST"
-    APPLIED=$((APPLIED+1))
 
-    [[ "$N" == "elk-report-web.py" ]] && WEB_CHANGED=1
-    [[ "$N" == "elk-report.sh" ]] && REPORT_CHANGED=1
-  done
-
-  # 점검 웹 Python만 바뀐 경우 해당 서비스만 재시작
-  if (( WEB_CHANGED )) && command -v systemctl >/dev/null 2>&1; then
-    if systemctl is-enabled --quiet elk-report-web.service 2>/dev/null || \
-       systemctl is-active --quiet elk-report-web.service 2>/dev/null; then
-      say "  [RESTART] elk-report-web.service"
-      systemctl restart elk-report-web.service
+    if (( SELF_UPDATE )); then
+      DEST="/usr/local/sbin/elk-oneclick-update"
+      [[ -f "$DEST" ]] && cp -a "$DEST" "$BKDIR/elk-oneclick-update.before"
+      install -m 755 "$T/elk-oneclick-update.sh" "$DEST"
+      say "  [UPDATED] elk-oneclick-update.sh -> $DEST"
+      APPLIED=$((APPLIED+1))
     fi
-  fi
 
-  # report 스크립트가 바뀌었으면 최신 HTML을 한 번 생성
-  if (( REPORT_CHANGED )) && [[ -x /usr/local/sbin/elk-report ]]; then
-    say "  [REFRESH] ELK 점검 리포트 재생성"
-    /usr/local/sbin/elk-report --no-color >/dev/null 2>&1 || true
+    say "  적용 파일 수 : $APPLIED"
+    say "  다운로드 수   : ${#DOWNLOAD_NAMES[@]}"
+    say "  백업 경로     : $BKDIR"
+    say "  install-elk 실행 : 안 함"
+    say "  ELK 패키지 재설치 : 안 함"
   fi
-
-  # updater 자기 자신은 모든 작업이 끝난 후 교체
-  if (( SELF_UPDATE )); then
-    DEST="/usr/local/sbin/elk-oneclick-update"
-    [[ -f "$DEST" ]] && cp -a "$DEST" "$BKDIR/elk-oneclick-update.before"
-    install -m 755 "$T/elk-oneclick-update.sh" "$DEST"
-    say "  [UPDATED] elk-oneclick-update.sh -> $DEST"
-    APPLIED=$((APPLIED+1))
-  fi
-
-  say "  적용 파일 수 : $APPLIED"
-  say "  백업 경로    : $BKDIR"
-  say "  ELK 패키지 재설치/재구성 : 수행하지 않음"
 fi
 
-# GitHub core 원본을 다음 변경 비교 기준으로 저장
-install -d -m 755 "$CACHE_DIR"
-for N in "${NAMES[@]}"; do
-  install -m "$(mode_for "$N")" "$T/$N" "$CACHE_DIR/$N"
-done
-
-# 원격 core 전체 hash manifest 기록
-install -d -m 755 "$(dirname "$MANIFEST")"
-: > "$MANIFEST"
-for N in "${NAMES[@]}"; do
-  H="$(sha256sum "$T/$N" | awk '{print $1}')"
-  printf '%s  %s\n' "$H" "_internal/core/$N" >> "$MANIFEST"
-done
-chmod 644 "$MANIFEST"
+# 성공한 적용 뒤 GitHub blob SHA 기준값 갱신.
+install -d -m 755 "$(dirname "$REMOTE_MANIFEST")"
+{
+  for N in "${NAMES[@]}"; do
+    printf '%s\t%s\n' "${REMOTE_SHA[$N]}" "$N"
+  done
+} > "$REMOTE_MANIFEST"
+chmod 644 "$REMOTE_MANIFEST"
 
 install -d -m 755 "$(dirname "$RELEASE")"
 cat > "$RELEASE" <<META
 ONECLICK_VERSION="$LV"
 ONECLICK_BUILD="$LB"
 ONECLICK_INSTALLED_AT="$(date -Is)"
-ONECLICK_UPDATE_MODE="$([[ "$MODE" == "--full" || "$MODE" == "full" ]] && echo full || echo incremental)"
+ONECLICK_UPDATE_MODE="$([[ "$MODE" == "--full" || "$MODE" == "full" ]] && echo full || echo delta-only)"
+ONECLICK_DOWNLOADED_FILES="${#DOWNLOAD_NAMES[@]}"
+ONECLICK_APPLIED_RUNTIME_FILES="${#CHANGED_RUNTIME[@]}"
 META
 chmod 644 "$RELEASE"
 
 if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
   say "[OK] 전체 구성 재적용 완료: v$LV · build $LB"
 else
-  say "[OK] 증분 업데이트 완료: 변경된 파일만 반영했습니다. v$LV · build $LB"
+  say "[OK] delta-only 업데이트 완료: 실제 변경 파일만 반영했습니다. v$LV · build $LB"
 fi
