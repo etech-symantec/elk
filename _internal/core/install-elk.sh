@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-# ELK Auto Installer v2.9.9
+# ELK Auto Installer v2.9.10
 # Target: Ubuntu 22.04 / 24.04, Elastic Stack 9.x
 # Usage: sudo bash install-elk.sh ./elk.env
 
@@ -320,7 +320,7 @@ unset _old_name _new_name
 : "${HEALTH_DISK_CRIT_PERCENT:=92}"
 : "${HEALTH_AUTO_PAUSE_FILE_INGEST_ON_CRITICAL:=false}"
 
-# 정기점검 HTML / Web Viewer (v2.9.9)
+# 정기점검 HTML / Web Viewer (v2.9.10)
 : "${ELK_REPORT_HTML_DIR:=/var/lib/elk-report}"
 : "${ELK_REPORT_HTML_FILE:=${ELK_REPORT_HTML_DIR}/report.html}"
 : "${ELK_REPORT_WEB_ENABLED:=true}"
@@ -1036,7 +1036,7 @@ extend_root_lvm() {
 }
 
 # ----------------------------- OS -----------------------------
-ELK_AUTO_VERSION="2.9.9"
+ELK_AUTO_VERSION="2.9.10"
 log "ELK Auto Installer v${ELK_AUTO_VERSION}"
 log "환경파일: $ENV_FILE"
 log "설치 로그: $INSTALL_LOG"
@@ -2306,7 +2306,7 @@ if [[ -f "$SCRIPT_DIR/elk-patch.sh" && -f "$SCRIPT_DIR/proxysg-lib.sh" ]]; then
   if [[ -s "$SCRIPT_DIR/custom-pipeline.conf" ]]; then install -m 644 "$SCRIPT_DIR/custom-pipeline.conf" /usr/local/lib/elk-auto/custom-pipeline.conf; else rm -f /usr/local/lib/elk-auto/custom-pipeline.conf; fi
   log "부분 패치 도구 설치: /usr/local/sbin/elk-patch  (예: sudo elk-patch --list)"
 fi
-# v2.9.9: 서버 정기점검 리포트 + HTML Web Viewer
+# v2.9.10: 서버 정기점검 리포트 + HTML Web Viewer
 if [[ -f "$SCRIPT_DIR/elk-report.sh" ]]; then
   install -m 755 "$SCRIPT_DIR/elk-report.sh" /usr/local/sbin/elk-report
   install -d -m 755 "$ELK_REPORT_HTML_DIR"
@@ -2526,85 +2526,104 @@ if istrue "$START_SERVICES_AFTER_INSTALL"; then
         return 0
       }
 
+      resolve_dash_field() {
+        local _index="$1" _base="$2" _resp _kw
+        _kw="${_base}.keyword"
+        _resp="$(es_curl GET "/${_index}/_field_caps?fields=${_base},${_kw}" 2>/dev/null || true)"
+        jq -r --arg b "$_base" --arg k "$_kw" '
+          def agg($n):
+            if (.fields[$n] // null) == null then false
+            else any(.fields[$n][]; .aggregatable == true) end;
+          if agg($k) then $k
+          elif agg($b) then $b
+          else "" end
+        ' <<<"$_resp" 2>/dev/null | head -n1
+      }
+
       dash_widget_def() {
         local _id="$1"
-        DW_INDEX="$_dash_both"; DW_KIND="terms_bar"; DW_FIELD=""; DW_TITLE=""
+        DW_INDEX="$_dash_both"; DW_KIND="terms_bar"; DW_FIELD_BASE=""; DW_FIELD=""; DW_TITLE=""; DW_NOTE=""
         case "$_id" in
           requests_total)      DW_TITLE="전체 요청"; DW_KIND="metric_count" ;;
           traffic_total)       DW_TITLE="전체 트래픽"; DW_KIND="metric_bytes" ;;
           response_avg)        DW_TITLE="응답시간 Avg · P95"; DW_KIND="metric_latency" ;;
-          error_requests)      DW_TITLE="HTTP 오류율"; DW_KIND="metric_error_rate" ;;
-          requests_timeline)   DW_TITLE="요청 · 오류 추이"; DW_KIND="time_requests_errors" ;;
+          error_requests)      DW_TITLE="HTTP 오류율"; DW_KIND="metric_error_rate"; DW_FIELD_BASE="sc_status" ;;
+          requests_timeline)   DW_TITLE="요청 · 오류 추이"; DW_KIND="time_requests_errors"; DW_FIELD_BASE="sc_status" ;;
           traffic_timeline)    DW_TITLE="송수신 트래픽 추이"; DW_KIND="time_traffic_split" ;;
           response_timeline)   DW_TITLE="응답시간 Avg · P95 추이"; DW_KIND="time_latency" ;;
-          status_top)          DW_TITLE="HTTP 상태코드 분포"; DW_KIND="terms_donut"; DW_FIELD="sc_status.keyword" ;;
-          client_ip_top)       DW_TITLE="Top Client IP"; DW_FIELD="c_ip.keyword" ;;
-          username_top)        DW_TITLE="Top 사용자"; DW_FIELD="cs_username.keyword" ;;
-          host_top)            DW_TITLE="Top 목적지 Host"; DW_FIELD="cs_host.keyword" ;;
-          category_top)        DW_TITLE="Top 카테고리"; DW_FIELD="cs_categories.keyword" ;;
-          filter_result_top)   DW_TITLE="필터 결과 분포"; DW_KIND="terms_donut"; DW_FIELD="sc_filter_result.keyword" ;;
-          action_top)          DW_TITLE="Proxy Action 분포"; DW_KIND="terms_donut"; DW_FIELD="s_action.keyword" ;;
-          method_top)          DW_TITLE="HTTP Method 분포"; DW_KIND="terms_donut"; DW_FIELD="cs_method.keyword" ;;
-          application_top)     DW_TITLE="Top Application"; DW_FIELD="x_bluecoat_application_name.keyword"; DW_INDEX="$_dash_main" ;;
-          threat_risk_top)     DW_TITLE="Threat Risk 분포"; DW_KIND="terms_donut"; DW_FIELD="cs_threat_risk.keyword" ;;
-          threat_id_top)       DW_TITLE="Top Threat ID"; DW_FIELD="cs_threat_id.keyword" ;;
-          ssl_cert_errors)     DW_TITLE="SSL 인증서 오류"; DW_KIND="terms_bar_nonempty"; DW_FIELD="x_rs_certificate_observed_errors.keyword"; DW_INDEX="$_dash_ssl" ;;
-          ssl_cipher_strength) DW_TITLE="SSL Cipher Strength"; DW_KIND="terms_donut"; DW_FIELD="x_rs_connection_negotiated_cipher_strength.keyword"; DW_INDEX="$_dash_ssl" ;;
+          status_top)          DW_TITLE="HTTP 상태코드 분포"; DW_KIND="terms_donut"; DW_FIELD_BASE="sc_status" ;;
+          client_ip_top)       DW_TITLE="Top Client IP"; DW_FIELD_BASE="c_ip" ;;
+          username_top)        DW_TITLE="Top 사용자"; DW_FIELD_BASE="cs_username" ;;
+          host_top)            DW_TITLE="Top 목적지 Host"; DW_FIELD_BASE="cs_host" ;;
+          category_top)        DW_TITLE="Top 카테고리"; DW_FIELD_BASE="cs_categories" ;;
+          filter_result_top)   DW_TITLE="필터 결과 분포"; DW_KIND="terms_donut"; DW_FIELD_BASE="sc_filter_result" ;;
+          action_top)          DW_TITLE="Proxy Action 분포"; DW_KIND="terms_donut"; DW_FIELD_BASE="s_action" ;;
+          method_top)          DW_TITLE="HTTP Method 분포"; DW_KIND="terms_donut"; DW_FIELD_BASE="cs_method" ;;
+          application_top)     DW_TITLE="Top Application"; DW_FIELD_BASE="x_bluecoat_application_name"; DW_INDEX="$_dash_main" ;;
+          threat_risk_top)     DW_TITLE="Threat Risk 분포"; DW_KIND="terms_donut"; DW_FIELD_BASE="cs_threat_risk" ;;
+          threat_id_top)       DW_TITLE="Top Threat ID"; DW_FIELD_BASE="cs_threat_id" ;;
+          ssl_cert_errors)     DW_TITLE="SSL 인증서 오류"; DW_KIND="terms_bar_nonempty"; DW_FIELD_BASE="x_rs_certificate_observed_errors"; DW_INDEX="$_dash_ssl" ;;
+          ssl_cipher_strength) DW_TITLE="SSL Cipher Strength"; DW_KIND="terms_donut"; DW_FIELD_BASE="x_rs_connection_negotiated_cipher_strength"; DW_INDEX="$_dash_ssl" ;;
           *) return 1 ;;
         esac
       }
 
       dash_vega_spec() {
-        local _kind="$1" _index="$2" _field="$3" _title="$4"
+        local _kind="$1" _index="$2" _field="$3" _title="$4" _note="${5:-}"
         case "$_kind" in
+          empty)
+            cat <<EOF_VEGA
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","width":"container","height":120,"data":{"values":[{"msg":"${_note}"}]},"layer":[{"mark":{"type":"text","fontSize":28,"fontWeight":"bold","color":"#94A3B8","dy":-10},"encoding":{"text":{"value":"데이터 없음"}}},{"mark":{"type":"text","fontSize":11,"color":"#64748B","dy":24},"encoding":{"text":{"field":"msg","type":"nominal"}}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
+EOF_VEGA
+            ;;
           metric_count)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}}],"keyed":false}}}}},"format":{"property":"aggregations.m.buckets"}},"layer":[{"mark":{"type":"text","fontSize":36,"fontWeight":"bold","dy":-6},"encoding":{"text":{"field":"doc_count","type":"quantitative","format":","}}},{"mark":{"type":"text","fontSize":11,"dy":24,"opacity":0.65},"encoding":{"text":{"value":"선택 기간 요청 건수"}}}],"config":{"view":{"stroke":null}}}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","width":"container","height":120,"data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}}],"keyed":false}}}}},"format":{"property":"aggregations.m.buckets"}},"layer":[{"mark":{"type":"text","fontSize":38,"fontWeight":"bold","color":"#0F766E","dy":-8},"encoding":{"text":{"field":"doc_count","type":"quantitative","format":","}}},{"mark":{"type":"text","fontSize":11,"color":"#64748B","dy":25},"encoding":{"text":{"value":"선택 기간 요청 건수"}}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
 EOF_VEGA
             ;;
           metric_bytes)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}}],"keyed":false},"aggs":{"sc":{"sum":{"field":"sc_bytes"}},"cs":{"sum":{"field":"cs_bytes"}}}}}}},"format":{"property":"aggregations.m.buckets"}},"transform":[{"calculate":"datum.sc.value + datum.cs.value","as":"bytes"}],"layer":[{"mark":{"type":"text","fontSize":34,"fontWeight":"bold","dy":-6},"encoding":{"text":{"field":"bytes","type":"quantitative","format":".3s"}}},{"mark":{"type":"text","fontSize":11,"dy":24,"opacity":0.65},"encoding":{"text":{"value":"Response + Request Bytes"}}}],"config":{"view":{"stroke":null}}}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","width":"container","height":120,"data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}}],"keyed":false},"aggs":{"sc":{"sum":{"field":"sc_bytes"}},"cs":{"sum":{"field":"cs_bytes"}}}}}}},"format":{"property":"aggregations.m.buckets"}},"transform":[{"calculate":"datum.sc.value + datum.cs.value","as":"bytes"}],"layer":[{"mark":{"type":"text","fontSize":37,"fontWeight":"bold","color":"#0284C7","dy":-8},"encoding":{"text":{"field":"bytes","type":"quantitative","format":".3s"}}},{"mark":{"type":"text","fontSize":11,"color":"#64748B","dy":25},"encoding":{"text":{"value":"Response + Request Bytes"}}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
 EOF_VEGA
             ;;
           metric_latency)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}}],"keyed":false},"aggs":{"avg":{"avg":{"field":"time_taken"}},"p95":{"percentiles":{"field":"time_taken","percents":[95]}}}}}}},"format":{"property":"aggregations.m.buckets"}},"transform":[{"calculate":"isValid(datum.avg.value) ? datum.avg.value : 0","as":"avg_ms"},{"calculate":"isValid(datum.p95.values['95.0']) ? datum.p95.values['95.0'] : 0","as":"p95_ms"}],"layer":[{"mark":{"type":"text","fontSize":31,"fontWeight":"bold","dy":-9},"encoding":{"text":{"field":"avg_ms","type":"quantitative","format":".1f"}}},{"mark":{"type":"text","fontSize":10.5,"dy":20,"opacity":0.7},"encoding":{"text":{"field":"p95_ms","type":"quantitative","format":"P95  .1f ms"}}}],"config":{"view":{"stroke":null}}}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","width":"container","height":120,"data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}}],"keyed":false},"aggs":{"avg":{"avg":{"field":"time_taken"}},"p95":{"percentiles":{"field":"time_taken","percents":[95]}}}}}}},"format":{"property":"aggregations.m.buckets"}},"transform":[{"calculate":"isValid(datum.avg.value) ? datum.avg.value : 0","as":"avg_ms"},{"calculate":"isValid(datum.p95.values['95.0']) ? datum.p95.values['95.0'] : 0","as":"p95_ms"},{"calculate":"'P95 ' + format(datum.p95_ms,'.1f') + ' ms'","as":"p95_label"}],"layer":[{"mark":{"type":"text","fontSize":35,"fontWeight":"bold","color":"#7C3AED","dy":-10},"encoding":{"text":{"field":"avg_ms","type":"quantitative","format":".1f"}}},{"mark":{"type":"text","fontSize":11,"color":"#64748B","dx":42,"dy":-10},"encoding":{"text":{"value":"ms"}}},{"mark":{"type":"text","fontSize":11,"color":"#64748B","dy":24},"encoding":{"text":{"field":"p95_label","type":"nominal"}}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
 EOF_VEGA
             ;;
           metric_error_rate)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}},{"regexp":{"sc_status.keyword":"[45][0-9][0-9]"}}],"keyed":false}}}}},"format":{"property":"aggregations.m.buckets"}},"transform":[{"calculate":"datum.key==0 ? datum.doc_count : 0","as":"all_n"},{"calculate":"datum.key==1 ? datum.doc_count : 0","as":"err_n"},{"joinaggregate":[{"op":"sum","field":"all_n","as":"all_total"},{"op":"sum","field":"err_n","as":"err_total"}]},{"filter":"datum.key==0"},{"calculate":"datum.all_total>0 ? datum.err_total/datum.all_total*100 : 0","as":"rate"}],"layer":[{"mark":{"type":"text","fontSize":34,"fontWeight":"bold","dy":-6},"encoding":{"text":{"field":"rate","type":"quantitative","format":".2f"}}},{"mark":{"type":"text","fontSize":11,"dx":42,"dy":-6},"encoding":{"text":{"value":"%"}}},{"mark":{"type":"text","fontSize":10.5,"dy":23,"opacity":0.65},"encoding":{"text":{"field":"err_total","type":"quantitative","format":"오류 , 건"}}}],"config":{"view":{"stroke":null}}}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","width":"container","height":120,"data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"m":{"filters":{"filters":[{"match_all":{}},{"regexp":{"${_field}":"[45][0-9][0-9]"}}],"keyed":false}}}}},"format":{"property":"aggregations.m.buckets"}},"transform":[{"calculate":"toNumber(datum.key)==0 ? datum.doc_count : 0","as":"all_n"},{"calculate":"toNumber(datum.key)==1 ? datum.doc_count : 0","as":"err_n"},{"joinaggregate":[{"op":"sum","field":"all_n","as":"all_total"},{"op":"sum","field":"err_n","as":"err_total"}]},{"filter":"toNumber(datum.key)==0"},{"calculate":"datum.all_total>0 ? datum.err_total/datum.all_total*100 : 0","as":"rate"},{"calculate":"format(datum.rate,'.2f') + '%'","as":"rate_label"},{"calculate":"format(datum.err_total,',') + '건 오류'","as":"err_label"}],"layer":[{"mark":{"type":"text","fontSize":36,"fontWeight":"bold","color":"#DC2626","dy":-9},"encoding":{"text":{"field":"rate_label","type":"nominal"}}},{"mark":{"type":"text","fontSize":11,"color":"#64748B","dy":24},"encoding":{"text":{"field":"err_label","type":"nominal"}}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
 EOF_VEGA
             ;;
           time_requests_errors)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"t":{"auto_date_histogram":{"field":"@timestamp","buckets":60},"aggs":{"errors":{"filter":{"regexp":{"sc_status.keyword":"[45][0-9][0-9]"}}}}}}}},"format":{"property":"aggregations.t.buckets"}},"layer":[{"mark":{"type":"area","opacity":0.18,"line":true},"encoding":{"x":{"field":"key","type":"temporal","title":null},"y":{"field":"doc_count","type":"quantitative","title":"요청"},"tooltip":[{"field":"key_as_string","type":"nominal","title":"시각"},{"field":"doc_count","type":"quantitative","title":"전체 요청","format":","}]}},{"mark":{"type":"line","strokeWidth":2.2},"encoding":{"x":{"field":"key","type":"temporal"},"y":{"field":"errors.doc_count","type":"quantitative"},"tooltip":[{"field":"errors.doc_count","type":"quantitative","title":"HTTP 오류","format":","}]}}]}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","width":"container","height":220,"data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"t":{"date_histogram":{"field":"@timestamp","interval":{"%autointerval%":true},"extended_bounds":{"min":{"%timefilter%":"min"},"max":{"%timefilter%":"max"}},"min_doc_count":0},"aggs":{"errors":{"filter":{"regexp":{"${_field}":"[45][0-9][0-9]"}}}}}}}},"format":{"property":"aggregations.t.buckets"}},"layer":[{"mark":{"type":"area","color":"#14B8A6","opacity":0.16,"line":{"color":"#14B8A6","strokeWidth":2}},"encoding":{"x":{"field":"key","type":"temporal","title":null,"axis":{"grid":false,"labelColor":"#64748B"}},"y":{"field":"doc_count","type":"quantitative","title":"요청","axis":{"gridColor":"#EEF2F7","labelColor":"#64748B"}},"tooltip":[{"field":"key_as_string","type":"nominal","title":"시각"},{"field":"doc_count","type":"quantitative","title":"전체 요청","format":","}]}},{"mark":{"type":"line","color":"#EF4444","strokeWidth":2.2,"point":{"filled":true,"size":22}},"encoding":{"x":{"field":"key","type":"temporal"},"y":{"field":"errors.doc_count","type":"quantitative"},"tooltip":[{"field":"errors.doc_count","type":"quantitative","title":"HTTP 오류","format":","}]}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
 EOF_VEGA
             ;;
           time_traffic_split)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"t":{"auto_date_histogram":{"field":"@timestamp","buckets":60},"aggs":{"response_bytes":{"sum":{"field":"sc_bytes"}},"request_bytes":{"sum":{"field":"cs_bytes"}}}}}},"format":{"property":"aggregations.t.buckets"}},"transform":[{"calculate":"datum.response_bytes.value","as":"Response bytes"},{"calculate":"datum.request_bytes.value","as":"Request bytes"},{"fold":["Response bytes","Request bytes"],"as":["direction","bytes"]}],"mark":{"type":"area","opacity":0.28,"line":true},"encoding":{"x":{"field":"key","type":"temporal","title":null},"y":{"field":"bytes","type":"quantitative","title":"Bytes","stack":null},"color":{"field":"direction","type":"nominal","title":null},"tooltip":[{"field":"key_as_string","type":"nominal","title":"시각"},{"field":"direction","type":"nominal","title":"방향"},{"field":"bytes","type":"quantitative","title":"Bytes","format":".3s"}]}}}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","width":"container","height":220,"data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"t":{"date_histogram":{"field":"@timestamp","interval":{"%autointerval%":true},"extended_bounds":{"min":{"%timefilter%":"min"},"max":{"%timefilter%":"max"}},"min_doc_count":0},"aggs":{"response_bytes":{"sum":{"field":"sc_bytes"}},"request_bytes":{"sum":{"field":"cs_bytes"}}}}}},"format":{"property":"aggregations.t.buckets"}},"layer":[{"mark":{"type":"area","color":"#0284C7","opacity":0.15,"line":{"color":"#0284C7","strokeWidth":2}},"encoding":{"x":{"field":"key","type":"temporal","title":null,"axis":{"grid":false,"labelColor":"#64748B"}},"y":{"field":"response_bytes.value","type":"quantitative","title":"Bytes","axis":{"gridColor":"#EEF2F7","labelColor":"#64748B"}},"tooltip":[{"field":"key_as_string","type":"nominal","title":"시각"},{"field":"response_bytes.value","type":"quantitative","title":"Response Bytes","format":".3s"}]}},{"mark":{"type":"line","color":"#F59E0B","strokeWidth":2.1,"point":{"filled":true,"size":18}},"encoding":{"x":{"field":"key","type":"temporal"},"y":{"field":"request_bytes.value","type":"quantitative"},"tooltip":[{"field":"request_bytes.value","type":"quantitative","title":"Request Bytes","format":".3s"}]}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}}
 EOF_VEGA
             ;;
           time_latency)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"t":{"auto_date_histogram":{"field":"@timestamp","buckets":60},"aggs":{"avg":{"avg":{"field":"time_taken"}},"p95":{"percentiles":{"field":"time_taken","percents":[95]}}}}}},"format":{"property":"aggregations.t.buckets"}},"transform":[{"calculate":"datum.avg.value","as":"Average"},{"calculate":"datum.p95.values['95.0']","as":"P95"},{"fold":["Average","P95"],"as":["metric","ms"]}],"mark":{"type":"line","strokeWidth":2.1},"encoding":{"x":{"field":"key","type":"temporal","title":null},"y":{"field":"ms","type":"quantitative","title":"ms"},"color":{"field":"metric","type":"nominal","title":null},"tooltip":[{"field":"key_as_string","type":"nominal","title":"시각"},{"field":"metric","type":"nominal","title":"지표"},{"field":"ms","type":"quantitative","title":"ms","format":".1f"}]}}}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","width":"container","height":220,"data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"t":{"date_histogram":{"field":"@timestamp","interval":{"%autointerval%":true},"extended_bounds":{"min":{"%timefilter%":"min"},"max":{"%timefilter%":"max"}},"min_doc_count":0},"aggs":{"avg":{"avg":{"field":"time_taken"}},"p95":{"percentiles":{"field":"time_taken","percents":[95]}}}}}},"format":{"property":"aggregations.t.buckets"}},"transform":[{"calculate":"datum.avg.value","as":"avg_ms"},{"calculate":"datum.p95.values['95.0']","as":"p95_ms"}],"layer":[{"mark":{"type":"line","color":"#7C3AED","strokeWidth":2.2,"point":{"filled":true,"size":18}},"encoding":{"x":{"field":"key","type":"temporal","title":null,"axis":{"grid":false,"labelColor":"#64748B"}},"y":{"field":"avg_ms","type":"quantitative","title":"ms","axis":{"gridColor":"#EEF2F7","labelColor":"#64748B"}},"tooltip":[{"field":"key_as_string","type":"nominal","title":"시각"},{"field":"avg_ms","type":"quantitative","title":"평균","format":".1f"}]}},{"mark":{"type":"line","color":"#EC4899","strokeWidth":2.2,"strokeDash":[5,3]},"encoding":{"x":{"field":"key","type":"temporal"},"y":{"field":"p95_ms","type":"quantitative"},"tooltip":[{"field":"p95_ms","type":"quantitative","title":"P95","format":".1f"}]}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}}
 EOF_VEGA
             ;;
           terms_donut)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"top":{"terms":{"field":"${_field}","size":10,"missing":"(없음)"}}}}},"format":{"property":"aggregations.top.buckets"}},"mark":{"type":"arc","innerRadius":46,"outerRadius":82},"encoding":{"theta":{"field":"doc_count","type":"quantitative"},"color":{"field":"key","type":"nominal","legend":{"title":null,"orient":"right","labelLimit":150}},"tooltip":[{"field":"key","type":"nominal","title":"값"},{"field":"doc_count","type":"quantitative","title":"건수","format":","}]}}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","width":"container","height":220,"data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"top":{"terms":{"field":"${_field}","size":8,"missing":"(없음)"}}}}},"format":{"property":"aggregations.top.buckets"}},"mark":{"type":"arc","innerRadius":52,"outerRadius":90,"cornerRadius":3,"padAngle":0.02},"encoding":{"theta":{"field":"doc_count","type":"quantitative"},"color":{"field":"key","type":"nominal","scale":{"scheme":"tableau10"},"legend":{"title":null,"orient":"right","labelLimit":150}},"tooltip":[{"field":"key","type":"nominal","title":"값"},{"field":"doc_count","type":"quantitative","title":"건수","format":","}]},"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
 EOF_VEGA
             ;;
           terms_bar_nonempty)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"query":{"bool":{"must":[{"exists":{"field":"${_field}"}}],"must_not":[{"term":{"${_field}":"-"}}]}},"aggs":{"top":{"terms":{"field":"${_field}","size":10}}}}},"format":{"property":"aggregations.top.buckets"}},"mark":{"type":"bar","cornerRadiusEnd":3},"encoding":{"y":{"field":"key","type":"nominal","sort":"-x","title":null,"axis":{"labelLimit":210}},"x":{"field":"doc_count","type":"quantitative","title":"건수"},"tooltip":[{"field":"key","type":"nominal","title":"값"},{"field":"doc_count","type":"quantitative","title":"건수","format":","}]}}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","width":"container","height":220,"data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"query":{"bool":{"must":[{"exists":{"field":"${_field}"}}],"must_not":[{"term":{"${_field}":"-"}}]}},"aggs":{"top":{"terms":{"field":"${_field}","size":10}}}}},"format":{"property":"aggregations.top.buckets"}},"layer":[{"mark":{"type":"bar","color":"#F97316","cornerRadiusEnd":5},"encoding":{"y":{"field":"key","type":"nominal","sort":"-x","title":null,"axis":{"labelLimit":210,"labelColor":"#475569"}},"x":{"field":"doc_count","type":"quantitative","title":"건수","axis":{"gridColor":"#EEF2F7","labelColor":"#64748B"}},"tooltip":[{"field":"key","type":"nominal","title":"값"},{"field":"doc_count","type":"quantitative","title":"건수","format":","}]}},{"mark":{"type":"text","align":"left","baseline":"middle","dx":5,"color":"#475569","fontSize":10},"encoding":{"y":{"field":"key","type":"nominal","sort":"-x"},"x":{"field":"doc_count","type":"quantitative"},"text":{"field":"doc_count","type":"quantitative","format":","}}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
 EOF_VEGA
             ;;
           terms_bar)
             cat <<EOF_VEGA
-{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"top":{"terms":{"field":"${_field}","size":10,"missing":"(없음)"}}}}},"format":{"property":"aggregations.top.buckets"}},"mark":{"type":"bar","cornerRadiusEnd":3},"encoding":{"y":{"field":"key","type":"nominal","sort":"-x","title":null,"axis":{"labelLimit":210}},"x":{"field":"doc_count","type":"quantitative","title":"건수"},"tooltip":[{"field":"key","type":"nominal","title":"값"},{"field":"doc_count","type":"quantitative","title":"건수","format":","}]}}
+{"\$schema":"https://vega.github.io/schema/vega-lite/v6.json","width":"container","height":220,"data":{"url":{"%context%":true,"%timefield%":"@timestamp","index":"${_index}","body":{"size":0,"aggs":{"top":{"terms":{"field":"${_field}","size":10,"missing":"(없음)"}}}}},"format":{"property":"aggregations.top.buckets"}},"layer":[{"mark":{"type":"bar","color":"#14B8A6","cornerRadiusEnd":5},"encoding":{"y":{"field":"key","type":"nominal","sort":"-x","title":null,"axis":{"labelLimit":210,"labelColor":"#475569"}},"x":{"field":"doc_count","type":"quantitative","title":"건수","axis":{"gridColor":"#EEF2F7","labelColor":"#64748B"}},"tooltip":[{"field":"key","type":"nominal","title":"값"},{"field":"doc_count","type":"quantitative","title":"건수","format":","}]}},{"mark":{"type":"text","align":"left","baseline":"middle","dx":5,"color":"#475569","fontSize":10},"encoding":{"y":{"field":"key","type":"nominal","sort":"-x"},"x":{"field":"doc_count","type":"quantitative"},"text":{"field":"doc_count","type":"quantitative","format":","}}}],"config":{"view":{"stroke":null},"background":"#FFFFFF"}}
 EOF_VEGA
             ;;
         esac
@@ -2613,11 +2632,22 @@ EOF_VEGA
       create_dash_widget() {
         local _wid="$1" _spec _vis_state _attrs _body _soid
         dash_widget_def "$_wid" || return 1
-        _spec="$(dash_vega_spec "$DW_KIND" "$DW_INDEX" "$DW_FIELD" "$DW_TITLE")"
+
+        # Terms/상태코드 관련 필드는 실제 mapping을 확인해 aggregatable field를 자동 선택.
+        if [[ -n "$DW_FIELD_BASE" ]]; then
+          DW_FIELD="$(resolve_dash_field "$DW_INDEX" "$DW_FIELD_BASE")"
+          if [[ -z "$DW_FIELD" ]]; then
+            DW_KIND="empty"
+            DW_NOTE="${DW_FIELD_BASE} 필드가 아직 없거나 집계할 수 없습니다."
+            log "Kibana Dashboard 위젯 정보: $DW_TITLE → 사용 가능한 필드 없음 (${DW_FIELD_BASE})"
+          fi
+        fi
+
+        _spec="$(dash_vega_spec "$DW_KIND" "$DW_INDEX" "$DW_FIELD" "$DW_TITLE" "$DW_NOTE")"
         _soid="elk-auto-proxysg-${_wid}"
         _vis_state="$(jq -cn --arg t "$DW_TITLE" --arg s "$_spec" '{title:$t,type:"vega",params:{spec:$s,enableExternalUrls:false},aggs:[]}')"
         _attrs="$(jq -cn --arg t "$DW_TITLE" --arg vs "$_vis_state" \
-          '{title:$t,description:"ELK Auto Installer · ProxySG MAIN/SSL",visState:$vs,uiStateJSON:"{}",version:1,kibanaSavedObjectMeta:{searchSourceJSON:"{}"}}')"
+          '{title:$t,description:"ELK Auto Installer · ProxySG Traffic & Security",visState:$vs,uiStateJSON:"{}",version:1,kibanaSavedObjectMeta:{searchSourceJSON:"{}"}}')"
         _body="$(jq -cn --argjson a "$_attrs" '{attributes:$a,references:[]}')"
         if kibana_so_put visualization "$_soid" "$_body"; then
           _dash_created+=("$_soid"); _dash_titles+=("$DW_TITLE")
@@ -2625,7 +2655,7 @@ EOF_VEGA
         fi
       }
 
-      IFS=',' read -ra _dash_selected <<<"$KIBANA_PROXYSG_DASHBOARD_WIDGETS"
+      IFS=',' read -ra _dash_selected      IFS=',' read -ra _dash_selected <<<"$KIBANA_PROXYSG_DASHBOARD_WIDGETS"
       for _wid in "${_dash_selected[@]}"; do
         _wid="${_wid//[[:space:]]/}"
         [[ -n "$_wid" ]] && create_dash_widget "$_wid" || true
