@@ -18,7 +18,7 @@ d3236c3007e7fae32ab3e1de0af160253fe42a961664bf6a028e55be4dfbde2c  ./_internal/co
 4447c1ff7cdf81b66ef83ac18cdee42153ea4de67c31a188e7fcab94357f4dde  ./_internal/docs/CHANGELOG.md
 0eba7fb05486e9d0853f44fa7ae85b8faa0bcdc346c083497cbbc2b19025ab24  ./_internal/docs/INSTALL_STEP_MAPPING.md
 0138217f9d532e1fce59903eb5fbd41e1a4fa319aaf1588dc400c3909772381e  ./_internal/docs/README.md
-a67412800e1a782d934d86a21239931978965064ce2fb805a28d09f720b807ae  ./_internal/docs/VERSION
+dd4cc4395efbe324f375f00c668f1033d554f5373f2d9788846130500a6ca0f7  ./_internal/docs/VERSION
 4f5a37540816e9c8c3ea7561e3b2a106e55091e222e0dfcd6794383a6bca4538  ./_internal/examples/custom-filter.example.conf
 3d5d11063a3dbda1a13a23b29e8a588b1e77b74a5f63a5598aad17cfab21794a  ./_internal/examples/elk-proxysg.env.example
 60283c5dbb9824cc5c2db88da818f0ee961ec33fbf5a4e3e1094478702aacdda  ./_internal/examples/elk.env
@@ -30,5 +30,5 @@ a3a2f775905dd44e8cf46efc8b1371e67de91f7e6a9495c2133ae2bf19a84ab3  ./_internal/to
 8a87e760bf265e7c368b790912460a7c2f9e45526e98ee21c0fd470ae82e5f4b  ./_internal/tools/run-remote-deploy.ps1
 aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report-update.sh
 a57f33319a9175d3a366d4195c2276ab8e1adc7659c3d2c67a73dbee87d77c1a  ./bootstrap-update.sh
-a775e70f8d0f2d9f3f484dedce0803d4ce683a65226add3fecbace1a298b8341  ./config-wizard.html
+7804836ecf650527eb589d105297a8a7b6463453dc393523ad72fc2bff11ee26  ./config-wizard.html
 89018ec01b9b4fb61ab8788e9153acb55f4d2c215e933d21d96efa658d91e5c2  ./run-remote-deploy.cmd
