@@ -13,8 +13,8 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-PATCH_VERSION="4"
-ELK_AUTO_VERSION="2.9.8"
+PATCH_VERSION="5"
+ELK_AUTO_VERSION="2.9.9"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 도구 파일(proxysg-lib.sh 등)은 이 스크립트 옆에 있으면 그것을, 없으면 설치기가 넣어 둔 /usr/local/lib/elk-auto 를 사용
@@ -555,13 +555,13 @@ EOF_VEGA
   for i in "${!created_ids[@]}"; do
     soid="${created_ids[i]}"
     if (( i < 4 )); then
-      w=12; h=7; x=$((i*12)); y=0
+      w=12; h=7; x=$(( i * 12 )); y=0
     elif (( i < 7 )); then
-      j=$((i-4)); w=16; h=15; x=$(((j%3)*16)); y=7
+      j=$(( i - 4 )); w=16; h=15; x=$(( (j % 3) * 16 )); y=7
     elif (( i < 11 )); then
-      j=$((i-7)); w=12; h=15; x=$(((j%4)*12)); y=22
+      j=$(( i - 7 )); w=12; h=15; x=$(( (j % 4) * 12 )); y=22
     else
-      j=$((i-11)); w=16; h=15; x=$(((j%3)*16)); y=$((37+(j/3)*15))
+      j=$(( i - 11 )); w=16; h=15; x=$(( (j % 3) * 16 )); y=$(( 37 + (j / 3) * 15 ))
     fi
     panels="$(jq -c --arg i "$i" --arg x "$x" --arg y "$y" --arg w "$w" --arg h "$h" \
       '. + [{version:"9.0.0",type:"visualization",gridData:{x:($x|tonumber),y:($y|tonumber),w:($w|tonumber),h:($h|tonumber),i:$i},panelIndex:$i,embeddableConfig:{},panelRefName:("panel_"+$i)}]' <<<"$panels")"
