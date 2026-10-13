@@ -1,0 +1,40 @@
+name: Sync OneClick release metadata
+on:
+  push:
+    branches: [main]
+    paths:
+      - '_internal/docs/VERSION'
+      - '_internal/core/**'
+      - '_internal/tools/run-remote-deploy.ps1'
+      - 'wizard-defaults.js'
+      - 'tools/sync_version.py'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: oneclick-version-sync-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  sync:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Synchronize version and embedded package files
+        run: python3 tools/sync_version.py
+      - name: Commit synchronized files when changed
+        shell: bash
+        run: |
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "Version strings are already synchronized."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add config-wizard.html version.json _internal/core/install-elk.sh _internal/core/elk-patch.sh _internal/core/elk-report.sh _internal/docs/README.md _internal/docs/CHANGELOG.md
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: sync OneClick version and embedded assets"
+            git push
+          fi
