@@ -1,4 +1,4 @@
-// ELK Config Wizard defaults for v2.9.20
+// ELK Config Wizard defaults for v2.9.21
 /* =====================================================================
  *  ELK Config Wizard - 기본값 파일 (관리자용)
  *

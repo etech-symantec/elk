@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-# ELK Auto Installer v2.9.20
+# ELK Auto Installer v2.9.21
 # Target: Ubuntu 22.04 / 24.04, Elastic Stack 9.x
 # Usage: sudo bash install-elk.sh ./elk.env
 
@@ -326,7 +326,7 @@ unset _old_name _new_name
 : "${HEALTH_DISK_CRIT_PERCENT:=92}"
 : "${HEALTH_AUTO_PAUSE_FILE_INGEST_ON_CRITICAL:=false}"
 
-# 정기점검 HTML / Web Viewer (v2.9.20)
+# 정기점검 HTML / Web Viewer (v2.9.21)
 : "${ELK_REPORT_HTML_DIR:=/var/lib/elk-report}"
 : "${ELK_REPORT_HTML_FILE:=${ELK_REPORT_HTML_DIR}/report.html}"
 : "${ELK_REPORT_WEB_ENABLED:=true}"
@@ -1049,7 +1049,7 @@ extend_root_lvm() {
 }
 
 # ----------------------------- OS -----------------------------
-ELK_AUTO_VERSION="2.9.20"
+ELK_AUTO_VERSION="2.9.21"
 log "ELK Auto Installer v${ELK_AUTO_VERSION}"
 log "환경파일: $ENV_FILE"
 log "설치 로그: $INSTALL_LOG"
@@ -2042,9 +2042,24 @@ EOF_PROXYSG_CLOUD_OUT2
   log "Logstash 로그 디렉터리 권한 정리: $LOGSTASH_PATH_LOGS -> logstash:logstash"
 
   log "Logstash 설정 문법 검사"
-  if ! runuser -u logstash -- /usr/share/logstash/bin/logstash --path.settings /etc/logstash -t; then
+  # 재실행 시 이미 실행 중인 Logstash의 persisted queue/path.data lock과
+  # 설정 검사(-t)가 충돌하지 않도록 검사 전용 임시 data/logs 경로를 사용합니다.
+  _ls_test_root="$(mktemp -d /tmp/elk-logstash-configtest.XXXXXX)"
+  _ls_test_data="${_ls_test_root}/data"
+  _ls_test_logs="${_ls_test_root}/logs"
+  install -d -o logstash -g logstash -m 0750 "$_ls_test_data" "$_ls_test_logs"
+  _ls_test_out=""
+  if ! _ls_test_out="$(runuser -u logstash -- /usr/share/logstash/bin/logstash \
+      --path.settings /etc/logstash \
+      --path.data "$_ls_test_data" \
+      --path.logs "$_ls_test_logs" \
+      -t 2>&1)"; then
+    printf '%s\n' "$_ls_test_out" >&2
+    rm -rf "$_ls_test_root"
     die "Logstash configuration test 실패"
   fi
+  printf '%s\n' "$_ls_test_out"
+  rm -rf "$_ls_test_root"
 fi
 
 # ----------------------------- Kibana -----------------------------
@@ -2334,7 +2349,7 @@ if [[ -f "$SCRIPT_DIR/elk-patch.sh" && -f "$SCRIPT_DIR/proxysg-lib.sh" ]]; then
   if [[ -s "$SCRIPT_DIR/custom-pipeline.conf" ]]; then install -m 644 "$SCRIPT_DIR/custom-pipeline.conf" /usr/local/lib/elk-auto/custom-pipeline.conf; else rm -f /usr/local/lib/elk-auto/custom-pipeline.conf; fi
   log "부분 패치 도구 설치: /usr/local/sbin/elk-patch  (예: sudo elk-patch --list)"
 fi
-# v2.9.20: 서버 정기점검 리포트 + HTML Web Viewer
+# v2.9.21: 서버 정기점검 리포트 + HTML Web Viewer
 if [[ -f "$SCRIPT_DIR/elk-report.sh" ]]; then
   install -m 755 "$SCRIPT_DIR/elk-report.sh" /usr/local/sbin/elk-report
   install -d -m 755 "$ELK_REPORT_HTML_DIR"
