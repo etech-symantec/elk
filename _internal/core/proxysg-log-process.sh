@@ -36,9 +36,22 @@ flock -n 200 || exit 0
 
 ts(){ date '+%Y-%m-%d %H:%M:%S'; }
 log(){ printf '[%s] %s\n' "$(ts)" "$*"; }
+mask_id(){
+  local v="${1:-}" n
+  [[ -n "$v" ]] || { printf '(empty)'; return; }
+  n=${#v}
+  if (( n > 12 )); then
+    printf '%s…%s' "${v:0:8}" "${v:n-4:4}"
+  else
+    printf '(set)'
+  fi
+}
 
 CLOUD_ON=false
 [[ "${PROXYSG_CLOUD_ENABLED,,}" == "true" ]] && CLOUD_ON=true
+if [[ "$CLOUD_ON" == true ]]; then
+  log "CLOUD CONFIG: env=$ENV_FILE api_enabled=${PROXYSG_CLOUD_API_ENABLED} api_id=$(mask_id "$PROXYSG_CLOUD_API_USERNAME") api_password=$([[ -n "$PROXYSG_CLOUD_API_PASSWORD" ]] && echo set || echo empty) lookback_days=${PROXYSG_CLOUD_API_LOOKBACK_DAYS} url=${PROXYSG_CLOUD_API_URL} insecure=${PROXYSG_CLOUD_API_INSECURE}"
+fi
 ALL_DIRS=("$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR"
   "$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR"
   "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR")
@@ -87,21 +100,31 @@ PY
   }
   zipfile="$tmpdir/cloud-log.zip"
 
-  local -a curl_opts=(--silent --show-error --fail --location
+  local -a curl_opts=(--silent --show-error --location
     --connect-timeout 15 --max-time 600
     -H "X-APIUsername: ${PROXYSG_CLOUD_API_USERNAME}"
     -H "X-APIPassword: ${PROXYSG_CLOUD_API_PASSWORD}"
     -o "$zipfile" -w "%{http_code}")
   [[ "${PROXYSG_CLOUD_API_INSECURE,,}" == "true" ]] && curl_opts+=(--insecure)
 
-  log "CLOUD API: downloading logs (${PROXYSG_CLOUD_API_LOOKBACK_DAYS} day lookback)"
+  log "CLOUD API: downloading logs (${PROXYSG_CLOUD_API_LOOKBACK_DAYS} day lookback, startDate=${start_ms})"
   if ! http_code="$(curl "${curl_opts[@]}" "$url")"; then
-    log "CLOUD API ERROR: download failed"
+    log "CLOUD API ERROR: curl transport failure"
     rm -rf "$tmpdir"
     return 1
   fi
-  if [[ ! "$http_code" =~ ^2[0-9][0-9]$ || ! -s "$zipfile" ]]; then
-    log "CLOUD API ERROR: HTTP=$http_code or empty response"
+
+  if [[ ! "$http_code" =~ ^2[0-9][0-9]$ ]]; then
+    local api_body=""
+    if [[ -s "$zipfile" ]]; then
+      api_body="$(tr '\r\n\t' '   ' <"$zipfile" | head -c 500)"
+    fi
+    log "CLOUD API ERROR: HTTP=$http_code response=${api_body:-'(empty body)'}"
+    rm -rf "$tmpdir"
+    return 1
+  fi
+  if [[ ! -s "$zipfile" ]]; then
+    log "CLOUD API ERROR: HTTP=$http_code but response body is empty"
     rm -rf "$tmpdir"
     return 1
   fi
