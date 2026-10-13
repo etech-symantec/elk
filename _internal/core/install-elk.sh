@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-# ELK Auto Installer v2.9.26
+# ELK Auto Installer v2.9.29
 # Target: Ubuntu 22.04 / 24.04, Elastic Stack 9.x
 # Usage: sudo bash install-elk.sh ./elk.env
 
@@ -277,7 +277,7 @@ unset _old_name _new_name
 : "${PROXYSG_CSV_FILTER_ENABLED:=true}"
 : "${PROXYSG_MAIN_LOG_FORMAT:=date time time-taken c-ip cs-username cs-auth-group s-supplier-name s-supplier-ip s-supplier-country s-supplier-failures x-exception-id sc-filter-result cs-categories cs(Referer)  sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-path cs-uri-query cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-virus-id cs-threat-source cs-threat-id rs-threat-source rs-threat-id x-bluecoat-application-name x-bluecoat-application-operation x-bluecoat-application-groups cs-threat-risk x-bluecoat-access-security-policy-action x-bluecoat-access-security-policy-reason x-bluecoat-transaction-uuid x-icap-reqmod-header(X-ICAP-Metadata) x-icap-respmod-header(X-ICAP-Metadata)}"
 : "${PROXYSG_SSL_LOG_FORMAT:=date time time-taken c-ip cs-username cs-auth-group s-supplier-name s-supplier-ip s-supplier-country s-supplier-failures x-exception-id sc-filter-result cs-categories sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-virus-id cs-threat-source cs-threat-id rs-threat-source rs-threat-id x-rs-certificate-observed-errors x-cs-ocsp-error x-rs-ocsp-error x-rs-connection-negotiated-cipher-strength x-rs-certificate-hostname x-rs-certificate-hostname-category cs-threat-risk x-rs-certificate-hostname-threat-risk x-bluecoat-access-security-policy-action x-bluecoat-access-security-policy-reason}"
-: "${PROXYSG_CLOUD_LOG_FORMAT:=cs-method cs-user-domain cs-x-requested-with x-rs-ocsp-error cs-icap-error-details c-ip-version x-cs-ocsp-error sc-status x-action-result x-client-device-id x-rs-certificate-hostname-categories s-action x-rs-certificate-hostname-threat-risk x-bluecoat-reference-ids cs-bytes x-rs-connection-negotiated-ssl-version rs-icap-status x-bluecoat-reference-id x-cs-connection-negotiated-cipher-size c-port x-bluecoat-request-tenant-id sc-bytes x-bluecoat-placeholder x-rs-connection-negotiated-cipher cs-uri-port x-client-agent-sw cs-threat-risk x-cs-connection-negotiated-ssl-version r-supplier-country cs-user-agent x-bluecoat-application-operation x-file-details r-ip cs-icap-status cs-host x-client-device-name cs-uri-path sc-filter-result x-request-origin rs-icap-error-details x-cs-certificate-subject x-virus-id date x-bluecoat-location-name cs-uri-query x-cs-client-ip-country x-rs-certificate-validate-status x-client-os cs-categories x-icap-respmod-header(X-ICAP-Metadata) x-exception-id x-bluecoat-access-type x-data-leak-detected cs-uri-extension time-taken x-client-device-type x-cs-public-ip x-data-types x-bluecoat-transaction-uuid x-bluecoat-application-name cs-uri-scheme x-rs-certificate-hostname x-cs-connection-negotiated-cipher rs-content-type x-client-agent-type cs-userdn x-rs-certificate-observed-errors r-ip-version x-symc-inspected s-ip x-icap-reqmod-header(X-ICAP-Metadata) cs-auth-groups time x-client-agent-ip x-rs-connection-negotiated-cipher-size}"
+: "${PROXYSG_CLOUD_LOG_FORMAT:=x-bluecoat-request-tenant-id date time x-bluecoat-appliance-name time-taken c-ip cs-userdn cs-auth-groups x-exception-id sc-filter-result cs-categories cs(Referer) sc-status s-action cs-method rs(Content-Type) cs-uri-scheme cs-host cs-uri-port cs-uri-path cs-uri-query cs-uri-extension cs(User-Agent) s-ip sc-bytes cs-bytes x-icap-reqmod-header(X-ICAP-Metadata) x-icap-respmod-header(X-ICAP-Metadata) x-data-leak-detected x-virus-id x-bluecoat-location-id x-bluecoat-location-name x-bluecoat-access-type x-bluecoat-application-name x-bluecoat-application-operation r-ip r-supplier-country x-rs-certificate-validate-status x-rs-certificate-observed-errors x-cs-ocsp-error x-rs-ocsp-error x-rs-connection-negotiated-ssl-version x-rs-connection-negotiated-cipher x-rs-connection-negotiated-cipher-size x-rs-certificate-hostname x-rs-certificate-hostname-categories x-cs-connection-negotiated-ssl-version x-cs-connection-negotiated-cipher x-cs-connection-negotiated-cipher-size x-cs-certificate-subject cs-icap-status cs-icap-error-details rs-icap-status rs-icap-error-details s-supplier-ip s-supplier-country s-supplier-failures x-cs-client-ip-country cs-threat-risk x-rs-certificate-hostname-threat-risk x-client-agent-type x-client-os x-client-agent-sw x-client-device-id x-client-device-name x-client-device-type x-client-security-posture-details x-client-security-posture-risk-score x-bluecoat-reference-id x-sc-connection-issuer-keyring x-sc-connection-issuer-keyring-alias x-cloud-rs x-bluecoat-placeholder cs(X-Requested-With) x-random-ipv6 x-bluecoat-transaction-uuid}"
 : "${PROXYSG_MAIN_INDEX_PREFIX:=proxy-main}"
 : "${PROXYSG_SSL_INDEX_PREFIX:=proxy-ssl}"
 : "${PROXYSG_CLOUD_INDEX_PREFIX:=proxy-cloud}"
@@ -326,7 +326,7 @@ unset _old_name _new_name
 : "${HEALTH_DISK_CRIT_PERCENT:=92}"
 : "${HEALTH_AUTO_PAUSE_FILE_INGEST_ON_CRITICAL:=false}"
 
-# 정기점검 HTML / Web Viewer (v2.9.26)
+# 정기점검 HTML / Web Viewer (v2.9.29)
 : "${ELK_REPORT_HTML_DIR:=/var/lib/elk-report}"
 : "${ELK_REPORT_HTML_FILE:=${ELK_REPORT_HTML_DIR}/report.html}"
 : "${ELK_REPORT_WEB_ENABLED:=true}"
@@ -624,7 +624,7 @@ render_proxysg_filter() {
       "@@PROXYSG_MAIN_COLUMNS@@")  proxysg_columns_block "$PROXYSG_MAIN_LOG_FORMAT" ;;
       "@@PROXYSG_SSL_COLUMNS@@")   proxysg_columns_block "$PROXYSG_SSL_LOG_FORMAT" ;;
       "@@PROXYSG_CLOUD_COLUMNS@@") proxysg_columns_block "$PROXYSG_CLOUD_LOG_FORMAT" ;;
-      *) printf '%s\n' "$line" ;;
+      *) line="${line//@@ELK_TIMEZONE@@/$TIMEZONE}"; printf '%s\n' "$line" ;;
     esac
   done <"$tpl"
 }
@@ -911,7 +911,7 @@ for _d in ES_CA_DAYS ES_CERT_DAYS NGINX_TLS_DAYS; do [[ "${!_d}" =~ ^[0-9]+$ && 
     [[ -n "$PROXYSG_CLOUD_API_PASSWORD" ]] || die "Cloud 로그 사용 시 PROXYSG_CLOUD_API_PASSWORD는 필수입니다."
     [[ "$PROXYSG_CLOUD_API_URL" =~ ^https:// ]] || die "Cloud 로그 사용 시 PROXYSG_CLOUD_API_URL은 https:// URL이어야 합니다."
     [[ "$PROXYSG_CLOUD_API_LOOKBACK_DAYS" =~ ^[0-9]+$ ]] || die "PROXYSG_CLOUD_API_LOOKBACK_DAYS는 0 이상의 정수여야 합니다."
-    (( PROXYSG_CLOUD_API_LOOKBACK_DAYS <= 7 )) || die "Cloud API 조회 기간은 최대 7일(168시간)입니다."
+    (( PROXYSG_CLOUD_API_LOOKBACK_DAYS <= 7 )) || die "Cloud API 조회 기간 설정은 최대 7일입니다. (7일 선택 시 실제 API 요청은 167시간)"
   fi
   if istrue "$PROXYSG_CLOUD_ENABLED" && ! istrue "$PROXYSG_FLOW_ENABLED"; then
     warn "PROXYSG_CLOUD_ENABLED=true이지만 로그 처리 스크립트(PROXYSG_FLOW_ENABLED)가 꺼져 있어 Cloud 수신 폴더 복사는 자동으로 실행되지 않습니다. Cloud 처리 폴더에 파일을 직접 공급해야 합니다."
@@ -1049,7 +1049,7 @@ extend_root_lvm() {
 }
 
 # ----------------------------- OS -----------------------------
-ELK_AUTO_VERSION="2.9.26"
+ELK_AUTO_VERSION="2.9.29"
 log "ELK Auto Installer v${ELK_AUTO_VERSION}"
 log "환경파일: $ENV_FILE"
 log "설치 로그: $INSTALL_LOG"
@@ -2355,7 +2355,7 @@ if [[ -f "$SCRIPT_DIR/elk-patch.sh" && -f "$SCRIPT_DIR/proxysg-lib.sh" ]]; then
   if [[ -s "$SCRIPT_DIR/custom-pipeline.conf" ]]; then install -m 644 "$SCRIPT_DIR/custom-pipeline.conf" /usr/local/lib/elk-auto/custom-pipeline.conf; else rm -f /usr/local/lib/elk-auto/custom-pipeline.conf; fi
   log "부분 패치 도구 설치: /usr/local/sbin/elk-patch  (예: sudo elk-patch --list)"
 fi
-# v2.9.26: 서버 정기점검 리포트 + HTML Web Viewer
+# v2.9.29: 서버 정기점검 리포트 + HTML Web Viewer
 if [[ -f "$SCRIPT_DIR/elk-report.sh" ]]; then
   install -m 755 "$SCRIPT_DIR/elk-report.sh" /usr/local/sbin/elk-report
   install -d -m 755 "$ELK_REPORT_HTML_DIR"
@@ -2542,6 +2542,19 @@ if istrue "$START_SERVICES_AFTER_INSTALL"; then
       die "Kibana Health Check 실패"
     fi
     log "Kibana 응답 확인"
+
+    # Keep Elasticsearch @timestamp in UTC, but display dates/times using the
+    # OneClick ELK TIMEZONE setting. Cloud SWG source logs are always UTC.
+    if istrue "$ES_SECURITY_ENABLED"; then
+      _tz_body="$(jq -n --arg tz "$TIMEZONE" '{changes:{"dateFormat:tz":$tz}}')"
+      _tz_out="$(curl -sS -w '\n%{http_code}' -u "${ELASTIC_USERNAME}:${ELASTIC_PASSWORD}"         -H 'kbn-xsrf: true' -H 'Content-Type: application/json'         -X POST "${KIBANA_LOCAL_URL}/api/kibana/settings" -d "$_tz_body" || true)"
+      _tz_code="$(echo "$_tz_out" | tail -n1)"
+      if [[ "$_tz_code" =~ ^2[0-9][0-9]$ ]]; then
+        log "Kibana 표시 Timezone 동기화: $TIMEZONE (Cloud 원본 UTC → 화면 $TIMEZONE)"
+      else
+        warn "Kibana 표시 Timezone 자동 설정 실패: HTTP=${_tz_code}. @timestamp는 UTC로 정상 저장되며 Kibana Advanced Settings > dateFormat:tz에서 '$TIMEZONE'으로 수동 지정할 수 있습니다."
+      fi
+    fi
 
     if istrue "$KIBANA_CREATE_DATA_VIEW" && istrue "$ES_SECURITY_ENABLED"; then
       create_data_view() {

@@ -92,10 +92,16 @@ cloud_api_download() {
 
   local start_ms end_date token tmpdir zipfile url http_code
   local extracted=0 moved=0 duplicate=0 bad=0 f base dest stem ext n
-  start_ms="$(python3 - "$PROXYSG_CLOUD_API_LOOKBACK_DAYS" <<'PY'
+  effective_hours=$(( PROXYSG_CLOUD_API_LOOKBACK_DAYS * 24 ))
+  # SyncAPI rejects the exact 168-hour boundary in practice.
+  # Keep the UI setting at 7 days, but use a 167-hour request window.
+  if (( PROXYSG_CLOUD_API_LOOKBACK_DAYS == 7 )); then
+    effective_hours=167
+  fi
+  start_ms="$(python3 - "$effective_hours" <<'PY'
 import datetime, sys
-days=int(sys.argv[1])
-print(int((datetime.datetime.now() - datetime.timedelta(days=days)).timestamp()*1000))
+hours=int(sys.argv[1])
+print(int((datetime.datetime.now() - datetime.timedelta(hours=hours)).timestamp()*1000))
 PY
 )"
   end_date=0
@@ -121,7 +127,7 @@ PY
   while :; do
     : >"$headerfile"
     : >"$zipfile"
-    log "CLOUD API: downloading logs (${PROXYSG_CLOUD_API_LOOKBACK_DAYS} day lookback, startDate=${start_ms}, attempt=${attempt}/$((PROXYSG_CLOUD_API_MAX_RETRIES+1)))"
+    log "CLOUD API: downloading logs (${PROXYSG_CLOUD_API_LOOKBACK_DAYS} day setting, effective=${effective_hours}h, startDate=${start_ms}, attempt=${attempt}/$((PROXYSG_CLOUD_API_MAX_RETRIES+1)))"
 
     if ! http_code="$(curl "${curl_opts[@]}" "$url")"; then
       log "CLOUD API ERROR: curl transport failure"
