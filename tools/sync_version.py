@@ -73,7 +73,7 @@ def sync_version(check=False):
 
     wizard = ROOT / 'config-wizard.html'
     def sync_wizard(s):
-        s = replace_one(s, r"const PKG_VER='[^']*';const WIZARD_BUILD='[^']*';",f"const PKG_VER='{ver}';const WIZARD_BUILD='{BUILD}';",'wizard version')
+        s = replace_one(s, r"^const PKG_VER='[^']*';\s*\nconst WIZARD_BUILD='[^']*';",f"const PKG_VER='{ver}';\nconst WIZARD_BUILD='{BUILD}';",'wizard version')
         s = replace_one(s,r'(?<=L\.push\(")ONECLICK_PAYLOAD_VERSION=\x27[0-9.]+\x27(?="\);)', f"ONECLICK_PAYLOAD_VERSION='{ver}'",'payload marker')
         for marker in ['const EMBEDDED_FILES=','const PATCH_GZ=','const PACKAGE_EXTRA=']:
             i=s.find(marker)
