@@ -62,6 +62,20 @@ def sync_version(check=False):
     ]:
         dirty += changed_text(ROOT/name, lambda s,pat=pat,repl=repl:replace_one(s,pat,repl,name),check)
 
+    # The top-level README is release-facing documentation. Normalize every
+    # versioned install artifact reference, including older examples, while
+    # leaving unrelated historical change descriptions intact.
+    def update_root_readme(s):
+        s = re.sub(r'(elk-(?:oneclick-install|auto-install|auto-installer)-v)\d+\.\d+\.\d+(\.(?:sh|cmd|zip))',
+                   lambda m: m.group(1)+ver+m.group(2), s)
+        # Version in the report section heading / illustrative build caption.
+        s = re.sub(r'^## v\d+\.\d+\.\d+ · HTML 점검 리포트',
+                   f'## HTML 점검 리포트 (현재 v{ver})',s,flags=re.M)
+        s = re.sub(r'`v\d+\.\d+\.\d+ · 빌드 [a-z]+(?:-[a-z]+){3}`',
+                   f'`v{ver} · 빌드 (Wizard 하단 자동 생성값)`',s)
+        return s
+    dirty += changed_text(ROOT/'README.md',update_root_readme,check)
+
     # The PowerShell runner never hardcodes a release. It always reads the generated SH marker.
     ps = ROOT / '_internal/tools/run-remote-deploy.ps1'
     if ps.exists():
