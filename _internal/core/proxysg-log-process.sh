@@ -16,6 +16,8 @@ source "$ENV_FILE"
 : "${PROXYSG_CLOUD_API_URL:=https://portal.threatpulse.com:443/reportpod/logs/sync}"
 : "${PROXYSG_CLOUD_API_LOOKBACK_DAYS:=1}"
 : "${PROXYSG_CLOUD_API_INSECURE:=true}"
+: "${PROXYSG_CLOUD_API_MAX_RETRIES:=3}"
+: "${PROXYSG_CLOUD_API_RETRY_DEFAULT_SECONDS:=60}"
 : "${PROXYSG_CLOUD_SOURCE_DIR:=/home/cloud}"
 : "${PROXYSG_CLOUD_BACKUP_DIR:=/home/cloud_backup}"
 : "${PROXYSG_CLOUD_PROCESS_DIR:=/home/cloud_process}"
@@ -50,7 +52,7 @@ mask_id(){
 CLOUD_ON=false
 [[ "${PROXYSG_CLOUD_ENABLED,,}" == "true" ]] && CLOUD_ON=true
 if [[ "$CLOUD_ON" == true ]]; then
-  log "CLOUD CONFIG: env=$ENV_FILE api_enabled=${PROXYSG_CLOUD_API_ENABLED} api_id=$(mask_id "$PROXYSG_CLOUD_API_USERNAME") api_password=$([[ -n "$PROXYSG_CLOUD_API_PASSWORD" ]] && echo set || echo empty) lookback_days=${PROXYSG_CLOUD_API_LOOKBACK_DAYS} url=${PROXYSG_CLOUD_API_URL} insecure=${PROXYSG_CLOUD_API_INSECURE}"
+  log "CLOUD CONFIG: env=$ENV_FILE api_enabled=${PROXYSG_CLOUD_API_ENABLED} api_id=$(mask_id "$PROXYSG_CLOUD_API_USERNAME") api_password=$([[ -n "$PROXYSG_CLOUD_API_PASSWORD" ]] && echo set || echo empty) lookback_days=${PROXYSG_CLOUD_API_LOOKBACK_DAYS} max_retries=${PROXYSG_CLOUD_API_MAX_RETRIES} retry_default=${PROXYSG_CLOUD_API_RETRY_DEFAULT_SECONDS}s url=${PROXYSG_CLOUD_API_URL} insecure=${PROXYSG_CLOUD_API_INSECURE}"
 fi
 ALL_DIRS=("$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR"
   "$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR"
@@ -77,6 +79,12 @@ cloud_api_download() {
     log "CLOUD API ERROR: LOOKBACK_DAYS must be integer: $PROXYSG_CLOUD_API_LOOKBACK_DAYS"
     return 1
   }
+  if (( PROXYSG_CLOUD_API_LOOKBACK_DAYS > 7 )); then
+    log "CLOUD API ERROR: lookback_days=${PROXYSG_CLOUD_API_LOOKBACK_DAYS} exceeds SyncAPI limit (7 days / 168 hours)"
+    return 1
+  fi
+  [[ "$PROXYSG_CLOUD_API_MAX_RETRIES" =~ ^[0-9]+$ ]] || PROXYSG_CLOUD_API_MAX_RETRIES=3
+  [[ "$PROXYSG_CLOUD_API_RETRY_DEFAULT_SECONDS" =~ ^[0-9]+$ ]] || PROXYSG_CLOUD_API_RETRY_DEFAULT_SECONDS=60
 
   command -v curl >/dev/null 2>&1 || { log "CLOUD API ERROR: curl not found"; return 1; }
   command -v unzip >/dev/null 2>&1 || { log "CLOUD API ERROR: unzip not found"; return 1; }
@@ -100,34 +108,68 @@ PY
   }
   zipfile="$tmpdir/cloud-log.zip"
 
+  local headerfile="$tmpdir/headers.txt"
+  local attempt=1 retry_after wait_seconds api_body=""
   local -a curl_opts=(--silent --show-error --location
     --connect-timeout 15 --max-time 600
     -H "X-APIUsername: ${PROXYSG_CLOUD_API_USERNAME}"
     -H "X-APIPassword: ${PROXYSG_CLOUD_API_PASSWORD}"
+    -D "$headerfile"
     -o "$zipfile" -w "%{http_code}")
   [[ "${PROXYSG_CLOUD_API_INSECURE,,}" == "true" ]] && curl_opts+=(--insecure)
 
-  log "CLOUD API: downloading logs (${PROXYSG_CLOUD_API_LOOKBACK_DAYS} day lookback, startDate=${start_ms})"
-  if ! http_code="$(curl "${curl_opts[@]}" "$url")"; then
-    log "CLOUD API ERROR: curl transport failure"
-    rm -rf "$tmpdir"
-    return 1
-  fi
+  while :; do
+    : >"$headerfile"
+    : >"$zipfile"
+    log "CLOUD API: downloading logs (${PROXYSG_CLOUD_API_LOOKBACK_DAYS} day lookback, startDate=${start_ms}, attempt=${attempt}/$((PROXYSG_CLOUD_API_MAX_RETRIES+1)))"
 
-  if [[ ! "$http_code" =~ ^2[0-9][0-9]$ ]]; then
-    local api_body=""
+    if ! http_code="$(curl "${curl_opts[@]}" "$url")"; then
+      log "CLOUD API ERROR: curl transport failure"
+      rm -rf "$tmpdir"
+      return 1
+    fi
+
+    api_body=""
     if [[ -s "$zipfile" ]]; then
       api_body="$(tr '\r\n\t' '   ' <"$zipfile" | head -c 500)"
     fi
-    log "CLOUD API ERROR: HTTP=$http_code response=${api_body:-'(empty body)'}"
-    rm -rf "$tmpdir"
-    return 1
-  fi
-  if [[ ! -s "$zipfile" ]]; then
-    log "CLOUD API ERROR: HTTP=$http_code but response body is empty"
-    rm -rf "$tmpdir"
-    return 1
-  fi
+
+    if [[ "$http_code" == "429" ]]; then
+      retry_after="$(awk 'BEGIN{IGNORECASE=1} /^Retry-After:/ {gsub("\r","",$2); print $2; exit}' "$headerfile")"
+      if [[ "$retry_after" =~ ^[0-9]+$ ]]; then
+        wait_seconds="$retry_after"
+      else
+        wait_seconds="$PROXYSG_CLOUD_API_RETRY_DEFAULT_SECONDS"
+      fi
+
+      log "CLOUD API THROTTLED: HTTP=429 retry_after=${retry_after:-not-provided} wait=${wait_seconds}s response=${api_body:-'(empty body)'}"
+
+      if (( attempt > PROXYSG_CLOUD_API_MAX_RETRIES )); then
+        log "CLOUD API ERROR: throttling retry limit exceeded (${PROXYSG_CLOUD_API_MAX_RETRIES} retries)"
+        rm -rf "$tmpdir"
+        return 1
+      fi
+
+      log "CLOUD API RETRY: sleeping ${wait_seconds}s before retry $((attempt+1))/$((PROXYSG_CLOUD_API_MAX_RETRIES+1))"
+      sleep "$wait_seconds"
+      attempt=$((attempt+1))
+      continue
+    fi
+
+    if [[ ! "$http_code" =~ ^2[0-9][0-9]$ ]]; then
+      log "CLOUD API ERROR: HTTP=$http_code response=${api_body:-'(empty body)'}"
+      rm -rf "$tmpdir"
+      return 1
+    fi
+
+    if [[ ! -s "$zipfile" ]]; then
+      log "CLOUD API ERROR: HTTP=$http_code but response body is empty"
+      rm -rf "$tmpdir"
+      return 1
+    fi
+
+    break
+  done
 
   if ! unzip -tq "$zipfile" >/dev/null 2>&1; then
     log "CLOUD API ERROR: downloaded file is not a valid ZIP"

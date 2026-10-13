@@ -1,4 +1,4 @@
 {
-  "version": "2.9.25",
-  "build": "github-defaults-updater-always"
+  "version": "2.9.26",
+  "build": "cloud-7d-retry-after"
 }

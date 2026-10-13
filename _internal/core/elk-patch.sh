@@ -13,8 +13,8 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-PATCH_VERSION="19"
-ELK_AUTO_VERSION="2.9.25"
+PATCH_VERSION="20"
+ELK_AUTO_VERSION="2.9.26"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 도구 파일(proxysg-lib.sh 등)은 이 스크립트 옆에 있으면 그것을, 없으면 설치기가 넣어 둔 /usr/local/lib/elk-auto 를 사용
@@ -197,7 +197,7 @@ check_value() {
     PROXYSG_CLOUD_API_USERNAME) [[ -n "${v//[[:space:]]/}" ]] || echo "Cloud API ID는 비어 있을 수 없습니다." ;;
     PROXYSG_CLOUD_API_PASSWORD) [[ -n "$v" ]] || echo "Cloud API Password는 비어 있을 수 없습니다." ;;
     PROXYSG_CLOUD_API_URL) [[ "$v" =~ ^https:// ]] || echo "https:// URL이어야 합니다." ;;
-    PROXYSG_CLOUD_API_LOOKBACK_DAYS) [[ "$v" =~ ^[0-9]+$ ]] && (( v <= 31 )) || echo "0~31 사이의 정수여야 합니다." ;;
+    PROXYSG_CLOUD_API_LOOKBACK_DAYS) [[ "$v" =~ ^[0-9]+$ ]] && (( v <= 7 )) || echo "0~7 사이의 정수여야 합니다." ;;
     KIBANA_PROXYSG_DASHBOARD_TITLE) [[ -n "${v//[[:space:]]/}" ]] || echo "Dashboard 이름은 비어 있을 수 없습니다." ;;
     KIBANA_PROXYSG_DASHBOARD_WIDGETS)
       [[ -n "${v//[[:space:]]/}" ]] || { echo "Dashboard 위젯을 1개 이상 선택하세요."; return; }
