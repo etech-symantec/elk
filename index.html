@@ -13,6 +13,10 @@
 <link rel="stylesheet" href="style.css" />
 <style>
 .auto-card-version{display:flex;justify-content:center;align-items:center;gap:6px;margin:10px auto 0;font-size:10px}.auto-card-version span{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.18);color:#fff;font-weight:800}.auto-card-version b{color:rgba(255,255,255,.80);font-weight:600}
+.side-guides{display:flex;flex-direction:column;gap:4px;align-items:center;margin:5px 0 9px;width:100%}
+.side-guides[hidden]{display:none!important}
+.side-guide-link{box-sizing:border-box;display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;background:#edf4ff;border:1px solid #cbdaf3;color:#1e3a8a;border-radius:8px;font-size:10px;font-weight:750;line-height:1.15;padding:6px 2px;width:75px;max-width:100%;min-height:27px;box-shadow:0 2px 5px #14254c10;transition:.12s}
+.side-guide-link:hover,.side-guide-link:focus-visible{color:#fff;background:#2563eb;border-color:#2563eb;outline-offset:2px}
 </style>
 </head>
 <body>
@@ -63,6 +67,11 @@
   <button type="button" class="side-btn" id="nav-wizard" onclick="showView('wizard')" title="ELK 자동 구성">
     <span class="sb-icon">🚀</span>자동<br>구성
   </button>
+  <div class="side-guides" id="side-guides" hidden aria-label="OneClick 사용 가이드">
+    <a class="side-guide-link" href="guide-install.html" target="_blank" rel="noopener" title="신규 설치 가이드">신규 설치</a>
+    <a class="side-guide-link" href="guide-adopt.html" target="_blank" rel="noopener" title="기존 ELK 서버 관리 등록 가이드">기존 ELK 등록</a>
+    <a class="side-guide-link" href="guide-upgrade.html" target="_blank" rel="noopener" title="OneClick 구버전 업그레이드 가이드">구버전 업그레이드</a>
+  </div>
   <button type="button" class="side-btn" id="nav-conf" onclick="showView('conf')" title="Logstash 설정파일 만들기">
     <span class="sb-icon">⚙️</span>Logstash<br>설정
   </button>
@@ -368,5 +377,18 @@
 </datalist>
 
 <script src="script.js"></script>
+<script>
+(function(){
+  const panel=document.getElementById('side-guides');
+  const wrapper=window.showView;
+  if(typeof wrapper!=='function'||!panel)return;
+  window.showView=function(view){
+    const result=wrapper.apply(this,arguments);
+    panel.hidden=(view!=='wizard');
+    return result;
+  };
+  panel.hidden=!(document.getElementById('view-wizard')?.style.display!=='none' && document.getElementById('view-home')?.style.display==='none');
+})();
+</script>
 </body>
 </html>
