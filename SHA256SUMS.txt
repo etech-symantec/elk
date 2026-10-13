@@ -4,14 +4,14 @@
 980073fda001bb8f3a10378fd82607cba27f02c9c676dbaab2d734a57eb43ed1  ./_internal/core/config-wizard.html
 2c6c78afbdbca385786ee16d6356d721ae57abb71e56ea81e217f33d55650ade  ./_internal/core/elk-color.sh
 9bf5a67e7daae742b6e27b788bbccf51cc59735a88bf7bf688f3ce68062f2af5  ./_internal/core/elk-health-monitor.sh
-f30ded5f17a462a95b01418f424b48ae5f14c2d6e2844ce75543963f23e4d637  ./_internal/core/elk-oneclick-adopt.sh
-3b1a85d1a5427b4c091f19b7dac75413f4c4715e04f5c526fa436ce0c9dc1eb7  ./_internal/core/elk-oneclick-update.sh
+f8faddcb57314b085759635579ea97100b3c84b8071a90066fff8b15e004c89b  ./_internal/core/elk-oneclick-adopt.sh
+5f235531957f807baca4aca5d5e94b3949ceff32652cfd4038db453ae13418e6  ./_internal/core/elk-oneclick-update.sh
 24cce110aea0e41cd724dbd05e62f380417a514894875edab9ce19b9745cf74d  ./_internal/core/elk-ops.sh
-5b906e53214118ee34018bb165f5dc33344a9bba28325677c0722fc69a587f5b  ./_internal/core/elk-patch.sh
+c66dc9741f0e1c3b47b9c421b90a48dc7281a406112dc07c8b6f6a1e9b939ae7  ./_internal/core/elk-patch.sh
 c3ce897e800ff4834a6c7641e8c008646aeddc3971c8bcfd26813cbbd777fcd3  ./_internal/core/elk-report-web.py
-cc68e2ffc04dc7c291351faf37ba12b1475d0f06e18ae28fc66f710c7c480b44  ./_internal/core/elk-report.sh
+ace1ea6371bc214b6ffe86d63e57acd4d9315ac8c7cab76bac4e838c46583773  ./_internal/core/elk-report.sh
 ccb7600cf9e0828021e72ed02bd36e8fedb14fca4eff768b42735ae194a4f753  ./_internal/core/elk-tls-lib.sh
-c9d6113494411d977b327531f2f875b619468fe8e17bb481dab498d9d377dc03  ./_internal/core/install-elk.sh
+61277fa9ed3f377f5170088b41fd43ef6c9eea9ef3c75f7790aa634cdca40114  ./_internal/core/install-elk.sh
 d3236c3007e7fae32ab3e1de0af160253fe42a961664bf6a028e55be4dfbde2c  ./_internal/core/log-ingest-manager.sh
 5f6f5e2d9a15975b43b87e32d7dbeea2754a5d134d896e645c493ebe54c73de4  ./_internal/core/proxysg-lib.sh
 839868055b922824a0e04123584d4dce7f93b47f5b6e251d4bbcd07e2f5d8c99  ./_internal/core/proxysg-log-filter.conf
@@ -19,7 +19,7 @@ d3236c3007e7fae32ab3e1de0af160253fe42a961664bf6a028e55be4dfbde2c  ./_internal/co
 4447c1ff7cdf81b66ef83ac18cdee42153ea4de67c31a188e7fcab94357f4dde  ./_internal/docs/CHANGELOG.md
 0eba7fb05486e9d0853f44fa7ae85b8faa0bcdc346c083497cbbc2b19025ab24  ./_internal/docs/INSTALL_STEP_MAPPING.md
 0138217f9d532e1fce59903eb5fbd41e1a4fa319aaf1588dc400c3909772381e  ./_internal/docs/README.md
-732a01e02db832d9be65e5bb6cc1f38f26d1ea0a93d55de5424d2f06aff32ad0  ./_internal/docs/VERSION
+2dfef254db78bea81f67105e2a0a0ff2aa6fbc88a19091ae3bf64c011a3944a1  ./_internal/docs/VERSION
 4f5a37540816e9c8c3ea7561e3b2a106e55091e222e0dfcd6794383a6bca4538  ./_internal/examples/custom-filter.example.conf
 3d5d11063a3dbda1a13a23b29e8a588b1e77b74a5f63a5598aad17cfab21794a  ./_internal/examples/elk-proxysg.env.example
 60283c5dbb9824cc5c2db88da818f0ee961ec33fbf5a4e3e1094478702aacdda  ./_internal/examples/elk.env
@@ -31,6 +31,7 @@ a3a2f775905dd44e8cf46efc8b1371e67de91f7e6a9495c2133ae2bf19a84ab3  ./_internal/to
 8a87e760bf265e7c368b790912460a7c2f9e45526e98ee21c0fd470ae82e5f4b  ./_internal/tools/run-remote-deploy.ps1
 aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report-update.sh
 a57f33319a9175d3a366d4195c2276ab8e1adc7659c3d2c67a73dbee87d77c1a  ./bootstrap-update.sh
-e501bde5601020b2c28b5887cdf038aaa77bc609797dd20d804158ab0c5eb381  ./config-wizard.html
+04c4796e36a09c6705e150ed87216bea41b7134e0f24a68822e1b6110eaa1ae3  ./config-wizard.html
 89018ec01b9b4fb61ab8788e9153acb55f4d2c215e933d21d96efa658d91e5c2  ./run-remote-deploy.cmd
 d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./run-remote-deploy.ps1
+c73a9bbfca02fbdd29c38d78c318a36a50b4f94508ccdbead4c5492646906d68  ./version.json
