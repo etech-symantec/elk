@@ -9,6 +9,8 @@ on:
       - 'wizard-defaults.js'
       - 'README.md'
       - 'tools/sync_version.py'
+      - 'tools/sync_wizard.py'
+      - 'tools/sync_release.py'
   workflow_dispatch:
 permissions:
   contents: write
@@ -23,26 +25,50 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: true
-      - name: Synchronize version and embedded package files
-        run: |
-          python3 tools/sync_version.py
-          python3 tools/sync_wizard.py
-          # Propagate the final Wizard stamp to version.json and its ZIP copy.
-          python3 tools/sync_version.py
-          python3 tools/sync_wizard.py
-          python3 tools/sync_version.py --check
-          python3 tools/sync_wizard.py --check
-      - name: Commit synchronized files when changed
+          ref: main
+          fetch-depth: 0
+      - name: Sync, verify and push (retry on concurrent main updates)
         shell: bash
         run: |
-          if [[ -z "$(git status --porcelain)" ]]; then
-            echo "Version strings are already synchronized."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md config-wizard.html SHA256SUMS.txt version.json _internal/core/install-elk.sh _internal/core/elk-patch.sh _internal/core/elk-report.sh _internal/docs/README.md _internal/docs/CHANGELOG.md
-          if ! git diff --cached --quiet; then
-            git commit -m "chore: sync OneClick version and embedded assets"
-            git push
-          fi
+          set -Eeuo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          for attempt in 1 2 3 4 5; do
+            echo "--- Sync attempt ${attempt}/5 ---"
+            git fetch --no-tags origin main
+            # Only discard generated changes inside this ephemeral Actions checkout.
+            # Never force-push or reset the remote branch.
+            git reset --hard origin/main
+
+            python3 tools/sync_version.py
+            python3 tools/sync_wizard.py
+            python3 tools/sync_version.py
+            python3 tools/sync_wizard.py
+            python3 tools/sync_version.py --check
+            python3 tools/sync_wizard.py --check
+            python3 tools/check_version.py
+            bash tools/check_patch_lib.sh
+
+            git add README.md config-wizard.html SHA256SUMS.txt version.json \
+              _internal/core/install-elk.sh _internal/core/elk-patch.sh \
+              _internal/core/elk-report.sh _internal/docs/README.md \
+              _internal/docs/CHANGELOG.md
+            if git diff --cached --quiet; then
+              echo 'All generated files are already synchronized.'
+              exit 0
+            fi
+
+            git commit -m 'chore: sync OneClick version and embedded assets'
+            if git push origin HEAD:main; then
+              echo 'Synchronized files pushed successfully.'
+              exit 0
+            fi
+
+            if (( attempt == 5 )); then
+              echo 'ERROR: main changed repeatedly or push is blocked by permissions/branch rules.' >&2
+              exit 1
+            fi
+            echo 'Push failed; refresh main and rerun sync safely.'
+            sleep $(( attempt * 2 ))
+          done
