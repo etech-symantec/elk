@@ -7,6 +7,7 @@ on:
       - '_internal/core/**'
       - '_internal/tools/run-remote-deploy.ps1'
       - 'wizard-defaults.js'
+      - 'README.md'
       - 'tools/sync_version.py'
   workflow_dispatch:
 permissions:
@@ -40,7 +41,7 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add config-wizard.html SHA256SUMS.txt version.json _internal/core/install-elk.sh _internal/core/elk-patch.sh _internal/core/elk-report.sh _internal/docs/README.md _internal/docs/CHANGELOG.md
+          git add README.md config-wizard.html SHA256SUMS.txt version.json _internal/core/install-elk.sh _internal/core/elk-patch.sh _internal/core/elk-report.sh _internal/docs/README.md _internal/docs/CHANGELOG.md
           if ! git diff --cached --quiet; then
             git commit -m "chore: sync OneClick version and embedded assets"
             git push
