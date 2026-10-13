@@ -48,7 +48,7 @@ render_proxysg_filter() {
       "@@PROXYSG_MAIN_COLUMNS@@")  proxysg_columns_block "$PROXYSG_MAIN_LOG_FORMAT" ;;
       "@@PROXYSG_SSL_COLUMNS@@")   proxysg_columns_block "$PROXYSG_SSL_LOG_FORMAT" ;;
       "@@PROXYSG_CLOUD_COLUMNS@@") proxysg_columns_block "$PROXYSG_CLOUD_LOG_FORMAT" ;;
-      *) printf '%s\n' "$line" ;;
+      *) line="${line//@@ELK_TIMEZONE@@/${TIMEZONE:-Asia/Seoul}}"; printf '%s\n' "$line" ;;
     esac
   done <"$tpl"
 }
