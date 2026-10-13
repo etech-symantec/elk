@@ -100,10 +100,10 @@ def sync_version(check=False):
         s = replace_one(s,r'(?<=L\.push\(")ONECLICK_PAYLOAD_VERSION=\x27[0-9.]+\x27(?="\);)', f"ONECLICK_PAYLOAD_VERSION='{ver}'",'payload marker')
         # Release-facing Wizard labels and generated command examples. Only touch
         # readable markup/JS, not the large base64-encoded bundled files.
-        s = replace_one(s, r'<title>ELK Configuration Wizard v[0-9.]+</title>',
-                        f'<title>ELK Configuration Wizard v{ver}</title>', 'wizard title')
-        s = replace_one(s, r'<div class="brand">ELK Configuration Wizard <small>v[0-9.]+</small></div>',
-                        f'<div class="brand">ELK Configuration Wizard <small>v{ver}</small></div>', 'wizard header')
+        s = replace_one(s, r'<title>ELK Oneclick Installer v[0-9.]+</title>',
+                        f'<title>ELK Oneclick Installer v{ver}</title>', 'wizard title')
+        s = replace_one(s, r'<div class="brand">ELK Oneclick Installer <small>v[0-9.]+</small></div>',
+                        f'<div class="brand">ELK Oneclick Installer <small>v{ver}</small></div>', 'wizard header')
         s = re.sub(r'elk-oneclick-install-v[0-9]+\.[0-9]+\.[0-9]+\.sh',
                    f'elk-oneclick-install-v{ver}.sh', s)
         s = re.sub(r'ELK One-Click Installer v[0-9]+\.[0-9]+\.[0-9]+',

@@ -28,8 +28,8 @@ def problems(v):
     w = wizard_text()
     def need(cond, msg):
         if not cond: P.append(msg)
-    need(f'<title>ELK Configuration Wizard v{v}</title>' in w, f'config-wizard.html: <title> 이 v{v} 가 아닙니다')
-    need(f'<div class="brand">ELK Configuration Wizard <small>v{v}</small></div>' in w, f'config-wizard.html: 상단 표기가 v{v} 가 아닙니다')
+    need(f'<title>ELK Oneclick Installer v{v}</title>' in w, f'config-wizard.html: <title> 이 v{v} 가 아닙니다')
+    need(f'<div class="brand">ELK Oneclick Installer <small>v{v}</small></div>' in w, f'config-wizard.html: 상단 표기가 v{v} 가 아닙니다')
     need(f"const PKG_VER='{v}'" in w, f"config-wizard.html: PKG_VER 이 {v} 가 아닙니다")
     need(f"ONECLICK_PAYLOAD_VERSION=\\'{v}\\'" in w or f"ONECLICK_PAYLOAD_VERSION='{v}'" in w, f'config-wizard.html: ONECLICK_PAYLOAD_VERSION 이 {v} 가 아닙니다')
     for m in set(re.findall(r'elk-oneclick-install-v(' + SEMVER + r')\.sh', w)):
@@ -63,7 +63,7 @@ def set_version(new):
     parts = re.split('(' + B64.pattern + ')', read('config-wizard.html'))
     for i, p in enumerate(parts):
         if B64.fullmatch(p): continue
-        p = p.replace(f'<title>ELK Configuration Wizard v{old}</title>', f'<title>ELK Configuration Wizard v{new}</title>')
+        p = p.replace(f'<title>ELK Oneclick Installer v{old}</title>', f'<title>ELK Oneclick Installer v{new}</title>')
         p = p.replace(f'<small>v{old}</small>', f'<small>v{new}</small>')
         p = p.replace(f"const PKG_VER='{old}'", f"const PKG_VER='{new}'")
         p = p.replace(f"ONECLICK_PAYLOAD_VERSION=\\'{old}\\'", f"ONECLICK_PAYLOAD_VERSION=\\'{new}\\'").replace(f"ONECLICK_PAYLOAD_VERSION='{old}'", f"ONECLICK_PAYLOAD_VERSION='{new}'")

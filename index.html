@@ -13,13 +13,26 @@
 <link rel="stylesheet" href="style.css" />
 <style>
 .auto-card-version{display:flex;justify-content:center;align-items:center;gap:6px;margin:10px auto 0;font-size:10px}.auto-card-version span{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.18);color:#fff;font-weight:800}.auto-card-version b{color:rgba(255,255,255,.80);font-weight:600}
+
+/* 자동 구성 아래 가이드: 기존 검은색 네비게이션 톤, 한 줄형 버튼 */
 .side-guides{box-sizing:border-box;position:relative;display:flex;flex-direction:column;gap:4px;align-items:stretch;align-self:flex-end;width:178px;min-width:178px;margin:4px 0 8px;padding-left:17px;right:0;isolation:isolate}
 .side-guides[hidden]{display:none!important}
 .side-guide-link{box-sizing:border-box;display:flex;justify-content:center;align-items:center;width:100%;height:23px;min-height:23px;white-space:nowrap;text-decoration:none;color:#fff;background:#172033;border:1px solid #2e3b53;border-radius:6px;padding:3px 6px;font-family:inherit;font-size:10px;font-weight:700;line-height:1.1;box-shadow:0 2px 6px #101b3226;transition:background .15s,border-color .15s,transform .15s}
 .side-guide-link:hover,.side-guide-link:focus-visible{background:#263a59;border-color:#7fa6e6;color:#fff;outline-offset:2px;transform:translateX(-2px)}
-.side-guide-rocket{position:absolute;left:0;top:2px;width:15px;height:19px;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;pointer-events:none;animation:sideGuideRocketTravel 4.5s ease-in-out infinite;filter:drop-shadow(0 1px 2px #1b2e5470)}
-@keyframes sideGuideRocketTravel{0%,8%,92%,100%{transform:translateY(0)}29%,37%{transform:translateY(27px)}60%,68%{transform:translateY(54px)}}
-@media(prefers-reduced-motion:reduce){.side-guide-rocket{animation:none}.side-guide-link{transition:none}}
+/* 로켓은 미니 가이드 버튼 왼쪽에서 비행하며 마우스에 부드럽게 반응합니다. */
+.side-guide-rocket{position:absolute;left:0;top:2px;width:15px;height:19px;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;pointer-events:none;z-index:5;transform:translate(var(--rocket-x,0px),var(--rocket-y,0px));will-change:transform;filter:drop-shadow(0 1px 2px #1b2e5470)}
+.rocket-flight{position:relative;width:18px;height:22px;display:flex;align-items:center;justify-content:center;animation:sideGuideRocketTravel 4.5s ease-in-out infinite;transform-origin:center;will-change:transform}
+.rocket-symbol{position:relative;z-index:3;font-size:15px;line-height:1;filter:drop-shadow(0 1px 2px #28324e80)}
+.rocket-fire{position:absolute;z-index:2;left:-4px;top:15px;border-radius:40% 60% 55% 45%;pointer-events:none;transform:rotate(45deg);transform-origin:70% 20%;mix-blend-mode:normal}
+.fire-outer{width:12px;height:19px;background:radial-gradient(ellipse at 52% 16%,#fff6a9 2%,#ffc224 35%,#ff7115 65%,#ff361100 100%);filter:blur(.7px);animation:guideFireBlast .23s ease-in-out infinite alternate}
+.fire-inner{width:7px;height:13px;left:-1px;top:16px;background:linear-gradient(#fffce8,#ffe36a 45%,#ff901d 80%,transparent);animation:guideFireBlast .16s ease-in-out infinite alternate-reverse}
+.rocket-smoke{position:absolute;z-index:1;left:-4px;top:23px;width:10px;height:10px;border-radius:50%;background:radial-gradient(circle,#dbe4f1 0%,#aab7ca99 55%,#8a98b400 100%);filter:blur(1.3px);opacity:0;pointer-events:none;animation:guideSmokeBurst 1.2s linear infinite}
+.smoke-b{animation-delay:-.28s;--drift:-12px;--reach:27px}.smoke-c{animation-delay:-.56s;--drift:8px;--reach:32px}.smoke-d{animation-delay:-.86s;--drift:-7px;--reach:36px}.smoke-a{--drift:3px;--reach:25px}
+@keyframes sideGuideRocketTravel{0%,8%,92%,100%{transform:translateY(0) rotate(-7deg)}29%,37%{transform:translateY(27px) rotate(5deg)}60%,68%{transform:translateY(54px) rotate(-5deg)}}
+@keyframes guideFireBlast{from{scale:.83 1;opacity:.7}to{scale:1.15 1.45;opacity:1}}
+@keyframes guideSmokeBurst{0%{transform:translate(0,0) scale(.3);opacity:.85}45%{opacity:.65}100%{transform:translate(var(--drift,0px),var(--reach,30px)) scale(1.8);opacity:0}}
+@media(prefers-reduced-motion:reduce){.rocket-flight,.rocket-fire,.rocket-smoke{animation:none!important}.rocket-smoke{display:none}.side-guide-rocket{transform:none!important}.side-guide-link{transition:none}}
+
 </style>
 </head>
 <body>
@@ -60,7 +73,7 @@
   loadElkVersionInfo();
 </script>
 <script src="https://etech-symantec.github.io/header.js"></script>
-  
+
 <div class="layout">
 <!-- 좌측 미니 메뉴 (첫 화면에서는 숨김) -->
 <nav class="side-nav" id="side-nav">
@@ -71,7 +84,7 @@
     <span class="sb-icon">🚀</span>자동<br>구성
   </button>
   <div class="side-guides" id="side-guides" hidden aria-label="OneClick 사용 가이드">
-    <span class="side-guide-rocket" aria-hidden="true">🚀</span>
+    <span class="side-guide-rocket" id="side-guide-rocket" aria-hidden="true"><span class="rocket-flight"><span class="rocket-smoke smoke-a"></span><span class="rocket-smoke smoke-b"></span><span class="rocket-smoke smoke-c"></span><span class="rocket-smoke smoke-d"></span><span class="rocket-fire fire-outer"></span><span class="rocket-fire fire-inner"></span><span class="rocket-symbol">🚀</span></span></span>
     <a class="side-guide-link" href="guide-install.html" target="_blank" rel="noopener" title="ELK OneClick 신규 설치 가이드">신규 설치 가이드</a>
     <a class="side-guide-link" href="guide-adopt.html" target="_blank" rel="noopener" title="기존 ELK 서버 OneClick 관리 등록 가이드">기존 ELK 등록 가이드</a>
     <a class="side-guide-link" href="guide-upgrade.html" target="_blank" rel="noopener" title="OneClick 구버전 업그레이드 가이드">구버전 업그레이드 가이드</a>
@@ -392,6 +405,36 @@
     return result;
   };
   panel.hidden=!(document.getElementById('view-wizard')?.style.display!=='none' && document.getElementById('view-home')?.style.display==='none');
+  const rocket=document.getElementById('side-guide-rocket');
+  const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
+  if(rocket){
+    let nx=0,ny=0,tx=0,ty=0,frame=0,lastMove=0;
+    const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+    const onMove=e=>{
+      if(panel.hidden||reduced.matches)return;
+      const rect=panel.getBoundingClientRect();
+      const mx=rect.left+rect.width/2,my=rect.top+rect.height/2;
+      const dx=e.clientX-mx,dy=e.clientY-my;
+      const nearby=Math.max(0,1-Math.hypot(dx,dy)/330);
+      // 마우스가 가까우면 최대 9px 옆으로, 6px 위아래로 반응하며 잔진동 추가
+      tx=clamp(dx/35,-9,9)*nearby+(Math.random()-.5)*3*nearby;
+      ty=clamp(dy/55,-6,6)*nearby+(Math.random()-.5)*2.5*nearby;
+      lastMove=performance.now();
+    };
+    document.addEventListener('pointermove',onMove,{passive:true});
+    const tick=now=>{
+      if(now-lastMove>2000){tx*=.96;ty*=.96;}
+      if(!panel.hidden&&!reduced.matches){
+        nx+=(tx-nx)*.085;ny+=(ty-ny)*.085;
+        rocket.style.setProperty('--rocket-x',nx.toFixed(2)+'px');
+        rocket.style.setProperty('--rocket-y',ny.toFixed(2)+'px');
+      }
+      frame=requestAnimationFrame(tick);
+    };
+    if(!reduced.matches)frame=requestAnimationFrame(tick);
+    reduced.addEventListener?.('change',()=>{if(reduced.matches){cancelAnimationFrame(frame);rocket.style.removeProperty('--rocket-x');rocket.style.removeProperty('--rocket-y')}else frame=requestAnimationFrame(tick)});
+  }
+
 })();
 </script>
 </body>
