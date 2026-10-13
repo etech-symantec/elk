@@ -135,8 +135,24 @@ def stamp(text):
         else:
             raise SystemExit('config-wizard.html 에 const WIZARD_BUILD 가 없습니다.')
     base = BUILD_RE.sub(r"\1BUILDSTAMP\3", text)
+    # Break the cycle: version.json contains the generated build, and is itself
+    # bundled as base64 inside PACKAGE_EXTRA. Exclude ONLY that encoded copy
+    # from the build fingerprint, while keeping it in the downloadable package.
+    marker = 'const PACKAGE_EXTRA='
+    if marker in base:
+        start = base.index(marker) + len(marker)
+        extra, size = json.JSONDecoder().raw_decode(base[start:])
+        if 'version.json' in extra:
+            ent = extra['version.json']
+            if isinstance(ent, dict):
+                ent = dict(ent)
+                ent['b64'] = '__VERSION_JSON_BUILD_EXCLUDED__'
+            else:
+                ent = '__VERSION_JSON_BUILD_EXCLUDED__'
+            extra['version.json'] = ent
+            base = base[:start] + dumps(extra) + base[start+size:]
     name = _build_words(base)
-    return BUILD_RE.sub(lambda m: m.group(1) + name + m.group(3), base)
+    return BUILD_RE.sub(lambda m: m.group(1) + name + m.group(3), text)
 
 
 def build(text):
