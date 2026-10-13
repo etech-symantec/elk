@@ -9,3 +9,18 @@ elk-oneclick-install-v*.sh
 *.zip
 .DS_Store
 Thumbs.db
+
+# Python 캐시
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# 임시 파일
+*.tmp
+*.bak
+*.swp
+
+# 운영 서버의 실제 환경변수
+elk.env
+*.secrets.env
+secrets.env
