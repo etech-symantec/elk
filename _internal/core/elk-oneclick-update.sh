@@ -103,6 +103,105 @@ mode_for(){
   esac
 }
 
+
+# 변경 파일의 성격을 분류하여 --apply만으로 충분한지,
+# 현재 elk.env를 기준으로 --full 재적용이 필요한지 안내한다.
+# 실제 적용 명령은 자동 실행하지 않고 사용자에게 명시적으로 제안만 한다.
+impact_for(){
+  case "$1" in
+    # 실제 Logstash pipeline/filter 재렌더링이 필요한 템플릿.
+    proxysg-log-filter.conf)
+      printf '%s' "reconcile"
+      ;;
+    # 설치 엔진에는 Dashboard, Kibana 설정, Logstash 렌더링,
+    # installer default 값이 포함될 수 있으므로 전체 재적용을 권장.
+    install-elk.sh)
+      printf '%s' "full"
+      ;;
+    # 환경 기본값/설치 도우미 변경 가능성이 높은 소스.
+    wizard-defaults.js|config-wizard.html)
+      printf '%s' "env-review"
+      ;;
+    # 런타임 교체만으로 즉시 반영되는 파일.
+    check-elk.sh|proxysg-log-process.sh|elk-health-monitor.sh|elk-ops.sh|elk-patch.sh|elk-color.sh|elk-report.sh|elk-report-web.py|elk-tls-lib.sh|proxysg-lib.sh|log-ingest-manager.sh|elk-oneclick-update.sh|elk-oneclick-adopt.sh)
+      printf '%s' "runtime"
+      ;;
+    *)
+      printf '%s' "source"
+      ;;
+  esac
+}
+
+impact_text(){
+  case "$1" in
+    runtime)    printf '%s' "파일 교체만으로 반영 가능" ;;
+    reconcile)  printf '%s' "Logstash 설정 재생성 필요 → --full 권장" ;;
+    full)        printf '%s' "설치 엔진/대시보드/기본값 변경 가능 → --full 권장" ;;
+    env-review)  printf '%s' "기존 elk.env 값은 자동 변경되지 않음 → 설정값 확인 필요" ;;
+    *)           printf '%s' "설치 소스 변경 → 필요 시 --full 검토" ;;
+  esac
+}
+
+env_value_present(){
+  local key="$1"
+  [[ -r "$ENVF" ]] || return 1
+  grep -qE "^${key}=" "$ENVF" 2>/dev/null
+}
+
+print_reconcile_advice(){
+  local _n _impact
+  local _need_full=0 _need_env_review=0 _filter_changed=0 _install_changed=0
+  local _runtime_only=1
+
+  for _n in "${CHANGED_RUNTIME[@]}"; do
+    _impact="$(impact_for "$_n")"
+    [[ "$_impact" == "runtime" ]] || _runtime_only=0
+    [[ "$_impact" == "reconcile" ]] && { _need_full=1; _filter_changed=1; }
+  done
+  for _n in "${CHANGED_SOURCE[@]}"; do
+    _impact="$(impact_for "$_n")"
+    _runtime_only=0
+    [[ "$_impact" == "full" || "$_impact" == "reconcile" ]] && _need_full=1
+    [[ "$_impact" == "env-review" || "$_impact" == "full" ]] && _need_env_review=1
+    [[ "$_n" == "install-elk.sh" ]] && _install_changed=1
+  done
+
+  # install-elk.sh는 target_for 대상이 아니므로 CHANGED_SOURCE에 잡힌다.
+  if (( ${#CHANGED_RUNTIME[@]} + ${#CHANGED_SOURCE[@]} == 0 )); then
+    say
+    say "  [적용 권장사항]"
+    say "    · 추가 작업 없음 — 현재 설치 파일과 GitHub 기준이 동일합니다."
+    return 0
+  fi
+
+  say
+  say "  [적용 권장사항]"
+  if (( _runtime_only )); then
+    say "    · --apply만으로 충분합니다. 런타임 파일 교체 외 추가 구성 재적용이 필요하지 않습니다."
+  else
+    if (( _filter_changed )); then
+      say "    · proxysg-log-filter.conf 변경 감지"
+      say "      → /etc/logstash의 실제 pipeline/filter는 --apply만으로 다시 렌더링되지 않습니다."
+    fi
+    if (( _install_changed )); then
+      say "    · install-elk.sh 변경 감지"
+      say "      → Dashboard, Kibana 설정, Logstash 렌더링 또는 installer 기본값 변경이 포함될 수 있습니다."
+    fi
+    if (( _need_env_review )); then
+      say "    · 기존 /etc/elk-auto/elk.env의 명시 값은 새 버전의 기본값으로 자동 덮어쓰지 않습니다."
+      if env_value_present PROXYSG_CLOUD_LOG_FORMAT; then
+        say "      → 현재 PROXYSG_CLOUD_LOG_FORMAT 값이 elk.env에 있으므로 새 기본 포맷 적용 여부를 확인하세요."
+      fi
+    fi
+    if (( _need_full )); then
+      say "    · 권장: 필요한 elk.env 값을 먼저 패치/확인한 뒤 아래 명령으로 전체 구성을 재적용하세요."
+      say "      sudo elk-oneclick-update --full"
+    else
+      say "    · 설치 소스 변경이 있으므로 변경 내용을 확인한 뒤 필요할 때만 --full을 사용하세요."
+    fi
+  fi
+}
+
 IV=""; IB=""
 if [[ -f "$RELEASE" ]]; then
   # shellcheck disable=SC1090
@@ -197,6 +296,7 @@ if (( ${#CHANGED_RUNTIME[@]} )); then
   say "  [실제 업데이트 대상]"
   for N in "${CHANGED_RUNTIME[@]}"; do
     say "    · $N -> $(target_for "$N")"
+    say "      ↳ $(impact_text "$(impact_for "$N")")"
   done
 else
   say
@@ -206,8 +306,11 @@ fi
 if (( ${#CHANGED_SOURCE[@]} )); then
   say
   say "  [설치 엔진/소스 변경 - 기본 --apply에서는 적용하지 않음]"
-  for N in "${CHANGED_SOURCE[@]}"; do say "    · $N"; done
-  say "    ※ 전체 설치 구성을 다시 적용할 때만 --full 사용"
+  for N in "${CHANGED_SOURCE[@]}"; do
+    say "    · $N"
+    say "      ↳ $(impact_text "$(impact_for "$N")")"
+  done
+  say "    ※ --apply는 런타임 파일만 교체하며 Dashboard/Logstash 재렌더링/installer 기본값은 자동 재적용하지 않습니다."
 fi
 
 if (( ${#BASELINE_SOURCE[@]} )); then
@@ -219,6 +322,8 @@ fi
 
 TOTAL_RUNTIME=${#CHANGED_RUNTIME[@]}
 TOTAL_SOURCE=${#CHANGED_SOURCE[@]}
+
+print_reconcile_advice
 
 if [[ "$MODE" == "--check" || "$MODE" == "check" || "$MODE" == "--version" ]]; then
   say
@@ -425,6 +530,24 @@ chmod 644 "$RELEASE"
 
 if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
   say "[OK] 전체 구성 재적용 완료: v$LV · build $LB"
+  say "     Dashboard / Logstash 렌더링 / Kibana 설정은 현재 elk.env 기준으로 재적용되었습니다."
 else
   say "[OK] delta-only 업데이트 완료: 실제 변경 파일만 반영했습니다. v$LV · build $LB"
+  say
+  say "[다음 단계]"
+  _NEXT_FULL=0
+  for N in "${CHANGED_RUNTIME[@]}" "${CHANGED_SOURCE[@]}"; do
+    [[ -n "$N" ]] || continue
+    case "$(impact_for "$N")" in
+      full|reconcile) _NEXT_FULL=1 ;;
+    esac
+  done
+  if (( _NEXT_FULL )); then
+    say "  이번 변경에는 구성 재생성이 필요한 항목이 포함되어 있습니다."
+    say "  1) /etc/elk-auto/elk.env의 기본값 변경 필요 여부를 확인/패치"
+    say "  2) sudo elk-oneclick-update --full"
+    say "  ※ --full은 현재 elk.env를 기준으로 Dashboard, Kibana 설정, Logstash 구성을 다시 생성합니다."
+  else
+    say "  런타임 파일 업데이트만으로 반영 완료되었습니다. --full은 필요하지 않습니다."
+  fi
 fi

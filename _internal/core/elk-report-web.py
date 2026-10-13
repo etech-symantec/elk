@@ -30,10 +30,17 @@ DIAG_COMMANDS={
     'failed-services': [['systemctl','--failed','--no-pager','--full']],
     'ports': [['ss','-lntup']],
     'time': [['timedatectl','status']],
-    'cloud-log': [['tail','-n','160','/var/log/elk-proxysg-log-process.log']],
+    'process-log': [['tail','-n','220','/var/log/elk-proxysg-log-process.log']],
     'logstash-log': [['journalctl','-u','logstash','-p','warning','--since','24 hours ago','-n','160','--no-pager','-o','short-iso']],
     'es-log': [['journalctl','-u','elasticsearch','-p','warning','--since','24 hours ago','-n','160','--no-pager','-o','short-iso']],
     'kibana-log': [['journalctl','-u','kibana','-p','warning','--since','24 hours ago','-n','160','--no-pager','-o','short-iso']],
+}
+
+PROCESS_LOG=Path('/var/log/elk-proxysg-log-process.log')
+PROCESS_LOG_LABELS={
+    'main-process-log':'MAIN',
+    'ssl-process-log':'SSL',
+    'cloud-process-log':'CLOUD',
 }
 
 def parse_command(text):
@@ -52,7 +59,7 @@ def parse_command(text):
         if len(parts)!=2:
             raise ValueError('elk-diag는 미리 정의된 점검 ID 하나만 사용할 수 있습니다.')
         diag_id=parts[1]
-        if diag_id not in DIAG_REPORT_SECTIONS and diag_id not in DIAG_COMMANDS:
+        if diag_id not in DIAG_REPORT_SECTIONS and diag_id not in DIAG_COMMANDS and diag_id not in PROCESS_LOG_LABELS:
             raise ValueError('허용되지 않은 점검 명령입니다.')
         return {'kind':'diag','id':diag_id}
 
@@ -98,14 +105,36 @@ def run_oneclick(args):
     return p.returncode,p.stdout
 
 
+def read_process_log(label=None,limit=160):
+    if not PROCESS_LOG.exists():
+        return f'[INFO] 처리 로그 파일이 없습니다: {PROCESS_LOG}'
+    try:
+        lines=PROCESS_LOG.read_text(encoding='utf-8',errors='replace').splitlines()
+    except Exception as e:
+        return f'[ERROR] 처리 로그 읽기 실패: {e}'
+    if label:
+        needle=label.upper()
+        # Preserve shared execution boundary lines for context and select label-specific lines.
+        lines=[x for x in lines if needle in x.upper() or 'FILE PROCESSING STARTED' in x.upper() or 'FILE PROCESSING FINISHED' in x.upper()]
+    lines=lines[-limit:]
+    return '\n'.join(lines) if lines else f'[INFO] 최근 {label or "처리"} 관련 로그가 없습니다.'
+
 def run_diag(diag_id):
+    if diag_id in PROCESS_LOG_LABELS:
+        label=PROCESS_LOG_LABELS[diag_id]
+        return 0,read_process_log(label,160)
+
     if diag_id in DIAG_REPORT_SECTIONS:
         args=[REPORT,'--only',DIAG_REPORT_SECTIONS[diag_id],'--no-html','--no-color','--env',a.env]
         p=subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=180,env={**os.environ,'NO_COLOR':'1'})
         # elk-report 0/1/2 are normal diagnostic results.
         if p.returncode not in (0,1,2):
             raise RuntimeError((p.stdout or '점검 실행 실패')[-12000:])
-        return p.returncode,p.stdout
+        out=p.stdout or ''
+        if diag_id=='ingest':
+            cloud=read_process_log(None,120)
+            out=out.rstrip()+f'\n\n===== 최근 MAIN / SSL / CLOUD 처리 로그 =====\n{cloud}\n'
+        return p.returncode,out
 
     commands=DIAG_COMMANDS.get(diag_id)
     if not commands:
@@ -128,7 +157,7 @@ def run_diag(diag_id):
     return worst,'\n\n'.join(blocks)
 
 class H(BaseHTTPRequestHandler):
-    server_version='ELKReportWeb/2.9.31'
+    server_version='ELKReportWeb/2.9.34'
     def log_message(self,fmt,*args): print('[elk-report-web]',fmt%args,flush=True)
     def send_json(self,status,obj):
         b=json.dumps(obj,ensure_ascii=False).encode(); self.send_response(status); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Content-Length',str(len(b))); self.end_headers(); self.wfile.write(b)

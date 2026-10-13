@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# ELK OneClick Adopt v2.9.31
+# ELK OneClick Adopt v2.9.34
 # 기존/수동 구축 ELK를 재설치 없이 OneClick 관리 대상으로 등록합니다.
 set -Eeuo pipefail
-VERSION="2.9.31"
+VERSION="2.9.34"
 MODE="${1:---inspect}"
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENVF="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
