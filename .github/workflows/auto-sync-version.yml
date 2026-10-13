@@ -23,7 +23,14 @@ jobs:
         with:
           persist-credentials: true
       - name: Synchronize version and embedded package files
-        run: python3 tools/sync_version.py
+        run: |
+          python3 tools/sync_version.py
+          python3 tools/sync_wizard.py
+          # Propagate the final Wizard stamp to version.json and its ZIP copy.
+          python3 tools/sync_version.py
+          python3 tools/sync_wizard.py
+          python3 tools/sync_version.py --check
+          python3 tools/sync_wizard.py --check
       - name: Commit synchronized files when changed
         shell: bash
         run: |
@@ -33,7 +40,7 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add config-wizard.html version.json _internal/core/install-elk.sh _internal/core/elk-patch.sh _internal/core/elk-report.sh _internal/docs/README.md _internal/docs/CHANGELOG.md
+          git add config-wizard.html SHA256SUMS.txt version.json _internal/core/install-elk.sh _internal/core/elk-patch.sh _internal/core/elk-report.sh _internal/docs/README.md _internal/docs/CHANGELOG.md
           if ! git diff --cached --quiet; then
             git commit -m "chore: sync OneClick version and embedded assets"
             git push
