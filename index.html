@@ -13,10 +13,14 @@
 <link rel="stylesheet" href="style.css" />
 <style>
 .auto-card-version{display:flex;justify-content:center;align-items:center;gap:6px;margin:10px auto 0;font-size:10px}.auto-card-version span{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.18);color:#fff;font-weight:800}.auto-card-version b{color:rgba(255,255,255,.80);font-weight:600}
-.side-guides{display:flex;flex-direction:column;gap:4px;align-items:center;margin:5px 0 9px;width:100%}
+/* 자동 구성 아래 가이드: 기존 검은색 네비게이션 톤, 한 줄형 버튼 */
+.side-guides{box-sizing:border-box;position:relative;display:flex;flex-direction:column;gap:5px;align-items:stretch;width:224px;min-width:224px;margin:5px 0 9px;left:-74px;padding-left:22px;isolation:isolate}
 .side-guides[hidden]{display:none!important}
-.side-guide-link{box-sizing:border-box;display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;background:#edf4ff;border:1px solid #cbdaf3;color:#1e3a8a;border-radius:8px;font-size:10px;font-weight:750;line-height:1.15;padding:6px 2px;width:75px;max-width:100%;min-height:27px;box-shadow:0 2px 5px #14254c10;transition:.12s}
-.side-guide-link:hover,.side-guide-link:focus-visible{color:#fff;background:#2563eb;border-color:#2563eb;outline-offset:2px}
+.side-guide-link{box-sizing:border-box;display:flex;justify-content:center;align-items:center;width:100%;height:29px;min-height:29px;white-space:nowrap;text-decoration:none;color:#fff;background:#172033;border:1px solid #2e3b53;border-radius:8px;padding:5px 8px;font:750 10.5px/1.15 inherit;box-shadow:0 3px 9px #101b3230;transition:background .15s,border-color .15s,transform .15s}
+.side-guide-link:hover,.side-guide-link:focus-visible{background:#263a59;border-color:#7fa6e6;color:#fff;outline-offset:2px;transform:translateX(-2px)}
+.side-guide-rocket{position:absolute;left:0;top:3px;width:20px;height:23px;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;pointer-events:none;animation:sideGuideRocketTravel 4.5s ease-in-out infinite;filter:drop-shadow(0 1px 2px #1b2e5470)}
+@keyframes sideGuideRocketTravel{0%,8%,92%,100%{transform:translateY(0)}29%,37%{transform:translateY(34px)}60%,68%{transform:translateY(68px)}}
+@media(prefers-reduced-motion:reduce){.side-guide-rocket{animation:none}.side-guide-link{transition:none}}
 </style>
 </head>
 <body>
@@ -68,9 +72,10 @@
     <span class="sb-icon">🚀</span>자동<br>구성
   </button>
   <div class="side-guides" id="side-guides" hidden aria-label="OneClick 사용 가이드">
-    <a class="side-guide-link" href="guide-install.html" target="_blank" rel="noopener" title="신규 설치 가이드">신규 설치</a>
-    <a class="side-guide-link" href="guide-adopt.html" target="_blank" rel="noopener" title="기존 ELK 서버 관리 등록 가이드">기존 ELK 등록</a>
-    <a class="side-guide-link" href="guide-upgrade.html" target="_blank" rel="noopener" title="OneClick 구버전 업그레이드 가이드">구버전 업그레이드</a>
+    <span class="side-guide-rocket" aria-hidden="true">🚀</span>
+    <a class="side-guide-link" href="guide-install.html" target="_blank" rel="noopener" title="ELK OneClick 신규 설치 가이드">신규 설치 가이드</a>
+    <a class="side-guide-link" href="guide-adopt.html" target="_blank" rel="noopener" title="기존 ELK 서버 OneClick 관리 등록 가이드">기존 ELK 등록 가이드</a>
+    <a class="side-guide-link" href="guide-upgrade.html" target="_blank" rel="noopener" title="OneClick 구버전 업그레이드 가이드">구버전 업그레이드 가이드</a>
   </div>
   <button type="button" class="side-btn" id="nav-conf" onclick="showView('conf')" title="Logstash 설정파일 만들기">
     <span class="sb-icon">⚙️</span>Logstash<br>설정
