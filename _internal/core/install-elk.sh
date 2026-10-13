@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-# ELK Auto Installer v2.9.18
+# ELK Auto Installer v2.9.20
 # Target: Ubuntu 22.04 / 24.04, Elastic Stack 9.x
 # Usage: sudo bash install-elk.sh ./elk.env
 
@@ -326,7 +326,7 @@ unset _old_name _new_name
 : "${HEALTH_DISK_CRIT_PERCENT:=92}"
 : "${HEALTH_AUTO_PAUSE_FILE_INGEST_ON_CRITICAL:=false}"
 
-# 정기점검 HTML / Web Viewer (v2.9.18)
+# 정기점검 HTML / Web Viewer (v2.9.20)
 : "${ELK_REPORT_HTML_DIR:=/var/lib/elk-report}"
 : "${ELK_REPORT_HTML_FILE:=${ELK_REPORT_HTML_DIR}/report.html}"
 : "${ELK_REPORT_WEB_ENABLED:=true}"
@@ -1049,7 +1049,7 @@ extend_root_lvm() {
 }
 
 # ----------------------------- OS -----------------------------
-ELK_AUTO_VERSION="2.9.18"
+ELK_AUTO_VERSION="2.9.20"
 log "ELK Auto Installer v${ELK_AUTO_VERSION}"
 log "환경파일: $ENV_FILE"
 log "설치 로그: $INSTALL_LOG"
@@ -2032,6 +2032,15 @@ EOF_PROXYSG_CLOUD_OUT2
   chown root:logstash "$LOGSTASH_PIPELINE_FILE"
   chmod 640 "$LOGSTASH_PIPELINE_FILE"
 
+  # logstash-keystore is executed as root above and can create Log4j files as root.
+  # Repair runtime ownership immediately before running Logstash as the logstash user.
+  # This prevents RollingFileManager "Permission denied" for logstash-*.log.
+  install -d -o logstash -g logstash -m 0755 "$LOGSTASH_PATH_LOGS"
+  chown -R logstash:logstash "$LOGSTASH_PATH_LOGS"
+  find "$LOGSTASH_PATH_LOGS" -type d -exec chmod u+rwx,g+rx,o+rx {} + 2>/dev/null || true
+  find "$LOGSTASH_PATH_LOGS" -type f -exec chmod u+rw,g+r,o-rwx {} + 2>/dev/null || true
+  log "Logstash 로그 디렉터리 권한 정리: $LOGSTASH_PATH_LOGS -> logstash:logstash"
+
   log "Logstash 설정 문법 검사"
   if ! runuser -u logstash -- /usr/share/logstash/bin/logstash --path.settings /etc/logstash -t; then
     die "Logstash configuration test 실패"
@@ -2325,7 +2334,7 @@ if [[ -f "$SCRIPT_DIR/elk-patch.sh" && -f "$SCRIPT_DIR/proxysg-lib.sh" ]]; then
   if [[ -s "$SCRIPT_DIR/custom-pipeline.conf" ]]; then install -m 644 "$SCRIPT_DIR/custom-pipeline.conf" /usr/local/lib/elk-auto/custom-pipeline.conf; else rm -f /usr/local/lib/elk-auto/custom-pipeline.conf; fi
   log "부분 패치 도구 설치: /usr/local/sbin/elk-patch  (예: sudo elk-patch --list)"
 fi
-# v2.9.18: 서버 정기점검 리포트 + HTML Web Viewer
+# v2.9.20: 서버 정기점검 리포트 + HTML Web Viewer
 if [[ -f "$SCRIPT_DIR/elk-report.sh" ]]; then
   install -m 755 "$SCRIPT_DIR/elk-report.sh" /usr/local/sbin/elk-report
   install -d -m 755 "$ELK_REPORT_HTML_DIR"
@@ -2391,6 +2400,12 @@ overall_progress 93 "서비스 Enable/Start"
 manage_service() {
   local svc="$1" install_flag="$2"
   istrue "$install_flag" || return 0
+  if [[ "$svc" == "logstash" ]]; then
+    install -d -o logstash -g logstash -m 0755 "$LOGSTASH_PATH_LOGS"
+    chown -R logstash:logstash "$LOGSTASH_PATH_LOGS"
+    find "$LOGSTASH_PATH_LOGS" -type d -exec chmod u+rwx,g+rx,o+rx {} + 2>/dev/null || true
+    find "$LOGSTASH_PATH_LOGS" -type f -exec chmod u+rw,g+r,o-rwx {} + 2>/dev/null || true
+  fi
   if istrue "$ENABLE_SERVICES_ON_BOOT"; then systemctl enable "$svc" >/dev/null; fi
   if istrue "$START_SERVICES_AFTER_INSTALL"; then systemctl restart "$svc"; fi
 }

@@ -11,13 +11,19 @@
   <title>ELK</title>
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css" />
+<style>
+.home-version-badge{display:flex;justify-content:center;align-items:center;gap:7px;margin:0 auto 10px;font-size:11px;color:#64748b}
+.home-version-badge span{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#e0e7ff;color:#3730a3;font-weight:700}
+.home-version-badge b{font-weight:600;color:#64748b}
+</style>
 </head>
 <body>
     
 <!-- 공통 헤더 + 제목 + 버전 -->
 <script>
   window.pageTitle = "ELK";
-  window.pageVersion = "ver.2026.09.30";
+  window.pageVersion = "v2.9.20 · build: logstash-permission-hotfix";
+  window.pageBuild = "logstash-permission-hotfix";
 </script> 
 <script src="https://etech-symantec.github.io/header.js"></script>
   
@@ -38,6 +44,9 @@
 <main>
   <!-- 첫 화면 -->
   <div class="home" id="view-home">
+    <div class="home-version-badge" aria-label="ELK OneClick 버전과 빌드">
+      <span>v2.9.20</span><b>build: logstash-permission-hotfix</b>
+    </div>
     <h2 class="home-title">무엇을 하시겠어요?</h2>
     <p class="home-sub">사용할 기능을 선택하세요.</p>
     <div class="home-btns">
