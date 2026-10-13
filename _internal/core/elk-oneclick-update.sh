@@ -28,8 +28,6 @@ need(){ command -v "$1" >/dev/null 2>&1 || die "$1 명령이 필요합니다."; 
 
 for c in curl jq sha1sum sha256sum stat cmp sort; do need "$c"; done
 
-[[ "$OWNER" != CHANGE_ME_* && "$REPO" != CHANGE_ME_* ]] || \
-  die "GitHub 저장소가 설정되지 않았습니다. ELK_ONECLICK_GITHUB_OWNER/REPO를 지정하세요."
 
 case "$MODE" in
   --check|check|--version|--apply|apply|--force|force|--full|full) ;;

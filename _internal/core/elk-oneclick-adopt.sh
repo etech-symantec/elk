@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# ELK OneClick Adopt v2.9.24
+# ELK OneClick Adopt v2.9.25
 # 기존/수동 구축 ELK를 재설치 없이 OneClick 관리 대상으로 등록합니다.
 set -Eeuo pipefail
-VERSION="2.9.24"
+VERSION="2.9.25"
 MODE="${1:---inspect}"
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENVF="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
@@ -132,6 +132,9 @@ PROXYSG_MAIN_DATA_VIEW_NAME="main"
 PROXYSG_SSL_DATA_VIEW_NAME="ssl"
 PROXYSG_CLOUD_DATA_VIEW_NAME="cloud"
 PROXYSG_PROCESS_SCRIPT="/usr/local/sbin/elk-proxysg-log-process"
+ONECLICK_GITHUB_OWNER="etech-symantec"
+ONECLICK_GITHUB_REPO="elk"
+ONECLICK_GITHUB_BRANCH="main"
 ELK_REPORT_WEB_ENABLED="$([[ $REPORT_WEB -eq 1 ]]&&echo true||echo false)"
 ELK_REPORT_WEB_HOST="127.0.0.1"
 ELK_REPORT_WEB_PORT="5602"
