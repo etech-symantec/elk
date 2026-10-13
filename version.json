@@ -1,4 +1,4 @@
 {
-  "version": "2.9.42",
-  "build": "sidebar-guides-compact-right"
+  "version": "2.9.43",
+  "build": "patch-test-timezone-fallback"
 }
