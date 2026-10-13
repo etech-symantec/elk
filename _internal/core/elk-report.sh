@@ -16,9 +16,9 @@ set -uo pipefail
 export LC_ALL=C.UTF-8 2>/dev/null || export LC_ALL=en_US.UTF-8 2>/dev/null || true
 
 REPORT_VERSION="1"
-ELK_AUTO_VERSION="2.9.38"
+ELK_AUTO_VERSION="2.9.50"
 # Config Wizard / One-Click Installer와 동일한 빌드 번호
-ELK_AUTO_BUILD="${ELK_AUTO_BUILD:-report-ingest-cloud-visual}"
+ELK_AUTO_BUILD="${ELK_AUTO_BUILD:-version-auto-sync}"
 REPORT_BUILD="$ELK_AUTO_BUILD"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 ONLY=""; SKIP=""; STALE_H="${ELK_STALE_HOURS:-36}"; COLOR_MODE="${ELK_COLOR:-auto}"; COPY_HTML=0; SELF_DELETE=0

@@ -6,7 +6,7 @@ a195b04f6ffdd98ca44d124511ef47294ac1ceddab06792ead71664e47635104  ./_internal/co
 24cce110aea0e41cd724dbd05e62f380417a514894875edab9ce19b9745cf74d  ./_internal/core/elk-ops.sh
 2ac5da442db7c4f704bdbd6fc5c8ee1c83ef9beb32ba44fd828bd1a10719e1bf  ./_internal/core/elk-patch.sh
 7601812a996f151e9ff52ea446851d96e3db5b8b861137717b9915123c48b087  ./_internal/core/elk-report-web.py
-e93ded88c8e496f7fbdfc105db3dcd599d8014fad7adc2bf18be7a029114595b  ./_internal/core/elk-report.sh
+fbd5fe98b134b1e9c591b7de601dfeddd230508f6cf6e125442477ac04f3db0e  ./_internal/core/elk-report.sh
 ccb7600cf9e0828021e72ed02bd36e8fedb14fca4eff768b42735ae194a4f753  ./_internal/core/elk-tls-lib.sh
 e88b11972e770109b7bbae36695d4a0bc65054969038f134da59c779aef4ec00  ./_internal/core/install-elk.sh
 d3236c3007e7fae32ab3e1de0af160253fe42a961664bf6a028e55be4dfbde2c  ./_internal/core/log-ingest-manager.sh
@@ -28,10 +28,10 @@ a3a2f775905dd44e8cf46efc8b1371e67de91f7e6a9495c2133ae2bf19a84ab3  ./_internal/to
 d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./_internal/tools/run-remote-deploy.ps1
 aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report-update.sh
 a57f33319a9175d3a366d4195c2276ab8e1adc7659c3d2c67a73dbee87d77c1a  ./bootstrap-update.sh
-ecc070688ace2ec660023c5344535245333c79c7acc895612b81f69f8d97f127  ./config-wizard.html
+5527dcb96381ec13fff58eff2a6804d4037f41aa4bd70f41be78e4fdd0bd7e81  ./config-wizard.html
 8d882d70a678bae310e66784befc80b75588c9d451f58732fa0dd202990616a6  ./guide-adopt.html
 0e41c46479269e668faa87513350778dfecbcceb7626f1bbb131bcf19e43cbf2  ./guide-install.html
 386ee20c94c024715c791df5428d40469317b905e8ed4dd4a479b7ccadc0ec5d  ./guide-upgrade.html
 89018ec01b9b4fb61ab8788e9153acb55f4d2c215e933d21d96efa658d91e5c2  ./run-remote-deploy.cmd
 d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./run-remote-deploy.ps1
-920910ec40c94e23b6cbaf238d350c1a3c7337d97b4538feea0430f9e9e062b3  ./version.json
+74720640d97a9031f722eea801ea819f811698b99563a593ff626cef3218bc7d  ./version.json
