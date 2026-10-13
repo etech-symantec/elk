@@ -32,7 +32,7 @@ a3a2f775905dd44e8cf46efc8b1371e67de91f7e6a9495c2133ae2bf19a84ab3  ./_internal/to
 8a87e760bf265e7c368b790912460a7c2f9e45526e98ee21c0fd470ae82e5f4b  ./_internal/tools/run-remote-deploy.ps1
 aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report-update.sh
 a57f33319a9175d3a366d4195c2276ab8e1adc7659c3d2c67a73dbee87d77c1a  ./bootstrap-update.sh
-6b4e5bd096f4ff70999b97863aa912e0e879dd5b86e8642fea89f8306bb00030  ./config-wizard.html
+8283ca2f1e7e539b8b95a6f80d7b32e4f6ce1ddef5ed14cefc7dd427db5363ae  ./config-wizard.html
 8d882d70a678bae310e66784befc80b75588c9d451f58732fa0dd202990616a6  ./guide-adopt.html
 0e41c46479269e668faa87513350778dfecbcceb7626f1bbb131bcf19e43cbf2  ./guide-install.html
 386ee20c94c024715c791df5428d40469317b905e8ed4dd4a479b7ccadc0ec5d  ./guide-upgrade.html
