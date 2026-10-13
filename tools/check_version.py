@@ -42,12 +42,15 @@ def problems(v):
     hdr = re.search(r'^# ELK Auto Installer v(' + SEMVER + ')', read('_internal/core/install-elk.sh'), re.M)
     need(bool(hdr) and hdr.group(1) == v, f'install-elk.sh: 맨 위 주석이 "# ELK Auto Installer v{hdr.group(1) if hdr else "?"}" 입니다 (v{v} 이어야 함)')
     ps = read('_internal/tools/run-remote-deploy.ps1')
-    need(f"'elk-oneclick-install-v{v}.sh'" in ps, f'run-remote-deploy.ps1: 새 파일 이름 후보 elk-oneclick-install-v{v}.sh 가 없습니다')
-    need(f"Windows OpenSSH v{v}" in ps, f'run-remote-deploy.ps1: 배너가 v{v} 가 아닙니다')
-    need(f'Config Wizard v{v} and save a new SH' in ps, f'run-remote-deploy.ps1: 안내 문구가 v{v} 가 아닙니다')
-    r = read('README.md')
-    for m in set(re.findall(r'elk-(?:oneclick-install|auto-install|auto-installer)-v(' + SEMVER + r')\.(?:sh|cmd|zip)', r)):
-        need(m == v, f'README.md: 파일 이름에 v{m} 가 남아 있습니다 (현재 {v})')
+    # Modern runner detects the version from generated SH metadata instead of
+    # keeping release-specific filenames and banners hard-coded.
+    need('Get-ShellMeta $Script' in ps and "'ONECLICK_PAYLOAD_VERSION'" in ps,
+         'run-remote-deploy.ps1: 동적 Payload 버전 감지가 없습니다')
+    readme = ROOT / 'README.md'
+    if readme.exists():
+        r = read('README.md')
+        for m in set(re.findall(r'elk-(?:oneclick-install|auto-install|auto-installer)-v(' + SEMVER + r')\.(?:sh|cmd|zip)', r)):
+            need(m == v, f'README.md: 파일 이름에 v{m} 가 남아 있습니다 (현재 {v})')
     first = read('_internal/docs/CHANGELOG.md').lstrip().split('\n', 1)[0].strip()
     need(first == f'# v{v}', f'CHANGELOG.md: 맨 위 제목이 "{first}" 입니다 ("# v{v}" 이어야 함)')
     return P

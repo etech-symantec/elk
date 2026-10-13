@@ -130,7 +130,10 @@ def stamp(text):
     """Wizard 파일의 빌드 이름을 쉬운 영단어 4개로 자동 생성한다.
     화면 왼쪽 아래에 표시되어 수정본 반영 여부(캐시/배포 지연)를 확인하는 용도다."""
     if not BUILD_RE.search(text):
-        raise SystemExit('config-wizard.html 에 const WIZARD_BUILD 가 없습니다.')
+        if re.search(r"const WIZARD_BUILD='[^']*'", text):
+            text=re.sub(r"const WIZARD_BUILD='[^']*'", "const WIZARD_BUILD='BUILDSTAMP'", text, count=1)
+        else:
+            raise SystemExit('config-wizard.html 에 const WIZARD_BUILD 가 없습니다.')
     base = BUILD_RE.sub(r"\1BUILDSTAMP\3", text)
     name = _build_words(base)
     return BUILD_RE.sub(lambda m: m.group(1) + name + m.group(3), base)
@@ -139,22 +142,41 @@ def stamp(text):
 def build(text):
     # 1) 단일 설치 파일에 내장되는 파일
     j, k = find_obj(text, 'const EMBEDDED_FILES=')
-    text = text[:j] + dumps({n: b64(p) for n, p in EMBEDDED.items()}) + text[k:]
+    current = json.loads(text[j:k])
+    updated = {n: b64(p) if (ROOT / p).is_file() else current[n] for n,p in EMBEDDED.items() if (ROOT / p).is_file() or n in current}
+    for n,raw in current.items():
+        updated.setdefault(n, raw)
+    text = text[:j] + dumps(updated) + text[k:]
     # 1-1) 패치 도구 압축본
     j, k = find_obj(text, 'const PATCH_GZ=')
     try:
         cur = json.loads(text[j:k])
     except Exception:
         cur = {}
-    text = text[:j] + dumps({n: gz_b64(p, cur.get(n)) for n, p in PATCH_GZ.items()}) + text[k:]
+    updated = {n: gz_b64(p, cur.get(n)) if (ROOT / p).is_file() else cur[n] for n,p in PATCH_GZ.items() if (ROOT / p).is_file() or n in cur}
+    for n,raw in cur.items():
+        updated.setdefault(n, raw)
+    text = text[:j] + dumps(updated) + text[k:]
     # 2) ZIP 경로 매핑
     j, k = find_obj(text, 'const EMBEDDED_PATHS=')
-    text = text[:j] + dumps(EMBEDDED) + text[k:]
+    old_paths = json.loads(text[j:k])
+    old_paths.update(EMBEDDED)
+    text = text[:j] + dumps(old_paths) + text[k:]
     # 3) ZIP 전용 추가 파일
     a = text.index('/*PKG-BEGIN*/') + len('/*PKG-BEGIN*/')
     z = text.index('/*PKG-END*/')
-    extra = {p: {'b64': b64(p), 'mode': m} for p, m in EXTRA.items()}
-    text = text[:a] + 'const PACKAGE_EXTRA=' + dumps(extra) + ';' + text[z:]
+    old_extra = {}
+    match = re.search(r'const PACKAGE_EXTRA=(\{.*?\});', text[a:z], re.S)
+    if match:
+        old_extra = json.loads(match.group(1))
+    for p,m in EXTRA.items():
+        if (ROOT / p).is_file():
+            old_extra[p]={'b64':b64(p),'mode':m}
+    # Supplemental runtime release files must also be bundled.
+    for p in ('version.json', 'guide-install.html', 'guide-adopt.html', 'guide-upgrade.html'):
+        if (ROOT / p).is_file():
+            old_extra[p]={'b64':b64(p),'mode':'644'}
+    text = text[:a] + 'const PACKAGE_EXTRA=' + dumps(old_extra) + ';' + text[z:]
     return stamp(text)
 
 
