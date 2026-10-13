@@ -1,33 +1,31 @@
 name: Sync OneClick release metadata
+
+# main 에 커밋이 들어오면 동기화 작업 하나만 파일을 수정/커밋합니다.
+# check.yml 은 이 워크플로가 성공적으로 종료된 뒤 workflow_run으로 실행됩니다.
 on:
   push:
     branches: [main]
-    paths:
-      - '_internal/docs/VERSION'
-      - '_internal/core/**'
-      - '_internal/tools/run-remote-deploy.ps1'
-      - 'wizard-defaults.js'
-      - 'README.md'
-      - 'tools/sync_version.py'
-      - 'tools/sync_wizard.py'
-      - 'tools/sync_release.py'
   workflow_dispatch:
+
 permissions:
   contents: write
+
 concurrency:
-  group: oneclick-version-sync-${{ github.ref }}
+  group: oneclick-version-sync-main
   cancel-in-progress: false
+
 jobs:
   sync:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout latest main
+        uses: actions/checkout@v4
         with:
           persist-credentials: true
           ref: main
           fetch-depth: 0
-      - name: Sync, verify and push (retry on concurrent main updates)
+
+      - name: Synchronize, verify, and push safely
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -35,40 +33,40 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
           for attempt in 1 2 3 4 5; do
-            echo "--- Sync attempt ${attempt}/5 ---"
+            echo "--- Synchronization attempt ${attempt}/5 ---"
             git fetch --no-tags origin main
-            # Only discard generated changes inside this ephemeral Actions checkout.
-            # Never force-push or reset the remote branch.
+            # Actions 임시 checkout의 이전 시도 결과만 초기화합니다.
+            # 원격 main 브랜치는 reset하거나 force-push하지 않습니다.
             git reset --hard origin/main
 
             python3 tools/sync_version.py
             python3 tools/sync_wizard.py
             python3 tools/sync_version.py
             python3 tools/sync_wizard.py
+
             python3 tools/sync_version.py --check
             python3 tools/sync_wizard.py --check
             python3 tools/check_version.py
+            python3 tools/gen_defaults.py --check
             bash tools/check_patch_lib.sh
 
-            git add README.md config-wizard.html SHA256SUMS.txt version.json \
-              _internal/core/install-elk.sh _internal/core/elk-patch.sh \
-              _internal/core/elk-report.sh _internal/docs/README.md \
-              _internal/docs/CHANGELOG.md
+            # 동기화 도구가 수정한 추적 파일만 stage (Actions checkout은 최초에 깨끗함).
+            git add -u
             if git diff --cached --quiet; then
-              echo 'All generated files are already synchronized.'
+              echo 'All tracked files are already synchronized.'
               exit 0
             fi
 
-            git commit -m 'chore: sync OneClick version and embedded assets'
+            git commit -m 'chore: sync OneClick release metadata [skip ci]'
             if git push origin HEAD:main; then
-              echo 'Synchronized files pushed successfully.'
+              echo 'Synchronization pushed successfully.'
               exit 0
             fi
 
             if (( attempt == 5 )); then
-              echo 'ERROR: main changed repeatedly or push is blocked by permissions/branch rules.' >&2
+              echo 'ERROR: main changed repeatedly or push is blocked by branch rules.' >&2
               exit 1
             fi
-            echo 'Push failed; refresh main and rerun sync safely.'
+            echo 'main changed concurrently. Fetching newest commit and retrying without force-push.'
             sleep $(( attempt * 2 ))
           done

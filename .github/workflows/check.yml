@@ -1,76 +1,51 @@
 name: check
 
+# main 브랜치 동기화가 끝난 뒤 검증합니다.
+# PR / 수동 실행은 읽기 전용으로 직접 검증합니다.
 on:
-  push:
+  workflow_run:
+    workflows: ["Sync OneClick release metadata"]
+    types: [completed]
   pull_request:
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: check-${{ github.ref }}
+  group: check-${{ github.event.workflow_run.head_branch || github.head_ref || github.ref }}
   cancel-in-progress: false
 
 jobs:
   verify:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (latest synced main or PR)
         uses: actions/checkout@v4
         with:
+          # workflow_run SHA는 동기화 이전 SHA이므로 최신 main을 가져옵니다.
+          ref: ${{ github.event_name == 'workflow_run' && 'main' || github.ref }}
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Shell syntax
-        run: |
-          set -e
-          for f in $(git ls-files '*.sh'); do
-            echo "bash -n $f"
-            bash -n "$f"
-          done
-
-      # push 이벤트에서는 먼저 실제 동기화를 수행합니다.
-      # 자동 동기화 커밋으로 다시 실행된 경우에는 이 단계와 자동 커밋을 건너뜁니다.
-      - name: Sync wizard embedded files
-        if: >
-          github.event_name == 'push' &&
-          !contains(github.event.head_commit.message, '[skip wizard sync]')
-        run: python3 tools/sync_wizard.py
-
-      - name: Detect synchronized file changes
-        id: sync_changes
-        if: >
-          github.event_name == 'push' &&
-          !contains(github.event.head_commit.message, '[skip wizard sync]')
         shell: bash
         run: |
-          echo "---- git status after sync ----"
-          git status --short
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            echo "bash -n $file"
+            bash -n "$file"
+          done < <(git ls-files -z '*.sh')
 
-          if git diff --quiet -- config-wizard.html SHA256SUMS.txt; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "Wizard embedded files are already synchronized."
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "Wizard embedded files were updated."
-          fi
+      - name: Version metadata is synchronized
+        run: python3 tools/sync_version.py --check
 
-      - name: Commit synchronized wizard files
-        if: >
-          github.event_name == 'push' &&
-          steps.sync_changes.outputs.changed == 'true'
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add config-wizard.html SHA256SUMS.txt
-          git commit -m "Auto-sync wizard embedded files [skip wizard sync]"
-          git push origin "HEAD:${{ github.ref_name }}"
-
-      # PR에서는 저장소를 수정하지 않고 불일치만 검사합니다.
-      # push에서는 위 sync 이후 상태가 정상인지 다시 검증합니다.
-      - name: Wizard embedded files are in sync with the repo
+      - name: Wizard embedded files are synchronized
         run: python3 tools/sync_wizard.py --check
 
       - name: Wizard JavaScript syntax
@@ -78,11 +53,14 @@ jobs:
           python3 tools/sync_wizard.py --extract-js /tmp/wizard.js
           node --check /tmp/wizard.js
 
-      - name: Admin defaults file (wizard-defaults.js) is valid
+      - name: Admin defaults file is valid
         run: python3 tools/gen_defaults.py --check
 
-      - name: Patch tool library generates the same pipeline as the installer
+      - name: Patch library matches installer pipeline
         run: bash tools/check_patch_lib.sh
 
-      - name: Version strings match _internal/docs/VERSION
+      - name: Version strings match canonical VERSION
         run: python3 tools/check_version.py
+
+      # 검사 전용: git add/commit/push, sync_version.py 또는 sync_wizard.py
+      # (수정 모드) 실행은 절대 포함하지 않습니다.
