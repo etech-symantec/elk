@@ -157,7 +157,7 @@ def run_diag(diag_id):
     return worst,'\n\n'.join(blocks)
 
 class H(BaseHTTPRequestHandler):
-    server_version='ELKReportWeb/2.9.34'
+    server_version='ELKReportWeb/2.9.38'
     def log_message(self,fmt,*args): print('[elk-report-web]',fmt%args,flush=True)
     def send_json(self,status,obj):
         b=json.dumps(obj,ensure_ascii=False).encode(); self.send_response(status); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Content-Length',str(len(b))); self.end_headers(); self.wfile.write(b)
