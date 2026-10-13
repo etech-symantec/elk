@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """ELK report web viewer/command endpoint. Only explicitly whitelisted read-only commands are accepted."""
-import argparse, json, os, shlex, subprocess
+import argparse, json, os, shlex, shutil, subprocess
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
@@ -14,6 +14,28 @@ ONECLICK_UPDATE='/usr/local/sbin/elk-oneclick-update'
 ALLOWED_FLAGS={'--no-color','--no-html'}
 VALUE_FLAGS={'--only','--skip','--stale-hours','--env','--html'}
 
+# Report-web diagnostic buttons are intentionally mapped to a fixed allow-list.
+# No user supplied shell text, paths or arguments are interpolated into these commands.
+DIAG_REPORT_SECTIONS={
+    'services':'svc',
+    'resources':'cpu,mem,proc',
+    'disk':'disk',
+    'es':'es',
+    'ingest':'ingest,last',
+    'config':'cfg',
+    'events':'event',
+    'os':'sys,os',
+}
+DIAG_COMMANDS={
+    'failed-services': [['systemctl','--failed','--no-pager','--full']],
+    'ports': [['ss','-lntup']],
+    'time': [['timedatectl','status']],
+    'cloud-log': [['tail','-n','160','/var/log/elk-proxysg-log-process.log']],
+    'logstash-log': [['journalctl','-u','logstash','-p','warning','--since','24 hours ago','-n','160','--no-pager','-o','short-iso']],
+    'es-log': [['journalctl','-u','elasticsearch','-p','warning','--since','24 hours ago','-n','160','--no-pager','-o','short-iso']],
+    'kibana-log': [['journalctl','-u','kibana','-p','warning','--since','24 hours ago','-n','160','--no-pager','-o','short-iso']],
+}
+
 def parse_command(text):
     try: parts=shlex.split(text)
     except ValueError as e: raise ValueError(str(e))
@@ -26,8 +48,16 @@ def parse_command(text):
             raise ValueError('웹에서는 elk-oneclick-update --check 또는 --version만 사용할 수 있습니다. --apply/--force는 차단됩니다.')
         return {'kind':'oneclick','args':[ONECLICK_UPDATE,parts[1]]}
 
+    if parts[0]=='elk-diag':
+        if len(parts)!=2:
+            raise ValueError('elk-diag는 미리 정의된 점검 ID 하나만 사용할 수 있습니다.')
+        diag_id=parts[1]
+        if diag_id not in DIAG_REPORT_SECTIONS and diag_id not in DIAG_COMMANDS:
+            raise ValueError('허용되지 않은 점검 명령입니다.')
+        return {'kind':'diag','id':diag_id}
+
     if parts[0] not in ('elk-report',REPORT):
-        raise ValueError('허용 명령: elk-report, elk-report --copy, elk-oneclick-update --check')
+        raise ValueError('허용 명령: elk-report, elk-report --copy, elk-oneclick-update --check, elk-diag <점검-ID>')
 
     if len(parts)==2 and parts[1]=='--copy':
         return {'kind':'copy_html','args':[REPORT,'--html',str(HTML),'--env',a.env,'--no-color']}
@@ -67,8 +97,38 @@ def run_oneclick(args):
         raise RuntimeError((p.stdout or f'{Path(exe).name} 실행 실패')[-5000:])
     return p.returncode,p.stdout
 
+
+def run_diag(diag_id):
+    if diag_id in DIAG_REPORT_SECTIONS:
+        args=[REPORT,'--only',DIAG_REPORT_SECTIONS[diag_id],'--no-html','--no-color','--env',a.env]
+        p=subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=180,env={**os.environ,'NO_COLOR':'1'})
+        # elk-report 0/1/2 are normal diagnostic results.
+        if p.returncode not in (0,1,2):
+            raise RuntimeError((p.stdout or '점검 실행 실패')[-12000:])
+        return p.returncode,p.stdout
+
+    commands=DIAG_COMMANDS.get(diag_id)
+    if not commands:
+        raise ValueError('허용되지 않은 점검 명령입니다.')
+
+    blocks=[]
+    worst=0
+    for args in commands:
+        exe=args[0]
+        if not shutil.which(exe):
+            blocks.append(f'$ {" ".join(args)}\n[SKIP] {exe} 명령을 찾을 수 없습니다.')
+            worst=max(worst,1)
+            continue
+        p=subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=60,env={**os.environ,'NO_COLOR':'1','SYSTEMD_COLORS':'0'})
+        out=(p.stdout or '').rstrip()
+        blocks.append(f'$ {" ".join(args)}\n{out if out else "(출력 없음)"}')
+        # Read-only diagnostics may return non-zero merely because a service is inactive/no entries.
+        if p.returncode != 0:
+            worst=max(worst,1)
+    return worst,'\n\n'.join(blocks)
+
 class H(BaseHTTPRequestHandler):
-    server_version='ELKReportWeb/2.9.5'
+    server_version='ELKReportWeb/2.9.31'
     def log_message(self,fmt,*args): print('[elk-report-web]',fmt%args,flush=True)
     def send_json(self,status,obj):
         b=json.dumps(obj,ensure_ascii=False).encode(); self.send_response(status); self.send_header('Content-Type','application/json; charset=utf-8'); self.send_header('Content-Length',str(len(b))); self.end_headers(); self.wfile.write(b)
@@ -93,6 +153,9 @@ class H(BaseHTTPRequestHandler):
                 if not HTML.exists(): raise RuntimeError('생성된 HTML 리포트 파일을 찾을 수 없습니다.')
                 html=HTML.read_text(encoding='utf-8',errors='replace')
                 self.send_json(200,{'ok':True,'kind':'copy_html','status':rc,'message':'HTML 전체 코드를 생성했습니다.','html':html,'bytes':len(html.encode('utf-8')),'reload':False})
+            elif spec['kind']=='diag':
+                rc,out=run_diag(spec['id'])
+                self.send_json(200,{'ok':True,'kind':'diag','status':rc,'message':'점검 명령 실행이 완료되었습니다.','output':out,'reload':False})
             else:
                 rc,out=run_oneclick(spec['args'])
                 self.send_json(200,{'ok':True,'kind':'oneclick','status':rc,'message':'명령 실행이 완료되었습니다.','output':out,'reload':False})

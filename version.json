@@ -1,4 +1,4 @@
 {
-  "version": "2.9.29",
-  "build": "cloud-utc-elk-timezone"
+  "version": "2.9.31",
+  "build": "dashboard-cloud-split-views"
 }

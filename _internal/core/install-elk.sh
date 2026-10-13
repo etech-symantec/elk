@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-# ELK Auto Installer v2.9.29
+# ELK Auto Installer v2.9.31
 # Target: Ubuntu 22.04 / 24.04, Elastic Stack 9.x
 # Usage: sudo bash install-elk.sh ./elk.env
 
@@ -326,7 +326,7 @@ unset _old_name _new_name
 : "${HEALTH_DISK_CRIT_PERCENT:=92}"
 : "${HEALTH_AUTO_PAUSE_FILE_INGEST_ON_CRITICAL:=false}"
 
-# 정기점검 HTML / Web Viewer (v2.9.29)
+# 정기점검 HTML / Web Viewer (v2.9.31)
 : "${ELK_REPORT_HTML_DIR:=/var/lib/elk-report}"
 : "${ELK_REPORT_HTML_FILE:=${ELK_REPORT_HTML_DIR}/report.html}"
 : "${ELK_REPORT_WEB_ENABLED:=true}"
@@ -1049,7 +1049,7 @@ extend_root_lvm() {
 }
 
 # ----------------------------- OS -----------------------------
-ELK_AUTO_VERSION="2.9.29"
+ELK_AUTO_VERSION="2.9.31"
 log "ELK Auto Installer v${ELK_AUTO_VERSION}"
 log "환경파일: $ENV_FILE"
 log "설치 로그: $INSTALL_LOG"
@@ -2355,7 +2355,7 @@ if [[ -f "$SCRIPT_DIR/elk-patch.sh" && -f "$SCRIPT_DIR/proxysg-lib.sh" ]]; then
   if [[ -s "$SCRIPT_DIR/custom-pipeline.conf" ]]; then install -m 644 "$SCRIPT_DIR/custom-pipeline.conf" /usr/local/lib/elk-auto/custom-pipeline.conf; else rm -f /usr/local/lib/elk-auto/custom-pipeline.conf; fi
   log "부분 패치 도구 설치: /usr/local/sbin/elk-patch  (예: sudo elk-patch --list)"
 fi
-# v2.9.29: 서버 정기점검 리포트 + HTML Web Viewer
+# v2.9.31: 서버 정기점검 리포트 + HTML Web Viewer
 if [[ -f "$SCRIPT_DIR/elk-report.sh" ]]; then
   install -m 755 "$SCRIPT_DIR/elk-report.sh" /usr/local/sbin/elk-report
   install -d -m 755 "$ELK_REPORT_HTML_DIR"
@@ -2574,11 +2574,17 @@ if istrue "$START_SERVICES_AFTER_INSTALL"; then
       fi
     fi
 
-    # ---------------- ProxySG MAIN + SSL dashboard ----------------
+    # ---------------- ProxySG MAIN + SSL + Cloud dashboards ----------------
     if istrue "$KIBANA_CREATE_PROXYSG_DASHBOARD" && istrue "$PROXYSG_FLOW_ENABLED" && istrue "$ES_SECURITY_ENABLED"; then
       _dash_main="${PROXYSG_MAIN_INDEX_PREFIX}-*"
       _dash_ssl="${PROXYSG_SSL_INDEX_PREFIX}-*"
-      _dash_both="${_dash_main},${_dash_ssl}"
+      _dash_cloud="${PROXYSG_CLOUD_INDEX_PREFIX}-*"
+      _dash_all="${_dash_main},${_dash_ssl}"
+      if istrue "$PROXYSG_CLOUD_ENABLED"; then
+        _dash_all="${_dash_all},${_dash_cloud}"
+      fi
+      _dash_scope_name="all"
+      _dash_scope_index="$_dash_all"
       _dash_id="elk-auto-proxysg-main-ssl"
       _dash_created=()
       _dash_titles=()
@@ -2610,7 +2616,7 @@ if istrue "$START_SERVICES_AFTER_INSTALL"; then
 
       dash_widget_def() {
         local _id="$1"
-        DW_INDEX="$_dash_both"; DW_KIND="terms_bar"; DW_FIELD_BASE=""; DW_FIELD=""; DW_TITLE=""; DW_NOTE=""
+        DW_INDEX="${_dash_scope_index:-$_dash_all}"; DW_KIND="terms_bar"; DW_FIELD_BASE=""; DW_FIELD=""; DW_TITLE=""; DW_NOTE=""
         case "$_id" in
           requests_total)      DW_TITLE="전체 요청"; DW_KIND="metric_count" ;;
           traffic_total)       DW_TITLE="전체 트래픽"; DW_KIND="metric_bytes" ;;
@@ -2627,11 +2633,11 @@ if istrue "$START_SERVICES_AFTER_INSTALL"; then
           filter_result_top)   DW_TITLE="필터 결과 분포"; DW_KIND="terms_donut"; DW_FIELD_BASE="sc_filter_result" ;;
           action_top)          DW_TITLE="Proxy Action 분포"; DW_KIND="terms_donut"; DW_FIELD_BASE="s_action" ;;
           method_top)          DW_TITLE="HTTP Method 분포"; DW_KIND="terms_donut"; DW_FIELD_BASE="cs_method" ;;
-          application_top)     DW_TITLE="Top Application"; DW_FIELD_BASE="x_bluecoat_application_name"; DW_INDEX="$_dash_main" ;;
+          application_top)     DW_TITLE="Top Application"; DW_FIELD_BASE="x_bluecoat_application_name" ;;
           threat_risk_top)     DW_TITLE="Threat Risk 분포"; DW_KIND="terms_donut"; DW_FIELD_BASE="cs_threat_risk" ;;
           threat_id_top)       DW_TITLE="Top Threat ID"; DW_FIELD_BASE="cs_threat_id" ;;
-          ssl_cert_errors)     DW_TITLE="SSL 인증서 오류"; DW_KIND="terms_bar_nonempty"; DW_FIELD_BASE="x_rs_certificate_observed_errors"; DW_INDEX="$_dash_ssl" ;;
-          ssl_cipher_strength) DW_TITLE="SSL Cipher Strength"; DW_KIND="terms_donut"; DW_FIELD_BASE="x_rs_connection_negotiated_cipher_strength"; DW_INDEX="$_dash_ssl" ;;
+          ssl_cert_errors)     DW_TITLE="SSL 인증서 오류"; DW_KIND="terms_bar_nonempty"; DW_FIELD_BASE="x_rs_certificate_observed_errors" ;;
+          ssl_cipher_strength) DW_TITLE="SSL Cipher Strength"; DW_KIND="terms_donut"; DW_FIELD_BASE="x_rs_connection_negotiated_cipher_strength" ;;
           *) return 1 ;;
         esac
       }
@@ -2702,7 +2708,7 @@ EOF_VEGA
         fi
 
         _spec="$(dash_vega_spec "$DW_KIND" "$DW_INDEX" "$DW_FIELD" "$DW_TITLE" "$DW_NOTE")"
-        _soid="elk-auto-proxysg-${_wid}"
+        _soid="elk-auto-proxysg-${_dash_scope_name}-${_wid}"
         _vis_state="$(jq -cn --arg t "$DW_TITLE" --arg s "$_spec" '{title:$t,type:"vega",params:{spec:$s,enableExternalUrls:false},aggs:[]}')"
         _attrs="$(jq -cn --arg t "$DW_TITLE" --arg vs "$_vis_state" \
           '{title:$t,description:"ELK Auto Installer · ProxySG Traffic & Security",visState:$vs,uiStateJSON:"{}",version:1,kibanaSavedObjectMeta:{searchSourceJSON:"{}"}}')"
@@ -2713,37 +2719,74 @@ EOF_VEGA
         fi
       }
 
-      IFS=',' read -ra _dash_selected <<<"$KIBANA_PROXYSG_DASHBOARD_WIDGETS"
-      for _wid in "${_dash_selected[@]}"; do
-        _wid="${_wid//[[:space:]]/}"
-        [[ -n "$_wid" ]] && create_dash_widget "$_wid" || true
-      done
+      create_proxy_dashboard_scope() {
+        local _scope_name="$1" _scope_index="$2" _scope_id="$3" _scope_title="$4" _scope_desc="$5"
+        local _wid _i _soid _panels _refs _w _h _x _y _dash_attrs _dash_body
 
-      if (( ${#_dash_created[@]} > 0 )); then
-        _panels='[]'; _refs='[]'
-        for _i in "${!_dash_created[@]}"; do
-          _soid="${_dash_created[_i]}"
-          # Compact layout: 5 columns x 4 rows (20 widgets)
-          # 기존 분석 카드 대비 높이를 약 절반으로 줄이고 폭도 축소해
-          # 20개 위젯을 가능한 한 한 화면에 많이 표시합니다.
-          _w=9
-          _h=7
-          _x=$(( (_i % 5) * 9 ))
-          _y=$(( (_i / 5) * 7 ))
-          _panels="$(jq -c --arg i "$_i" --arg x "$_x" --arg y "$_y" --arg w "$_w" --arg h "$_h" \
-            '. + [{version:"9.0.0",type:"visualization",gridData:{x:($x|tonumber),y:($y|tonumber),w:($w|tonumber),h:($h|tonumber),i:$i},panelIndex:$i,embeddableConfig:{},panelRefName:("panel_"+$i)}]' <<<"$_panels")"
-          _refs="$(jq -c --arg i "$_i" --arg id "$_soid" \
-            '. + [{name:("panel_"+$i),type:"visualization",id:$id}]' <<<"$_refs")"
+        _dash_scope_name="$_scope_name"
+        _dash_scope_index="$_scope_index"
+        _dash_id="$_scope_id"
+        _dash_created=()
+        _dash_titles=()
+        _dash_panel=0
+
+        IFS=',' read -ra _dash_selected <<<"$KIBANA_PROXYSG_DASHBOARD_WIDGETS"
+        for _wid in "${_dash_selected[@]}"; do
+          _wid="${_wid//[[:space:]]/}"
+          [[ -n "$_wid" ]] && create_dash_widget "$_wid" || true
         done
-        _dash_attrs="$(jq -cn --arg t "$KIBANA_PROXYSG_DASHBOARD_TITLE" --arg p "$_panels" \
-          '{title:$t,description:"ELK Auto Installer · ProxySG 트래픽 · 성능 · 보안 운영 대시보드",hits:0,panelsJSON:$p,optionsJSON:"{\"useMargins\":true,\"syncColors\":false,\"syncCursor\":true,\"syncTooltips\":true,\"hidePanelTitles\":false}",version:1,timeRestore:false,kibanaSavedObjectMeta:{searchSourceJSON:"{}"}}')"
-        _dash_body="$(jq -cn --argjson a "$_dash_attrs" --argjson r "$_refs" '{attributes:$a,references:$r}')"
-        if kibana_so_put dashboard "$_dash_id" "$_dash_body"; then
-          log "Kibana Dashboard 생성/갱신: $KIBANA_PROXYSG_DASHBOARD_TITLE (${#_dash_created[@]}개 위젯)"
+
+        if (( ${#_dash_created[@]} > 0 )); then
+          _panels='[]'; _refs='[]'
+          for _i in "${!_dash_created[@]}"; do
+            _soid="${_dash_created[_i]}"
+            # Compact layout: 5 columns x 4 rows (20 widgets)
+            _w=9
+            _h=7
+            _x=$(( (_i % 5) * 9 ))
+            _y=$(( (_i / 5) * 7 ))
+            _panels="$(jq -c --arg i "$_i" --arg x "$_x" --arg y "$_y" --arg w "$_w" --arg h "$_h" \
+              '. + [{version:"9.0.0",type:"visualization",gridData:{x:($x|tonumber),y:($y|tonumber),w:($w|tonumber),h:($h|tonumber),i:$i},panelIndex:$i,embeddableConfig:{},panelRefName:("panel_"+$i)}]' <<<"$_panels")"
+            _refs="$(jq -c --arg i "$_i" --arg id "$_soid" \
+              '. + [{name:("panel_"+$i),type:"visualization",id:$id}]' <<<"$_refs")"
+          done
+          _dash_attrs="$(jq -cn --arg t "$_scope_title" --arg d "$_scope_desc" --arg p "$_panels" \
+            '{title:$t,description:$d,hits:0,panelsJSON:$p,optionsJSON:"{\"useMargins\":true,\"syncColors\":false,\"syncCursor\":true,\"syncTooltips\":true,\"hidePanelTitles\":false}",version:1,timeRestore:false,kibanaSavedObjectMeta:{searchSourceJSON:"{}"}}')"
+          _dash_body="$(jq -cn --argjson a "$_dash_attrs" --argjson r "$_refs" '{attributes:$a,references:$r}')"
+          if kibana_so_put dashboard "$_dash_id" "$_dash_body"; then
+            log "Kibana Dashboard 생성/갱신: $_scope_title (${#_dash_created[@]}개 위젯 · index=$_scope_index)"
+          fi
+        else
+          warn "Dashboard 위젯을 생성하지 못해 $_scope_title 생성을 건너뜁니다."
         fi
+      }
+
+      # 통합 Dashboard: MAIN + SSL + (Cloud enabled 시) Cloud
+      _all_title="$KIBANA_PROXYSG_DASHBOARD_TITLE"
+      if istrue "$PROXYSG_CLOUD_ENABLED"; then
+        _all_title="${KIBANA_PROXYSG_DASHBOARD_TITLE} · MAIN + SSL + Cloud"
       else
-        warn "선택된 Dashboard 위젯을 생성하지 못해 Dashboard 생성을 건너뜁니다."
+        _all_title="${KIBANA_PROXYSG_DASHBOARD_TITLE} · MAIN + SSL"
       fi
+      create_proxy_dashboard_scope \
+        "all" "$_dash_all" "elk-auto-proxysg-main-ssl" "$_all_title" \
+        "ELK Auto Installer · ProxySG 통합 트래픽 · 성능 · 보안 운영 대시보드"
+
+      # 개별 Dashboard: 같은 위젯을 로그 타입별 index에만 적용.
+      create_proxy_dashboard_scope \
+        "main" "$_dash_main" "elk-auto-proxysg-main" "${KIBANA_PROXYSG_DASHBOARD_TITLE} · MAIN" \
+        "ELK Auto Installer · ProxySG MAIN 로그 전용 대시보드"
+
+      create_proxy_dashboard_scope \
+        "ssl" "$_dash_ssl" "elk-auto-proxysg-ssl" "${KIBANA_PROXYSG_DASHBOARD_TITLE} · SSL" \
+        "ELK Auto Installer · ProxySG SSL 로그 전용 대시보드"
+
+      if istrue "$PROXYSG_CLOUD_ENABLED"; then
+        create_proxy_dashboard_scope \
+          "cloud" "$_dash_cloud" "elk-auto-proxysg-cloud" "${KIBANA_PROXYSG_DASHBOARD_TITLE} · Cloud" \
+          "ELK Auto Installer · ProxySG Cloud 로그 전용 대시보드"
+      fi
+
     fi
   fi
 
