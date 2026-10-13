@@ -1,4 +1,4 @@
 {
-  "version": "2.9.44",
-  "build": "patch-library-timezone-consistency"
+  "version": "2.9.46",
+  "build": "version-auto-sync"
 }

@@ -10,7 +10,7 @@ $Unit = 'elk-oneclick-install.service'
 $ConsoleLog = '/var/log/elk-oneclick-console.log'
 
 # >>> elk-ps-color (start)
-# v2.9.5: screen colors.  Write-Host -ForegroundColor works in every console (no ANSI needed).
+# Remote deploy console color support.  Write-Host -ForegroundColor works in every console (no ANSI needed).
 #   Turn colors off with NO_COLOR=1 or ELK_COLOR=never (output redirected to a file never shows colors anyway).
 #   The remote install log is painted on the Ubuntu side with the same library the one-click installer uses (elk-color.sh);
 #   that part needs ANSI support in this console, so it is enabled only when the console supports it (see Get-RemoteColorMode).
@@ -108,15 +108,14 @@ function Get-InstallerPath {
     $rp = Resolve-Path -LiteralPath $Requested -ErrorAction SilentlyContinue
     if ($rp) { return $rp.Path }
   }
-  $candidates = @(
-    (Join-Path $PackageRoot 'elk-oneclick-install-v2.9.5.sh'),
-    (Join-Path $PackageRoot 'elk-oneclick-install-v2.9.3.sh'),
-    (Join-Path $PackageRoot 'elk-oneclick-install-v2.9.2.sh'),
-    (Join-Path $PackageRoot 'elk-oneclick-install.sh')
-  )
-  foreach ($c in $candidates) {
-    if (Test-Path -LiteralPath $c) { return (Resolve-Path -LiteralPath $c).Path }
-  }
+  # Prefer the newest generated versioned installer instead of a hardcoded release.
+  $latest = Get-ChildItem -LiteralPath $PackageRoot -Filter 'elk-oneclick-install-v*.sh' -File -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  if ($latest) { return $latest.FullName }
+
+  $legacy = Join-Path $PackageRoot 'elk-oneclick-install.sh'
+  if (Test-Path -LiteralPath $legacy) { return (Resolve-Path -LiteralPath $legacy).Path }
+
   $latest = Get-ChildItem -LiteralPath $PackageRoot -Filter 'elk-oneclick-install-v*.sh' -File -ErrorAction SilentlyContinue |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1
   if ($latest) { return $latest.FullName }
@@ -413,7 +412,7 @@ if (-not $HostName) { throw 'DEPLOY_HOST is empty.' }
 if (-not $User) { throw 'DEPLOY_USER is empty.' }
 if (-not $Port) { $Port = '22' }
 if (-not $RemoteDir) { $RemoteDir = '/home/' + $User }
-if ($Resolver -ne 'v2') { throw 'Old One-Click SH detected. Import it into Config Wizard v2.9.5 and save a new SH.' }
+if ($Resolver -ne 'v2') { throw ('Old One-Click SH detected. Import it into the current Config Wizard and save a new SH. Detected payload: {0}' -f $Payload) }
 
 $BaseName = [IO.Path]::GetFileName($Script)
 $RemoteDir = $RemoteDir.TrimEnd('/')
@@ -431,7 +430,7 @@ $Common = @(
   '-o','NumberOfPasswordPrompts=3'
 )
 
-Write-ElkBanner 'neutral' 'ELK Remote Auto Deploy - Windows OpenSSH v2.9.5'
+Write-ElkBanner 'neutral' ('ELK Remote Auto Deploy - Windows OpenSSH v{0}' -f $Payload)
 Write-Elk 'INFO' ("Local file  : {0}" -f $Script)
 Write-Elk 'INFO' ("Target      : {0}" -f $Target)
 Write-Elk 'INFO' ("SSH port    : {0}" -f $Port)
