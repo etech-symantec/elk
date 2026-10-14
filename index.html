@@ -45,9 +45,23 @@
   72%{transform:translateY(-1px) rotate(6deg) scale(1.05)}
 }
 /* 자동 구성 바로 아래 작고 얇은 튜토리얼 실행 버튼 */
-#side-nav .side-tutorial-btn{box-sizing:border-box;display:none;width:100%;min-height:23px;margin:5px 0 3px;padding:5px 3px;border:1px solid #9ab9ee;border-radius:7px;background:#eff6ff;color:#1d4ed8;font:700 10px/1.15 inherit;font-family:inherit;font-size:10px;font-weight:800;cursor:pointer;box-shadow:0 2px 7px rgba(30,64,175,.09);white-space:nowrap}
-#side-nav .side-tutorial-btn.visible{display:block}
-#side-nav .side-tutorial-btn:hover,#side-nav .side-tutorial-btn:focus-visible{background:#dbeafe;border-color:#3b82f6;outline-offset:2px}
+/* 메뉴 사용 안내: 가이드 3개 버튼과 같은 가로 폭·색상·모서리 */
+#side-nav .side-tutorial-btn{
+  box-sizing:border-box;display:none;align-self:flex-end;flex:0 0 161px;
+  width:161px;min-width:161px;height:23px;min-height:23px;
+  margin:5px 0 3px;padding:3px 6px;
+  border:1px solid #2e3b53;border-radius:6px;
+  background:#172033;color:#fff;
+  font-family:inherit;font-size:10px;font-weight:700;line-height:1.1;
+  cursor:pointer;white-space:nowrap;
+  box-shadow:0 2px 6px #101b3226;
+  transition:background .15s,border-color .15s,transform .15s;
+}
+#side-nav .side-tutorial-btn.visible{display:flex;align-items:center;justify-content:center}
+#side-nav .side-tutorial-btn:hover,#side-nav .side-tutorial-btn:focus-visible{
+  background:#263a59;border-color:#7fa6e6;color:#fff;
+  transform:translateX(-2px);outline-offset:2px
+}
 @media(prefers-reduced-motion:reduce){#side-nav .side-btn.is-current-mini .sb-icon{animation:none!important;filter:none}}
 
 </style>
