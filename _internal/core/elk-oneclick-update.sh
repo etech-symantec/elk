@@ -5,7 +5,7 @@
 #   --check : GitHub 메타데이터만 조회하여 변경 파일 확인. core 파일 다운로드 없음.
 #   --apply : 실제로 변경된 런타임 파일만 다운로드 + 교체.
 #   --force : 런타임 파일 전체를 다시 다운로드 + 교체.
-#   --full  : 명시적으로 전체 install-elk 재적용.
+#   --full  : 최신 런타임 파일 동기화 + install-elk 재적용.
 #
 # 핵심: --apply에서는 install-elk.sh를 실행하지 않으며, 변경되지 않은 core 파일도
 #       다운로드하지 않습니다.
@@ -62,7 +62,7 @@ case "$MODE" in
   sudo elk-oneclick-update --check   # 변경 파일 확인 (core 파일 다운로드 없음)
   sudo elk-oneclick-update --apply   # 변경된 런타임 파일만 다운로드/교체
   sudo elk-oneclick-update --force   # 런타임 파일 전체 재다운로드/교체
-  sudo elk-oneclick-update --full    # 전체 install-elk 재적용
+  sudo elk-oneclick-update --full    # 전체 구성 재적용 + 런타임 파일 동기화
 USAGE
     exit 2
     ;;
@@ -466,6 +466,60 @@ if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
     (( CHECK_RC == 0 )) || ui_warn "상태 점검에서 확인할 항목이 있습니다. (rc=$CHECK_RC)"
   fi
 
+  # install-elk.sh 재적용은 일부 런타임 도구를 관리하지 않을 수 있습니다.
+  # 따라서 전체 재적용 성공 이후, 이번에 내려받은 GitHub core 중 실제로
+  # 변경된 런타임 파일들을 직접 동기화합니다. updater 자신은 마지막에 교체합니다.
+  ui_heading "[4/4] 런타임 도구 동기화"
+  TS="$(date +%Y%m%d-%H%M%S)"
+  BKDIR="$BACKUP_ROOT/$TS"
+  install -d -m 700 "$BKDIR"
+  WEB_CHANGED=0; REPORT_CHANGED=0; SELF_UPDATE=0; APPLIED=0
+  for N in "${CHANGED_RUNTIME[@]}"; do
+    DEST="$(target_for "$N")" || die "대상 경로를 찾을 수 없습니다: $N"
+    MODE_N="$(mode_for "$N")"
+    [[ -f "$T/$N" ]] || die "다운로드된 런타임 파일 없음: $N"
+    if [[ "$N" == "elk-oneclick-update.sh" ]]; then
+      SELF_UPDATE=1
+      continue
+    fi
+    # 설치기가 이미 최신 내용으로 갱신한 파일은 중복 교체하지 않습니다.
+    if [[ -f "$DEST" ]] && cmp -s "$T/$N" "$DEST"; then
+      ui_ok "이미 최신: $N"
+      continue
+    fi
+    install -d -m 755 "$(dirname "$DEST")"
+    [[ -f "$DEST" ]] && cp -a "$DEST" "$BKDIR/$(basename "$DEST").before"
+    install -m "$MODE_N" "$T/$N" "$DEST"
+    ui_ok "도구 갱신: $N → $DEST"
+    APPLIED=$((APPLIED+1))
+    [[ "$N" == "elk-report-web.py" ]] && WEB_CHANGED=1
+    [[ "$N" == "elk-report.sh" ]] && REPORT_CHANGED=1
+  done
+  if (( WEB_CHANGED )) && command -v systemctl >/dev/null 2>&1; then
+    if systemctl is-enabled --quiet elk-report-web.service 2>/dev/null || \
+       systemctl is-active --quiet elk-report-web.service 2>/dev/null; then
+      ui_info "리포트 웹 서비스 재시작"
+      systemctl restart elk-report-web.service
+    fi
+  fi
+  if (( REPORT_CHANGED )) && [[ -x /usr/local/sbin/elk-report ]]; then
+    ui_info "ELK 점검 리포트 재생성"
+    /usr/local/sbin/elk-report --no-color >/dev/null 2>&1 || ui_warn "리포트 재생성을 확인해 주세요."
+  fi
+  if (( SELF_UPDATE )); then
+    DEST="/usr/local/sbin/elk-oneclick-update"
+    if [[ -f "$DEST" ]] && cmp -s "$T/elk-oneclick-update.sh" "$DEST"; then
+      ui_ok "업데이터 이미 최신"
+    else
+      [[ -f "$DEST" ]] && cp -a "$DEST" "$BKDIR/elk-oneclick-update.before"
+      install -m 755 "$T/elk-oneclick-update.sh" "$DEST"
+      ui_ok "업데이터 자체 갱신(마지막): $DEST"
+      APPLIED=$((APPLIED+1))
+    fi
+  fi
+  ui_ok "전체 재적용 및 런타임 동기화 완료 (교체 ${APPLIED}개)"
+  say "  런타임 백업: $BKDIR"
+
   FULL_OK=1
   trap cleanup EXIT
 else
@@ -550,12 +604,12 @@ ONECLICK_BUILD="$LB"
 ONECLICK_INSTALLED_AT="$(date -Is)"
 ONECLICK_UPDATE_MODE="$([[ "$MODE" == "--full" || "$MODE" == "full" ]] && echo full || echo delta-only)"
 ONECLICK_DOWNLOADED_FILES="${#DOWNLOAD_NAMES[@]}"
-ONECLICK_APPLIED_RUNTIME_FILES="${#CHANGED_RUNTIME[@]}"
+ONECLICK_APPLIED_RUNTIME_FILES="${APPLIED:-0}"
 META
 chmod 644 "$RELEASE"
 
 if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
-  ui_ok "전체 구성 재적용 완료: v$LV · build $LB"
+  ui_ok "전체 구성 및 런타임 파일 갱신 완료: v$LV · build $LB"
   say "     Dashboard / Logstash 렌더링 / Kibana 설정은 현재 elk.env 기준으로 재적용되었습니다."
 else
   ui_ok "차등 업데이트 완료: v$LV · build $LB"
