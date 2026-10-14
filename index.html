@@ -134,6 +134,53 @@
 #side-nav .wizard-submenu .submenu-label{display:block;max-width:66px}
 @media(max-width:680px){#side-nav .wizard-submenu{width:78px!important;max-width:78px!important}}
 
+
+/* 자동 구성 하위 메뉴: 배경 없이 선으로만 계층 표시 */
+#side-nav .wizard-submenu{
+  width:78px!important;min-width:78px!important;max-width:78px!important;
+  align-items:flex-end!important;align-self:center!important;
+  padding:15px 0 6px 0!important;margin:0 0 9px!important;
+  background:none!important;background-color:transparent!important;
+  border:0!important;border-radius:0!important;box-shadow:none!important;
+  overflow:visible!important;gap:6px!important;
+}
+/* 좌측 선: 자동 구성 바로 아래부터 마지막 버튼 높이까지 이어지는 트리 */
+#side-nav .wizard-submenu::before{
+  content:""!important;display:block!important;position:absolute!important;
+  top:0!important;bottom:30px!important;left:3px!important;
+  width:2px!important;height:auto!important;border-radius:2px!important;
+  transform:none!important;background:#7b93b4!important;
+  box-shadow:0 0 0 1px rgba(255,255,255,.40)!important;
+  pointer-events:none!important;
+}
+/* 위쪽에 자동 구성 버튼과 연결되는 얇은 가지 */
+#side-nav .wizard-submenu::after{
+  content:""!important;display:block!important;position:absolute!important;
+  left:3px!important;top:0!important;width:36px!important;height:2px!important;
+  background:#7b93b4!important;pointer-events:none!important;
+}
+#side-nav .wizard-submenu .side-tutorial-btn,
+#side-nav .wizard-submenu .side-guide-link{
+  width:66px!important;max-width:66px!important;min-width:66px!important;
+  margin:0!important;position:relative!important;
+}
+#side-nav .wizard-submenu .side-guides{
+  width:66px!important;max-width:66px!important;min-width:66px!important;
+  align-self:flex-end!important;align-items:stretch!important;
+  margin:0!important;padding:0!important;gap:6px!important;
+  background:transparent!important;border:0!important;box-shadow:none!important;
+}
+/* 모든 하위 카드에 연결되는 짧은 가로선 */
+#side-nav .wizard-submenu .side-tutorial-btn::before,
+#side-nav .wizard-submenu .side-guide-link::before{
+  content:""!important;display:block!important;position:absolute!important;
+  width:9px!important;height:2px!important;
+  left:-11px!important;top:50%!important;
+  background:#7b93b4!important;opacity:1!important;
+  transform:translateY(-50%)!important;pointer-events:none!important;
+}
+#side-nav .wizard-submenu .side-guide-link::before{z-index:1!important}
+
 </style>
 </head>
 <body>
