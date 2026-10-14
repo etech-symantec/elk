@@ -630,6 +630,7 @@ a.mbadge:hover{filter:brightness(1.1)}
 #wz-tour-tooltip button{cursor:pointer;padding:9px 12px;border-radius:10px;border:1px solid #cad5e5;background:#f8fafc;color:#263b5a;font-size:13px;font-weight:700}
 #wz-tour-tooltip button.wz-next{background:#2563eb;border-color:#2563eb;color:#fff;margin-left:auto}
 #wz-tour-tooltip button:focus-visible,#wz-tour-replay:focus-visible{outline:3px solid #60a5fa;outline-offset:2px}
+#wz-tour-replay[hidden]{display:none!important}
 #wz-tour-replay{position:fixed;right:18px;bottom:18px;z-index:2147483590;cursor:pointer;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:100px;box-shadow:0 4px 15px rgba(15,23,42,.17);padding:9px 14px;font-size:13px;font-weight:800;font-family:inherit}
 @media(prefers-reduced-motion:reduce){#wz-tour-target{transition:none}}
 @media(max-width:640px){#wz-tour-tooltip{padding:14px}#wz-tour-tooltip h3{font-size:17px}}
@@ -2933,6 +2934,14 @@ document.getElementById('simpleBtn').onclick=()=>setMode('simple');document.getE
   skip.onclick=finish;back.onclick=()=>{if(index>0){index--;show()}};
   next.onclick=()=>{if(index===steps.length-1)finish();else{index++;show()}};
   replay.onclick=start;
+  if(window.parent!==window)replay.hidden=true;
+  window.addEventListener('message',function(e){
+    if(e.origin!==window.location.origin || e.source!==window.parent)return;
+    if(e.data && e.data.type==='ELK_ONECLICK_MENU_TOUR_OPEN'){
+      if(active)finish();
+      start();
+    }
+  });
   document.addEventListener('keydown',e=>{if(!active)return;if(e.key==='Escape'){e.preventDefault();finish()}else if(e.key==='ArrowRight'){e.preventDefault();next.click()}else if(e.key==='ArrowLeft'){e.preventDefault();back.click()}else if(e.key==='Tab'){const buttons=[skip,...(back.hidden?[]:[back]),next];const first=buttons[0],last=buttons[buttons.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}});
   window.addEventListener('resize',place);window.addEventListener('scroll',place,true);
   if(!seen())setTimeout(start,500);

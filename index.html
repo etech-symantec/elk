@@ -34,23 +34,21 @@
 @media(prefers-reduced-motion:reduce){.rocket-flight,.rocket-fire,.rocket-smoke{animation:none!important}.rocket-smoke{display:none}.side-guide-rocket{transform:none!important}.side-guide-link{transition:none}}
 
 
-/* 현재 선택된 미니 메뉴: 은은한 테두리 흐름 + 부드러운 호흡 효과 */
-#side-nav .side-btn{position:relative;isolation:isolate;overflow:visible;transition:transform .24s ease,box-shadow .24s ease}
-#side-nav .side-btn.is-current-mini{
-  z-index:2;
-  animation:currentMiniFloat 3.4s ease-in-out infinite;
-  box-shadow:0 4px 12px rgba(15,23,42,.19),0 0 0 2px rgba(77,157,255,.33),0 0 17px rgba(74,151,255,.22);
+/* 선택된 메뉴: 버튼은 고정하고 이모티콘만 생동감 있게 움직입니다. */
+#side-nav .side-btn .sb-icon{display:inline-block;transform-origin:center;will-change:transform}
+#side-nav .side-btn.is-current-mini .sb-icon{animation:selectedEmojiMove 2.8s ease-in-out infinite;filter:drop-shadow(0 3px 4px rgba(73,145,246,.42))}
+@keyframes selectedEmojiMove{
+  0%,100%{transform:translateY(0) rotate(0deg) scale(1)}
+  20%{transform:translateY(-3px) rotate(-8deg) scale(1.09)}
+  38%{transform:translateY(-1px) rotate(5deg) scale(1.04)}
+  55%{transform:translateY(-4px) rotate(0deg) scale(1.13)}
+  72%{transform:translateY(-1px) rotate(6deg) scale(1.05)}
 }
-#side-nav .side-btn.is-current-mini::after{
-  content:"";position:absolute;inset:-4px;border-radius:inherit;
-  border:2px solid rgba(77,157,255,.72);
-  pointer-events:none;opacity:.7;animation:currentMiniRing 3.4s ease-in-out infinite;
-}
-#side-nav .side-btn.is-current-mini .sb-icon{display:inline-block;animation:currentMiniIcon 3.4s ease-in-out infinite;transform-origin:center}
-@keyframes currentMiniFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
-@keyframes currentMiniRing{0%,100%{opacity:.32;box-shadow:0 0 0 0 rgba(63,150,255,.2)}50%{opacity:1;box-shadow:0 0 0 4px rgba(63,150,255,.08)}}
-@keyframes currentMiniIcon{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
-@media(prefers-reduced-motion:reduce){#side-nav .side-btn.is-current-mini,#side-nav .side-btn.is-current-mini::after,#side-nav .side-btn.is-current-mini .sb-icon{animation:none!important;transition:none!important}}
+/* 자동 구성 바로 아래 작고 얇은 튜토리얼 실행 버튼 */
+#side-nav .side-tutorial-btn{box-sizing:border-box;display:none;width:100%;min-height:23px;margin:5px 0 3px;padding:5px 3px;border:1px solid #9ab9ee;border-radius:7px;background:#eff6ff;color:#1d4ed8;font:700 10px/1.15 inherit;font-family:inherit;font-size:10px;font-weight:800;cursor:pointer;box-shadow:0 2px 7px rgba(30,64,175,.09);white-space:nowrap}
+#side-nav .side-tutorial-btn.visible{display:block}
+#side-nav .side-tutorial-btn:hover,#side-nav .side-tutorial-btn:focus-visible{background:#dbeafe;border-color:#3b82f6;outline-offset:2px}
+@media(prefers-reduced-motion:reduce){#side-nav .side-btn.is-current-mini .sb-icon{animation:none!important;filter:none}}
 
 </style>
 </head>
@@ -102,6 +100,7 @@
   <button type="button" class="side-btn" id="nav-wizard" onclick="showView('wizard')" title="ELK 자동 구성">
     <span class="sb-icon">🚀</span>자동<br>구성
   </button>
+  <button type="button" class="side-tutorial-btn" id="side-tutorial-btn" onclick="openWizardMenuTutorial()" title="빠른 설정·고급 설정·패치·점검·기존 설정 불러오기 메뉴 안내">❔ 메뉴 사용 안내</button>
   <div class="side-guides" id="side-guides" hidden aria-label="OneClick 사용 가이드">
     <span class="side-guide-rocket" id="side-guide-rocket" aria-hidden="true"><span class="rocket-flight"><span class="rocket-smoke smoke-a"></span><span class="rocket-smoke smoke-b"></span><span class="rocket-smoke smoke-c"></span><span class="rocket-smoke smoke-d"></span><span class="rocket-fire fire-outer"></span><span class="rocket-fire fire-inner"></span><span class="rocket-symbol">🚀</span></span></span>
     <a class="side-guide-link" href="./guide/guide-install.html" target="_blank" rel="noopener" title="ELK OneClick 신규 설치 가이드">신규 설치 가이드</a>
@@ -430,13 +429,14 @@
   }
   window.showView=function(view){
     const result=wrapper.apply(this,arguments);
-    panel.hidden=(view!=='wizard');
+    panel.hidden=(view!=='wizard');document.getElementById('side-tutorial-btn')?.classList.toggle('visible',view==='wizard');
     syncCurrentMini(view);
     return result;
   };
   panel.hidden=!(document.getElementById('view-wizard')?.style.display!=='none' && document.getElementById('view-home')?.style.display==='none');
   const currentView=['calc','wizard','conf'].find(key=>document.getElementById('view-'+key)?.style.display!=='none');
   syncCurrentMini(document.getElementById('view-home')?.style.display==='none'?currentView:null);
+  document.getElementById('side-tutorial-btn')?.classList.toggle('visible',!panel.hidden);
   const rocket=document.getElementById('side-guide-rocket');
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
   if(rocket){
@@ -468,6 +468,18 @@
   }
 
 })();
+</script>
+<script>
+function openWizardMenuTutorial(){
+  if(typeof window.showView==='function')window.showView('wizard');
+  const frame=document.getElementById('wizard-frame');
+  if(!frame)return;
+  const send=()=>{
+    if(frame.contentWindow)frame.contentWindow.postMessage({type:'ELK_ONECLICK_MENU_TOUR_OPEN'},window.location.origin);
+  };
+  if(frame.contentDocument && frame.contentDocument.readyState==='complete')send();
+  else frame.addEventListener('load',send,{once:true});
+}
 </script>
 </body>
 </html>
