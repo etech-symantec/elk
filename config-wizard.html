@@ -702,6 +702,14 @@ a.mbadge:hover{filter:brightness(1.1)}
 #patch-major-settings > .patchacc-head:focus-visible{outline:3px solid #fbbf24;outline-offset:-4px}
 @media(prefers-reduced-motion:reduce){#patch-major-adopt > .patchacc-head,#patch-major-version > .patchacc-head,#patch-major-settings > .patchacc-head{transition:none!important}}
 
+
+/* 단계 00/01/02: 닫힌 항목의 내용은 완전히 숨겨 레이아웃 겹침 방지 */
+.patchaccordion:not(.open) > .patchacc-body{display:none!important;height:0!important;padding:0!important;visibility:hidden!important}
+.patchaccordion.open > .patchacc-body{display:block!important;height:auto!important;visibility:visible!important;overflow:visible!important}
+/* 스크립트 편집기 도구는 한 줄의 3개 버튼으로 표시 */
+#procEditPanel > .proc-edit-tools{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;flex-wrap:nowrap!important}
+#procEditPanel > .proc-edit-tools .ubtn{box-sizing:border-box;width:100%;min-width:0;min-height:35px;padding:7px 8px;white-space:normal;text-align:center}
+@media(max-width:560px){#procEditPanel > .proc-edit-tools{gap:4px}#procEditPanel > .proc-edit-tools .ubtn{font-size:11px;padding:7px 3px}}
 </style></head><body>
 <header class="top"><div class="topin"><div class="hleft"><div class="brand">ELK Oneclick Installer <small>v2.9.55</small></div><div class="mode"><button id="simpleBtn" class="on">빠른 설정</button><button id="advancedBtn">고급 설정</button><button id="patchBtn" title="이미 설치된 서버에서 바꾼 값만 골라 적용합니다">패치</button><button id="inspectBtn" title="서버 정기점검: 버전·Uptime·디스크·CPU·메모리·마지막 로그 시각 등을 한눈에 확인하는 명령을 만들어 줍니다">점검</button></div></div><div class="search"><input id="search" placeholder="변수명/설명 검색"></div><div class="actions"><button id="folderBtn" title="생성한 SH/ENV를 이 폴더에 직접 저장하려면 Config Wizard가 있는 폴더를 처음 한 번 선택하세요.">📁 저장 폴더 연결</button><span id="folderState" class="saveFolderState">브라우저 다운로드 폴더 사용</span><span id="defaultsState" class="saveFolderState" hidden></span><div class="hgroup" role="group" aria-label="기존 입력값 불러오기"><span class="hgtitle">기존 입력값 불러오기</span><button id="importBtn" title="저장해 둔 elk.env 파일의 값을 불러옵니다.">elk.env</button><button id="importShBtn" title="이전에 Config Wizard에서 생성한 elk-oneclick-install*.sh를 불러와 환경변수와 Ubuntu 배포 설정을 복원합니다.">sh 파일</button></div><button id="resetBtn">초기화</button></div><input id="fileInput" type="file" accept=".env,.txt" hidden><input id="shFileInput" type="file" accept=".sh,text/x-shellscript" hidden></div></header>
 <div class="wrap"><div id="defaultsWarn" class="info warn" hidden></div><div class="layout"><div class="sidecol"><aside id="side" class="side"></aside><div class="sidecredit"><span class="creditmark" aria-hidden="true">✦</span><p class="credittext">ELK 마스터 <b>윤태리 선임</b>의 가이드를 기반으로 제작되었습니다.</p></div><div class="sidebuild" id="sidebuild" title="지금 열려 있는 Wizard 파일의 빌드 번호입니다. 수정본을 올렸는데 화면이 그대로면 이 번호가 안내받은 번호와 같은지 확인하세요."></div></div><main id="main" class="main"></main></div></div>
@@ -1221,7 +1229,7 @@ function logTypesPanel(){
 }
 
 const PROC_EDITOR_PANEL = `<div class="prow proc-choice" id="procPatchRow"><input type="checkbox" class="pcb" id="procPatchEnabled" aria-label="proxysg-log-process.sh 스크립트 교체 패치에 포함"><div class="pname">로그 처리 스크립트 직접 수정<small>proxysg-log-process.sh · 독립 패치 항목</small></div><div class="pctl"><details class="proc-edit-panel" id="procEditPanel" aria-label="ProxySG 로그 처리 스크립트 수정">
-<summary><span>🛠️ proxysg-log-process.sh 직접 수정</span><small>기본 코드 불러오기 · 파일 업로드 · 편집 · 패치 생성</small></summary>
+<summary><span>🛠️ proxysg-log-process.sh 직접 수정</span><small>기본 코드 불러오기 · 파일 업로드 · 편집 · 최종 패치에 포함</small></summary>
 <p>기존 ProxySG 로그 처리 스크립트를 확인하고 직접 수정할 수 있습니다. <b>기본 코드 불러오기</b> 또는 <b>현재 사용 중인 .sh 파일 업로드</b>로 시작하세요.</p>
 <div class="proc-edit-tools">
 <button class="ubtn" type="button" id="procLoadDefault">기본 코드 불러오기</button>
@@ -1231,17 +1239,13 @@ const PROC_EDITOR_PANEL = `<div class="prow proc-choice" id="procPatchRow"><inpu
 </div>
 <textarea id="procEditor" spellcheck="false" autocomplete="off" aria-label="proxysg-log-process.sh 편집기" placeholder="기본 코드 불러오기를 눌러 시작하세요."></textarea>
 <div class="proc-edit-status" id="procEditStatus" role="status"></div>
-<div class="proc-edit-tools">
-<button type="button" class="ubtn" id="procDownload">수정한 .sh 다운로드</button>
-<button type="button" class="ubtn primary" id="procPatchDownload">스크립트 단독 패치 파일 만들기 (선택)</button>
-</div>
-<p>⚠️ <b>서버 적용 방법:</b> 생성된 패치 파일을 서버로 복사한 다음 <code>sudo bash 파일명.sh --check</code>로 대상 경로·문법을 확인하고, 이상이 없을 때 <code>sudo bash 파일명.sh --apply</code>를 실행합니다. 적용 시 기존 파일을 백업하며, 서비스를 자동 재시작하지 않습니다.</p>
+<p>💡 수정할 스크립트를 선택하고 체크하면 <b>3단계 최종 패치 파일/전체 명령</b>에 함께 포함됩니다. 변경 전 서버 파일 백업 및 문법 검사 절차를 따르세요.</p>
 <p>위 체크박스를 선택하면 수정한 스크립트가 <b>3단계 최종 패치 파일 및 전체 붙여넣기 명령</b>에 함께 포함됩니다. 기존 서버 파일을 먼저 불러오면 사용자 변경 내용을 보존할 수 있습니다.</p>
 </details></div></div></div>`;
 // ---- 패치 페이지: 설치가 끝난 서버에서 바꾼 값만 적용 ------------------------------------------------
 // 서버의 elk-patch.sh 가 받아들이는 항목과 같아야 합니다. (테스트가 두 목록을 비교합니다)
 const PATCH_GROUPS=[
- {id:'cron',title:'로그 처리 스크립트 실행 시간',apply:'cron 파일의 실행 시간만 교체',keys:['PROXYSG_PROCESS_CRON']},
+ {id:'cron',title:'로그 처리 스크립트 실행 시간',apply:'cron 실행 시간 변경 및 로그 처리 스크립트 직접 수정',keys:['PROXYSG_PROCESS_CRON']},
  {id:'ilm',title:'인덱스 보존기간 (ILM)',apply:'기존 ILM 정책의 삭제 단계만 수정',keys:['ILM_DELETE_MIN_AGE','ILM_DELETE_ENABLED']},
  {id:'cloud',title:'Cloud 로그 처리 켜기/끄기',apply:'Cloud 폴더 생성 + Logstash 파이프라인 + Index Template 패턴 + Data View',keys:['PROXYSG_CLOUD_ENABLED']},
  {id:'pipeline',title:'로그 포맷 · Logstash 파이프라인',apply:'파이프라인 다시 만들기 → 문법 검사 → Logstash 재시작 (실패 시 자동 복구)',keys:['PROXYSG_MAIN_LOG_FORMAT','PROXYSG_SSL_LOG_FORMAT','PROXYSG_CLOUD_LOG_FORMAT','PROXYSG_CSV_FILTER_ENABLED','PROXYSG_FILE_GLOB','PROXYSG_LOGSTASH_DISCOVER_INTERVAL','PROXYSG_LOGSTASH_MAX_OPEN_FILES','INDEX_DATE_PATTERN','PROXYSG_MAIN_SINCEDB','PROXYSG_SSL_SINCEDB','PROXYSG_CLOUD_SINCEDB','PROXYSG_MAIN_PROCESS_DIR','PROXYSG_SSL_PROCESS_DIR','PROXYSG_CLOUD_PROCESS_DIR']},
@@ -1503,34 +1507,16 @@ function refreshPatchUi(only){
 
 function setPatchAccordion(sec,open,animate=true){
   if(!sec)return;
-  const body=sec.querySelector('.patchacc-body'),btn=sec.querySelector('[data-patch-acc]');
+  const body=sec.querySelector(':scope > .patchacc-body');
+  const btn=sec.querySelector(':scope > [data-patch-acc]');
   if(!body)return;
-  const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if(!animate||reduce){
-    sec.classList.toggle('open',open);
-    if(btn)btn.setAttribute('aria-expanded',open?'true':'false');
-    body.style.height=open?'auto':'0px';
-    return;
-  }
-  if(open){
-    sec.classList.add('open');
-    if(btn)btn.setAttribute('aria-expanded','true');
-    body.style.height='0px';
-    body.offsetHeight;
-    body.style.height=body.scrollHeight+'px';
-    const done=e=>{
-      if(e.propertyName!=='height')return;
-      body.removeEventListener('transitionend',done);
-      if(sec.classList.contains('open'))body.style.height='auto';
-    };
-    body.addEventListener('transitionend',done);
-  }else{
-    if(body.style.height==='auto'||!body.style.height)body.style.height=body.scrollHeight+'px';
-    body.offsetHeight;
-    sec.classList.remove('open');
-    if(btn)btn.setAttribute('aria-expanded','false');
-    requestAnimationFrame(()=>{body.style.height='0px'});
-  }
+  // 닫힌 항목의 자식이 화면에 남지 않도록 표시 자체를 차단합니다.
+  // 내용이 긴 스크립트 편집기에서도 안정적으로 동작하도록 높이 애니메이션은 사용하지 않습니다.
+  sec.classList.toggle('open',!!open);
+  if(btn)btn.setAttribute('aria-expanded',open?'true':'false');
+  body.style.removeProperty('height');
+  body.style.display=open?'block':'none';
+  body.setAttribute('aria-hidden',open?'false':'true');
 }
 
 // -- ProxySG log process script: editor / export / guarded server patch --
@@ -1594,8 +1580,6 @@ function wireProcEditor(){
  const input=document.getElementById('procUpload');
  document.getElementById('procUploadBtn').onclick=()=>input.click();
  input.onchange=async()=>{const f=input.files&&input.files[0];if(!f)return;try{const t=await f.text(),err=procValidate(t);if(err){alert(err);return}PROC_EDITOR_TEXT=t;e.value=t;status()}finally{input.value=''}};
- document.getElementById('procDownload').onclick=()=>{const t=e.value,err=procValidate(t);if(err)return alert(err);procDownload('proxysg-log-process.sh',normText(t))};
- document.getElementById('procPatchDownload').onclick=()=>{const t=e.value,err=procValidate(t);if(err)return alert(err);if(!confirm('서버용 패치 파일을 생성할까요? 실행 전 --check로 반드시 점검하세요.'))return;procDownload('elk-patch-proxysg-log-process.sh',procExportPatch(t))};
  status();
 }
 
