@@ -47,9 +47,9 @@
 /* 자동 구성 바로 아래 작고 얇은 튜토리얼 실행 버튼 */
 /* 메뉴 사용 안내: 가이드 3개 버튼과 같은 가로 폭·색상·모서리 */
 #side-nav .side-tutorial-btn{
-  box-sizing:border-box;display:none;align-self:flex-end;flex:0 0 161px;
-  width:161px;min-width:161px;height:23px;min-height:23px;
-  margin:5px 0 3px;padding:3px 6px;
+  box-sizing:border-box;display:none;align-self:flex-end;flex:0 0 23px;
+  width:161px;min-width:161px;max-width:161px;height:23px;min-height:23px;max-height:23px;
+  margin:5px 0 3px;padding:2px 6px;overflow:hidden;
   border:1px solid #2e3b53;border-radius:6px;
   background:#172033;color:#fff;
   font-family:inherit;font-size:10px;font-weight:700;line-height:1.1;
@@ -57,7 +57,8 @@
   box-shadow:0 2px 6px #101b3226;
   transition:background .15s,border-color .15s,transform .15s;
 }
-#side-nav .side-tutorial-btn.visible{display:flex;align-items:center;justify-content:center}
+#side-nav .side-tutorial-btn.visible{display:flex;align-items:center;justify-content:center;gap:5px}
+#side-nav .side-tutorial-btn .tutorial-emoji{font-size:12px;line-height:1;flex:none}
 #side-nav .side-tutorial-btn:hover,#side-nav .side-tutorial-btn:focus-visible{
   background:#263a59;border-color:#7fa6e6;color:#fff;
   transform:translateX(-2px);outline-offset:2px
@@ -114,7 +115,7 @@
   <button type="button" class="side-btn" id="nav-wizard" onclick="showView('wizard')" title="ELK 자동 구성">
     <span class="sb-icon">🚀</span>자동<br>구성
   </button>
-  <button type="button" class="side-tutorial-btn" id="side-tutorial-btn" onclick="openWizardMenuTutorial()" title="빠른 설정·고급 설정·패치·점검·기존 설정 불러오기 메뉴 안내">❔ 메뉴 사용 안내</button>
+  <button type="button" class="side-tutorial-btn" id="side-tutorial-btn" onclick="openWizardMenuTutorial()" title="빠른 설정·고급 설정·패치·점검·기존 설정 불러오기 메뉴 안내"><span class="tutorial-emoji" aria-hidden="true">💡</span><span>메뉴 사용 안내</span></button>
   <div class="side-guides" id="side-guides" hidden aria-label="OneClick 사용 가이드">
     <span class="side-guide-rocket" id="side-guide-rocket" aria-hidden="true"><span class="rocket-flight"><span class="rocket-smoke smoke-a"></span><span class="rocket-smoke smoke-b"></span><span class="rocket-smoke smoke-c"></span><span class="rocket-smoke smoke-d"></span><span class="rocket-fire fire-outer"></span><span class="rocket-fire fire-inner"></span><span class="rocket-symbol">🚀</span></span></span>
     <a class="side-guide-link" href="./guide/guide-install.html" target="_blank" rel="noopener" title="ELK OneClick 신규 설치 가이드">신규 설치 가이드</a>
