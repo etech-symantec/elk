@@ -181,6 +181,16 @@
 }
 #side-nav .wizard-submenu .side-guide-link::before{z-index:1!important}
 
+
+/* 자동 구성 하위 메뉴: 연결선 완전 제거, 개별 버튼만 표시 */
+#side-nav .wizard-submenu{padding-top:6px!important}
+#side-nav .wizard-submenu::before,
+#side-nav .wizard-submenu::after,
+#side-nav .wizard-submenu .side-tutorial-btn::before,
+#side-nav .wizard-submenu .side-tutorial-btn::after,
+#side-nav .wizard-submenu .side-guide-link::before,
+#side-nav .wizard-submenu .side-guide-link::after{content:none!important;display:none!important;border:0!important;box-shadow:none!important}
+
 </style>
 </head>
 <body>
