@@ -710,6 +710,25 @@ a.mbadge:hover{filter:brightness(1.1)}
 #procEditPanel > .proc-edit-tools{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;flex-wrap:nowrap!important}
 #procEditPanel > .proc-edit-tools .ubtn{box-sizing:border-box;width:100%;min-width:0;min-height:35px;padding:7px 8px;white-space:normal;text-align:center}
 @media(max-width:560px){#procEditPanel > .proc-edit-tools{gap:4px}#procEditPanel > .proc-edit-tools .ubtn{font-size:11px;padding:7px 3px}}
+
+/* 00/01/02 아코디언: 닫혔을 때 내부를 강제 숨김 (상태/표시 불일치 방지) */
+.patchaccordion > .patchacc-body[hidden],
+.patchaccordion:not(.open) > .patchacc-body,
+.patchaccordion:has(> .patchacc-head[aria-expanded="false"]) > .patchacc-body {
+  display:none!important;
+  visibility:hidden!important;
+  height:0!important;
+  min-height:0!important;
+  padding:0!important;
+  margin:0!important;
+  overflow:hidden!important;
+}
+.patchaccordion.open > .patchacc-head[aria-expanded="true"] + .patchacc-body:not([hidden]) {
+  display:block!important;
+  visibility:visible!important;
+  height:auto!important;
+  overflow:visible!important;
+}
 </style></head><body>
 <header class="top"><div class="topin"><div class="hleft"><div class="brand">ELK Oneclick Installer <small>v2.9.55</small></div><div class="mode"><button id="simpleBtn" class="on">빠른 설정</button><button id="advancedBtn">고급 설정</button><button id="patchBtn" title="이미 설치된 서버에서 바꾼 값만 골라 적용합니다">패치</button><button id="inspectBtn" title="서버 정기점검: 버전·Uptime·디스크·CPU·메모리·마지막 로그 시각 등을 한눈에 확인하는 명령을 만들어 줍니다">점검</button></div></div><div class="search"><input id="search" placeholder="변수명/설명 검색"></div><div class="actions"><button id="folderBtn" title="생성한 SH/ENV를 이 폴더에 직접 저장하려면 Config Wizard가 있는 폴더를 처음 한 번 선택하세요.">📁 저장 폴더 연결</button><span id="folderState" class="saveFolderState">브라우저 다운로드 폴더 사용</span><span id="defaultsState" class="saveFolderState" hidden></span><div class="hgroup" role="group" aria-label="기존 입력값 불러오기"><span class="hgtitle">기존 입력값 불러오기</span><button id="importBtn" title="저장해 둔 elk.env 파일의 값을 불러옵니다.">elk.env</button><button id="importShBtn" title="이전에 Config Wizard에서 생성한 elk-oneclick-install*.sh를 불러와 환경변수와 Ubuntu 배포 설정을 복원합니다.">sh 파일</button></div><button id="resetBtn">초기화</button></div><input id="fileInput" type="file" accept=".env,.txt" hidden><input id="shFileInput" type="file" accept=".sh,text/x-shellscript" hidden></div></header>
 <div class="wrap"><div id="defaultsWarn" class="info warn" hidden></div><div class="layout"><div class="sidecol"><aside id="side" class="side"></aside><div class="sidecredit"><span class="creditmark" aria-hidden="true">✦</span><p class="credittext">ELK 마스터 <b>윤태리 선임</b>의 가이드를 기반으로 제작되었습니다.</p></div><div class="sidebuild" id="sidebuild" title="지금 열려 있는 Wizard 파일의 빌드 번호입니다. 수정본을 올렸는데 화면이 그대로면 이 번호가 안내받은 번호와 같은지 확인하세요."></div></div><main id="main" class="main"></main></div></div>
@@ -1398,7 +1417,7 @@ function patchPage(){
 <span class="patchacc-left"><span class="patchacc-num">02</span><span class="patchacc-title"><b>설정값 패치</b><span>cron·ILM·Logstash·Data View·Kibana Dashboard 등 일부 설정값만 변경할 때 사용합니다.</span></span></span>
 <span class="patchacc-arrow" aria-hidden="true"></span>
 </button>
-<div class="patchacc-body">
+<div class="patchacc-body" hidden aria-hidden="true" style="display:none!important">
 <section class="psec" id="psec-base"><h3 class="psech"><span class="pnum">1</span>기준값 불러오기<small>설치에 썼던 파일과 비교해서 바뀐 값을 자동으로 찾습니다</small></h3>
 <div class="pbase"><button type="button" id="patchImportSh" class="ubtn">sh 파일 불러오기</button><button type="button" id="patchImportEnv" class="ubtn">elk.env 불러오기</button><span id="patchBase" class="pbasestate ${BASELINE?'ok':''}">${BASELINE?`✔ ${esc(BASELINE_LABEL||'파일')}에서 불러옴 — 이 값과 비교해서 달라진 항목을 선택합니다`:'아직 불러오지 않음 — 불러오지 않아도 값을 고치거나 체크하면 패치에 포함됩니다'}</span></div></section>
 <section class="psec" id="psec-pick"><h3 class="psech"><span class="pnum">2</span>바꿀 값 선택 · 수정<small>체크한 항목만 패치됩니다</small></h3>
@@ -1510,13 +1529,16 @@ function setPatchAccordion(sec,open,animate=true){
   const body=sec.querySelector(':scope > .patchacc-body');
   const btn=sec.querySelector(':scope > [data-patch-acc]');
   if(!body)return;
-  // 닫힌 항목의 자식이 화면에 남지 않도록 표시 자체를 차단합니다.
-  // 내용이 긴 스크립트 편집기에서도 안정적으로 동작하도록 높이 애니메이션은 사용하지 않습니다.
-  sec.classList.toggle('open',!!open);
-  if(btn)btn.setAttribute('aria-expanded',open?'true':'false');
+  const expanded=!!open;
+  sec.classList.toggle('open',expanded);
+  if(btn)btn.setAttribute('aria-expanded',String(expanded));
+  // hidden 속성과 display를 동시에 동기화하여 렌더링 후에도 닫힌 본문이 드러나지 않게 합니다.
+  body.hidden=!expanded;
+  body.setAttribute('aria-hidden',String(!expanded));
+  body.style.setProperty('display',expanded?'block':'none','important');
   body.style.removeProperty('height');
-  body.style.display=open?'block':'none';
-  body.setAttribute('aria-hidden',open?'false':'true');
+  body.style.removeProperty('max-height');
+  body.style.removeProperty('opacity');
 }
 
 // -- ProxySG log process script: editor / export / guarded server patch --
