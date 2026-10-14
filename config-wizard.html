@@ -645,6 +645,17 @@ a.mbadge:hover{filter:brightness(1.1)}
 #procEditor{box-sizing:border-box;width:100%;min-height:265px;max-height:580px;resize:vertical;border:1px solid #b8c9e4;border-radius:10px;padding:12px;font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;tab-size:2;color:#142238;background:#fff;white-space:pre;overflow:auto}
 .proc-edit-status{font-size:12px;color:#30537d;padding:6px 0;min-height:20px}
 @media(max-width:700px){.proc-edit-panel{padding:11px}#procEditor{min-height:230px}}
+
+/* 단계 2: 로그 처리 스케줄 아래의 접이식 스크립트 편집기 */
+#procEditPanel{margin:10px 0 3px;padding:0;overflow:hidden}
+#procEditPanel>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;font-size:13px;font-weight:800;color:#183153;background:#eaf2ff;user-select:none}
+#procEditPanel>summary::-webkit-details-marker{display:none}
+#procEditPanel>summary small{font-size:11px;color:#64748b;font-weight:500}
+#procEditPanel>summary::after{content:'▾';font-size:18px;color:#2563eb;transition:transform .18s;flex-shrink:0}
+#procEditPanel[open]>summary::after{transform:rotate(180deg)}
+#procEditPanel>p,#procEditPanel>.proc-edit-tools,#procEditPanel>#procEditor,#procEditPanel>.proc-edit-status{margin-left:14px;margin-right:14px}
+#procEditPanel>p:last-child{margin-bottom:14px}
+@media(max-width:700px){#procEditPanel>summary{align-items:flex-start;flex-wrap:wrap}#procEditPanel>summary small{flex:1 1 100%}}
 </style></head><body>
 <header class="top"><div class="topin"><div class="hleft"><div class="brand">ELK Oneclick Installer <small>v2.9.55</small></div><div class="mode"><button id="simpleBtn" class="on">빠른 설정</button><button id="advancedBtn">고급 설정</button><button id="patchBtn" title="이미 설치된 서버에서 바꾼 값만 골라 적용합니다">패치</button><button id="inspectBtn" title="서버 정기점검: 버전·Uptime·디스크·CPU·메모리·마지막 로그 시각 등을 한눈에 확인하는 명령을 만들어 줍니다">점검</button></div></div><div class="search"><input id="search" placeholder="변수명/설명 검색"></div><div class="actions"><button id="folderBtn" title="생성한 SH/ENV를 이 폴더에 직접 저장하려면 Config Wizard가 있는 폴더를 처음 한 번 선택하세요.">📁 저장 폴더 연결</button><span id="folderState" class="saveFolderState">브라우저 다운로드 폴더 사용</span><span id="defaultsState" class="saveFolderState" hidden></span><div class="hgroup" role="group" aria-label="기존 입력값 불러오기"><span class="hgtitle">기존 입력값 불러오기</span><button id="importBtn" title="저장해 둔 elk.env 파일의 값을 불러옵니다.">elk.env</button><button id="importShBtn" title="이전에 Config Wizard에서 생성한 elk-oneclick-install*.sh를 불러와 환경변수와 Ubuntu 배포 설정을 복원합니다.">sh 파일</button></div><button id="resetBtn">초기화</button></div><input id="fileInput" type="file" accept=".env,.txt" hidden><input id="shFileInput" type="file" accept=".sh,text/x-shellscript" hidden></div></header>
 <div class="wrap"><div id="defaultsWarn" class="info warn" hidden></div><div class="layout"><div class="sidecol"><aside id="side" class="side"></aside><div class="sidecredit"><span class="creditmark" aria-hidden="true">✦</span><p class="credittext">ELK 마스터 <b>윤태리 선임</b>의 가이드를 기반으로 제작되었습니다.</p></div><div class="sidebuild" id="sidebuild" title="지금 열려 있는 Wizard 파일의 빌드 번호입니다. 수정본을 올렸는데 화면이 그대로면 이 번호가 안내받은 번호와 같은지 확인하세요."></div></div><main id="main" class="main"></main></div></div>
@@ -1163,6 +1174,24 @@ function logTypesPanel(){
 </section>`
 }
 
+const PROC_EDITOR_PANEL = `<details class="proc-edit-panel" id="procEditPanel" aria-label="ProxySG 로그 처리 스크립트 수정">
+<summary><span>🛠️ proxysg-log-process.sh 직접 수정</span><small>기본 코드 불러오기 · 파일 업로드 · 편집 · 패치 생성</small></summary>
+<p>기존 ProxySG 로그 처리 스크립트를 확인하고 직접 수정할 수 있습니다. <b>기본 코드 불러오기</b> 또는 <b>현재 사용 중인 .sh 파일 업로드</b>로 시작하세요.</p>
+<div class="proc-edit-tools">
+<button class="ubtn" type="button" id="procLoadDefault">기본 코드 불러오기</button>
+<button class="ubtn" type="button" id="procUploadBtn">기존 .sh 파일 불러오기</button>
+<button class="ubtn" type="button" id="procReset">기본값 복원</button>
+<input type="file" id="procUpload" accept=".sh,text/plain" hidden>
+</div>
+<textarea id="procEditor" spellcheck="false" autocomplete="off" aria-label="proxysg-log-process.sh 편집기" placeholder="기본 코드 불러오기를 눌러 시작하세요."></textarea>
+<div class="proc-edit-status" id="procEditStatus" role="status"></div>
+<div class="proc-edit-tools">
+<button type="button" class="ubtn" id="procDownload">수정한 .sh 다운로드</button>
+<button type="button" class="ubtn primary" id="procPatchDownload">서버 적용용 패치 .sh 만들기</button>
+</div>
+<p>⚠️ <b>서버 적용 방법:</b> 생성된 패치 파일을 서버로 복사한 다음 <code>sudo bash 파일명.sh --check</code>로 대상 경로·문법을 확인하고, 이상이 없을 때 <code>sudo bash 파일명.sh --apply</code>를 실행합니다. 적용 시 기존 파일을 백업하며, 서비스를 자동 재시작하지 않습니다.</p>
+<p>일반 설정값 패치와 별도로 실행하는 스크립트 교체 기능입니다. <b>서버에 설치된 기존 파일을 먼저 불러오면</b> 사용자 지정 변경 사항을 보존할 수 있습니다.</p>
+</details>`;
 // ---- 패치 페이지: 설치가 끝난 서버에서 바꾼 값만 적용 ------------------------------------------------
 // 서버의 elk-patch.sh 가 받아들이는 항목과 같아야 합니다. (테스트가 두 목록을 비교합니다)
 const PATCH_GROUPS=[
@@ -1325,28 +1354,10 @@ function patchPage(){
 <section class="psec" id="psec-pick"><h3 class="psech"><span class="pnum">2</span>바꿀 값 선택 · 수정<small>체크한 항목만 패치됩니다</small></h3>
 <div class="patchstat" id="patchStat">${patchStatText()}</div>
 <div class="pnote">여기서 값을 바꾸면 빠른/고급 설정의 같은 항목 값도 함께 바뀝니다. (입력값은 하나를 공유합니다)</div>
-${PATCH_GROUPS.map(g=>`<div class="pgroup"><div class="pghead"><b>${g.title}</b><span>→ ${g.apply}</span></div>${g.keys.map(patchRow).join('')}</div>`).join('')}
+${PATCH_GROUPS.map(g=>`<div class="pgroup"><div class="pghead"><b>${g.title}</b><span>→ ${g.apply}</span></div>${g.keys.map(patchRow).join('')}${g.id==='cron'?PROC_EDITOR_PANEL:''}</div>`).join('')}
 <div class="patchbar"><button type="button" id="patchNone" class="ubtn">선택 모두 해제</button><button type="button" id="patchPreviewBtn" class="ubtn">선택한 값 보기</button></div>
 <pre id="patchPre" class="pre" style="display:none"></pre></section>
 
-<section class="proc-edit-panel" id="procEditPanel" aria-label="ProxySG 로그 처리 스크립트 수정">
-<h3>🛠️ proxysg-log-process.sh 직접 수정</h3>
-<p>기존 ProxySG 로그 처리 스크립트를 확인하고 직접 수정할 수 있습니다. <b>기본 코드 불러오기</b> 또는 <b>현재 사용 중인 .sh 파일 업로드</b>로 시작하세요.</p>
-<div class="proc-edit-tools">
-<button class="ubtn" type="button" id="procLoadDefault">기본 코드 불러오기</button>
-<button class="ubtn" type="button" id="procUploadBtn">기존 .sh 파일 불러오기</button>
-<button class="ubtn" type="button" id="procReset">기본값 복원</button>
-<input type="file" id="procUpload" accept=".sh,text/plain" hidden>
-</div>
-<textarea id="procEditor" spellcheck="false" autocomplete="off" aria-label="proxysg-log-process.sh 편집기" placeholder="기본 코드 불러오기를 눌러 시작하세요."></textarea>
-<div class="proc-edit-status" id="procEditStatus" role="status"></div>
-<div class="proc-edit-tools">
-<button type="button" class="ubtn" id="procDownload">수정한 .sh 다운로드</button>
-<button type="button" class="ubtn primary" id="procPatchDownload">서버 적용용 패치 .sh 만들기</button>
-</div>
-<p>⚠️ <b>서버 적용 방법:</b> 생성된 패치 파일을 서버로 복사한 다음 <code>sudo bash 파일명.sh --check</code>로 대상 경로·문법을 확인하고, 이상이 없을 때 <code>sudo bash 파일명.sh --apply</code>를 실행합니다. 적용 시 기존 파일을 백업하며, 서비스를 자동 재시작하지 않습니다.</p>
-<p>일반 설정값 패치와 별도로 실행하는 스크립트 교체 기능입니다. <b>서버에 설치된 기존 파일을 먼저 불러오면</b> 사용자 지정 변경 사항을 보존할 수 있습니다.</p>
-</section>
 <section class="psec" id="psec-apply"><h3 class="psech"><span class="pnum">3</span>패치 적용<small>파일로 보내거나, 서버에 바로 붙여넣기</small></h3>
 <div class="prunbox"><div class="prunhead">실행 방식</div>${run('ask','확인 후 적용 (기본)','변경 내용을 보여 주고 y 를 입력하면 적용')}${run('dry','미리보기만 (--dry-run)','아무것도 바꾸지 않고 무엇이 바뀔지만 표시')}${run('yes','바로 적용 (--yes)','확인 질문 없이 곧바로 적용')}</div>
 <div class="papply">
