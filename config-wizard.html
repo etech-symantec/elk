@@ -756,6 +756,26 @@ a.mbadge:hover{filter:brightness(1.1)}
 #patch-major-settings .pname small{color:#5b7bb6}
 #patch-major-settings .pgroup input:focus,#patch-major-settings .pgroup textarea:focus,#patch-major-settings .pgroup select:focus{border-color:var(--patch-accent);outline-color:var(--patch-line)}
 
+
+/* 점검 페이지: 두 방법을 독립적인 컬러 아코디언으로 표시 */
+.inspectpage .inspect-fold{display:block;padding:0!important;margin:0 0 14px!important;border:1px solid #b9c9dc;border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 4px 12px rgba(15,23,42,.07)}
+.inspectpage .inspect-fold-head{display:flex!important;align-items:center;gap:12px;list-style:none!important;cursor:pointer;user-select:none;padding:18px 20px!important;margin:0!important;min-height:66px;color:#fff!important;border:0!important}
+.inspectpage .inspect-fold-head::-webkit-details-marker{display:none}
+.inspectpage .inspect-fold-head::marker{content:''}
+.inspectpage .inspect-fold-report .inspect-fold-head{background:linear-gradient(110deg,#1e293b,#334155)!important}
+.inspectpage .inspect-fold-plan .inspect-fold-head{background:linear-gradient(110deg,#0f766e,#0d9488)!important}
+.inspectpage .inspect-fold-head .pnum{flex:0 0 auto;display:grid;place-items:center;border:1px solid rgba(255,255,255,.7)!important;background:rgba(255,255,255,.16)!important;color:#fff!important;border-radius:10px;min-width:34px;height:34px;font-weight:800}
+.inspectpage .inspect-fold-title{display:flex;flex-direction:column;gap:3px;flex:1;font-weight:800;font-size:14px}
+.inspectpage .inspect-fold-title small{display:block;font-size:11px;font-weight:500;color:#dbeafe!important;opacity:.95}
+.inspectpage .inspect-fold-arrow{height:26px;width:26px;border-radius:50%;background:rgba(255,255,255,.17);position:relative;flex-shrink:0}
+.inspectpage .inspect-fold-arrow:before{content:'';position:absolute;left:9px;top:8px;width:8px;height:8px;border-right:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(45deg);transition:transform .18s ease,top .18s}
+.inspectpage .inspect-fold[open] .inspect-fold-arrow:before{transform:rotate(225deg);top:12px}
+.inspectpage .inspect-fold-body{padding:17px 18px 19px;background:#fff}
+.inspectpage .inspect-fold-report[open] .inspect-fold-body{border-top:2px solid #64748b}
+.inspectpage .inspect-fold-plan[open] .inspect-fold-body{border-top:2px solid #2dd4bf}
+@media(max-width:640px){.inspectpage .inspect-fold-head{padding:14px!important}.inspectpage .inspect-fold-body{padding:12px}}
+@media(prefers-reduced-motion:reduce){.inspectpage .inspect-fold-arrow:before{transition:none}}
+
 </style></head><body>
 <header class="top"><div class="topin"><div class="hleft"><div class="brand">ELK Oneclick Installer <small>v2.9.55</small></div><div class="mode"><button id="simpleBtn" class="on">빠른 설정</button><button id="advancedBtn">고급 설정</button><button id="patchBtn" title="이미 설치된 서버에서 바꾼 값만 골라 적용합니다">패치</button><button id="inspectBtn" title="서버 정기점검: 버전·Uptime·디스크·CPU·메모리·마지막 로그 시각 등을 한눈에 확인하는 명령을 만들어 줍니다">점검</button></div></div><div class="search"><input id="search" placeholder="변수명/설명 검색"></div><div class="actions"><button id="folderBtn" title="생성한 SH/ENV를 이 폴더에 직접 저장하려면 Config Wizard가 있는 폴더를 처음 한 번 선택하세요.">📁 저장 폴더 연결</button><span id="folderState" class="saveFolderState">브라우저 다운로드 폴더 사용</span><span id="defaultsState" class="saveFolderState" hidden></span><div class="hgroup" role="group" aria-label="기존 입력값 불러오기"><span class="hgtitle">기존 입력값 불러오기</span><button id="importBtn" title="저장해 둔 elk.env 파일의 값을 불러옵니다.">elk.env</button><button id="importShBtn" title="이전에 Config Wizard에서 생성한 elk-oneclick-install*.sh를 불러와 환경변수와 Ubuntu 배포 설정을 복원합니다.">sh 파일</button></div><button id="resetBtn">초기화</button></div><input id="fileInput" type="file" accept=".env,.txt" hidden><input id="shFileInput" type="file" accept=".sh,text/x-shellscript" hidden></div></header>
 <div class="wrap"><div id="defaultsWarn" class="info warn" hidden></div><div class="layout"><div class="sidecol"><aside id="side" class="side"></aside><div class="sidecredit"><span class="creditmark" aria-hidden="true">✦</span><p class="credittext">ELK 마스터 <b>윤태리 선임</b>의 가이드를 기반으로 제작되었습니다.</p></div><div class="sidebuild" id="sidebuild" title="지금 열려 있는 Wizard 파일의 빌드 번호입니다. 수정본을 올렸는데 화면이 그대로면 이 번호가 안내받은 번호와 같은지 확인하세요."></div></div><main id="main" class="main"></main></div></div>
@@ -1810,7 +1830,7 @@ function inspectPage(){
   return `<div class="panel patchpage inspectpage"><div class="statusbar"><span class="pill ok">점검</span><span class="pill">읽기 전용 · 서버 설정을 바꾸지 않습니다</span></div>
 <h2>점검<span class="titlenote" title="서버 정기점검에 쓰는 확인 항목 추천과 점검 명령">서버 정기점검 — 추천 항목과 점검 명령</span></h2>
 <div class="info">정기점검은 <b>"수집이 계속 되고 있는가 · 디스크가 차지 않는가 · 서비스가 살아 있는가"</b> 세 가지를 중심으로 봅니다. 먼저 <b>한 번에 점검</b>의 <code>sudo elk-report</code>로 전체 상태를 확인하고, 필요할 때 아래 <b>점검 항목과 명령</b>에서 주기별 개별 점검 명령을 사용할 수 있습니다. 명령은 현재 설정값(폴더 · 인덱스 이름 · 포트 · Cloud 사용 여부)에 맞춰 만들어집니다.</div>
-<section class="psec" id="isec-report"><h3 class="psech"><span class="pnum">1</span>한 번에 점검 (리포트)<small>한 줄 명령으로 위 항목을 모두 읽기 쉽게 출력</small></h3>
+<details class="psec inspect-fold inspect-fold-report" id="isec-report"><summary class="psech inspect-fold-head"><span class="pnum">01</span><span class="inspect-fold-title">한 번에 점검 (리포트)<small>한 줄 명령으로 전체 상태를 한눈에 확인</small></span><span class="inspect-fold-arrow" aria-hidden="true"></span></summary><div class="inspect-fold-body">
 <div class="info ok"><b>v2.9.45:</b> <code>sudo elk-report</code>를 실행하면 터미널 결과와 함께 <code>${esc(values.ELK_REPORT_HTML_FILE||'/var/lib/elk-report/report.html')}</code> HTML이 갱신됩니다. 점검 웹 사용 시 브라우저에서 <code>http://서버IP:${esc(values.ELK_REPORT_WEB_PORT||'5602')}/</code> 로 확인하고, 페이지의 명령 입력칸에서 <code>elk-report</code>를 실행해 최신 정보를 불러올 수 있습니다.</div>
 <div class="pcard"><h4><span class="pbadge hot">리포트</span>점검 항목 선택</h4>
 <div class="isecs">${secs}</div>
@@ -1826,11 +1846,11 @@ ${addonCard()}
 <div class="ireportdemo">
   <div class="idemopane"><div class="idemohead"><div><span class="itermdots"><i></i><i></i><i></i></span><b>SSH / Terminal 출력</b></div><small>sudo elk-report</small></div><pre class="isample">${INSPECT_SAMPLE}</pre></div>
   ${inspectWebSample()}
-</div></section>
-<section class="psec" id="isec-plan"><h3 class="psech"><span class="pnum">2</span>점검 항목과 명령<small>매일 · 주 1회 · 월 1회 — 항목마다 한 줄 (왼쪽 설명 · 오른쪽 명령)</small></h3>
+</div></div></details>
+<details class="psec inspect-fold inspect-fold-plan" id="isec-plan"><summary class="psech inspect-fold-head"><span class="pnum">02</span><span class="inspect-fold-title">점검 항목과 명령<small>매일 · 주 1회 · 월 1회 점검 항목과 실행 명령</small></span><span class="inspect-fold-arrow" aria-hidden="true"></span></summary><div class="inspect-fold-body">
 <div class="info warn">Elasticsearch 조회 명령은 서버의 <code>${esc(ex.state)}/secrets.env</code>(root 전용)에서 비밀번호를 읽어 <code>sudo</code>로 호출합니다. 결과를 표로 정리하려고 <code>jq</code>를 씁니다. (설치기가 함께 설치합니다) 명령 끝에서 임시 함수와 비밀번호 변수는 지웁니다.</div>
 <div class="itablewrap"><table class="itable"><colgroup><col style="width:17%"><col style="width:37%"><col style="width:16%"><col style="width:30%"></colgroup><thead><tr><th>점검 항목</th><th>왜 확인하나</th><th>정상 기준</th><th>점검 명령</th></tr></thead>${plan}</table></div>
-<div class="pnote">기준값(85% · 75% · 36시간 등)은 이 설치기의 기본 구성에 맞춘 값입니다. 로그가 들어오는 주기나 서버 용도에 따라 조정하세요.</div></section>
+<div class="pnote">기준값(85% · 75% · 36시간 등)은 이 설치기의 기본 구성에 맞춘 값입니다. 로그가 들어오는 주기나 서버 용도에 따라 조정하세요.</div></div></details>
 </div>`
 }
 function inspectCopyState(id,msg,ok){const el=id?document.querySelector(`[data-istate="${id}"]`):document.getElementById('iCopyState');if(el){el.textContent=msg;el.className=(id?'icopystate ':'pcopystate ')+(ok?'ok':'warn')}}
@@ -1843,7 +1863,7 @@ function refreshInspectUi(){
 function wireInspect(){
   if(mode!=='inspect'||!document.getElementById('iCopyShort'))return;
   wireAddon();
-  document.querySelectorAll('[data-patch-go]').forEach(x=>x.onclick=()=>{INSPECT_STEP=+x.dataset.patchIdx;document.querySelectorAll('#side .sideitem').forEach((e,i)=>e.classList.toggle('active',i===INSPECT_STEP));const t=document.getElementById(x.dataset.patchGo);if(t)t.scrollIntoView({behavior:'smooth',block:'start'})});
+  document.querySelectorAll('[data-patch-go]').forEach(x=>x.onclick=()=>{INSPECT_STEP=+x.dataset.patchIdx;document.querySelectorAll('#side .sideitem').forEach((e,i)=>e.classList.toggle('active',i===INSPECT_STEP));const t=document.getElementById(x.dataset.patchGo);if(t){if(t.tagName==='DETAILS')t.open=true;t.scrollIntoView({behavior:'smooth',block:'start'})}});
   document.querySelectorAll('[data-iexp]').forEach(b=>b.onclick=()=>inspectToggleRow(b.dataset.iexp,b.getAttribute('aria-expanded')!=='true'));
   inspectFitCmds();if(typeof requestAnimationFrame==='function')requestAnimationFrame(inspectFitCmds);
   if(!window.__inspResize){window.__inspResize=true;window.addEventListener('resize',()=>{if(mode==='inspect')inspectFitCmds()})}
@@ -1891,7 +1911,7 @@ function varLocations(k){
 function locBar(k){
   const L=varLocations(k);
   const qs=L.q.length?L.q.map(x=>`<button type="button" class="locbtn" data-loc="simple:${x.id}" title="빠른 설정 ${x.id}단계로 이동">빠른 설정 ${x.id}단계 · ${esc(x.title)}</button>`).join(''):'<span class="locnone">빠른 설정에는 없음</span>';
-  const as=L.a.length?L.a.map(x=>`<button type="button" class="locbtn adv" data-loc="advanced:${x.id}" title="고급 설정 ${x.id}단계로 이동">고급 설정 ${x.id}단계 · ${esc(x.title)}</button>`).join(''):'<span class="locnone">고급 설정에는 없음</span>';
+  const as=L.a.length?L.a.map(x=>`<button type="button" class="locbtn adv" data-loc="advanced:${x.id}" title="고급 설정 ${x.id}단계로 이동">고급 설정 ${String(x.id).padStart(2,'0')}단계 · ${esc(x.title)}</button>`).join(''):'<span class="locnone">고급 설정에는 없음</span>';
   return `<div class="locbar"><span>📍 위치</span>${qs}${as}</div>`
 }
 // ---- 3단계 / 5단계: 설정 파일(.yml / .conf) 저장 위치
@@ -2494,7 +2514,7 @@ function renderMain(){
     const nx=document.getElementById('next');if(nx)nx.onclick=()=>{if(step<total){if(!tryLeave())return;step++;render();toTop()}}
   }else{
     let sec=DATA.advanced[step-1]||DATA.advanced[0],req=advancedRequiredKeys(sec.vars),reqset=new Set(req),normal=sec.vars.filter(k=>!reqset.has(k)&&!hiddenKey(k));
-    main.innerHTML=`<div class="panel"><div class="statusbar"><span class="pill">고급 설정</span><span class="pill">${DATA.vars.length}개 환경변수</span><span id="warnPill" class="pill"></span></div><h2>${esc(sec.title)}<span class="titlenote" title="${esc(sec.desc||'')}">${esc(sec.note||'')}</span></h2>${sec.kind==='deploy'?deploySection():''}${sec.logtypes?logTypesPanel():''}${stageRequired(req,sec.cols3)}${advancedFieldsHtml(sec,normal)}${sec.files?filePanel(sec.files):''}${sec.kind==='final'?finalPanel():''}</div>`
+    main.innerHTML=`<div class="panel"><div class="statusbar"><span class="pill">고급 설정</span><span class="pill">${DATA.vars.length}개 환경변수</span><span id="warnPill" class="pill"></span></div><h2>${String(step).padStart(2,'0')}. ${esc(sec.title.replace(/^\d+[A-Z]?\.\s*/,''))}<span class="titlenote" title="${esc(sec.desc||'')}">${esc(sec.note||'')}</span></h2>${sec.kind==='deploy'?deploySection():''}${sec.logtypes?logTypesPanel():''}${stageRequired(req,sec.cols3)}${advancedFieldsHtml(sec,normal)}${sec.files?filePanel(sec.files):''}${sec.kind==='final'?finalPanel():''}</div>`
   }
   wire();wireSummary();wireJump();wireFiles();wirePatch();wirePaste();renderStatus()
 }
