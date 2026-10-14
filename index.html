@@ -65,6 +65,18 @@
 }
 @media(prefers-reduced-motion:reduce){#side-nav .side-btn.is-current-mini .sb-icon{animation:none!important;filter:none}}
 
+
+/* 자동 구성 하위 메뉴: 같은 그룹이라는 시각적 연결감 */
+#side-nav .wizard-submenu[hidden]{display:none!important}
+#side-nav .wizard-submenu{box-sizing:border-box;position:relative;display:flex;flex-direction:column;align-items:flex-end;width:178px;max-width:178px;margin:0 0 9px;padding:14px 0 8px 0;border-radius:0 0 12px 12px;background:linear-gradient(180deg,rgba(44,63,93,.10),rgba(44,63,93,.035));}
+#side-nav .wizard-submenu:before{content:"";position:absolute;top:0;right:36px;height:13px;width:2px;border-radius:2px;background:#8398b7;pointer-events:none}
+#side-nav .wizard-submenu:after{content:"";position:absolute;top:12px;right:34px;width:6px;height:6px;border-radius:50%;background:#8398b7;pointer-events:none}
+#side-nav .wizard-submenu .side-tutorial-btn{margin:0 0 4px 0;flex-shrink:0;align-self:flex-end}
+#side-nav .wizard-submenu .side-guides{margin:0;padding-left:17px;width:178px;min-width:178px;align-self:flex-end}
+#side-nav .wizard-submenu:has(.side-guides[hidden]):not(:has(.side-tutorial-btn.visible)){display:none}
+#side-nav .wizard-submenu .side-guide-link{position:relative}
+#side-nav .wizard-submenu .side-guide-link:before{content:"";position:absolute;left:-9px;top:50%;height:1px;width:7px;background:#91a4c2;opacity:.75;pointer-events:none}
+
 </style>
 </head>
 <body>
@@ -115,12 +127,14 @@
   <button type="button" class="side-btn" id="nav-wizard" onclick="showView('wizard')" title="ELK 자동 구성">
     <span class="sb-icon">🚀</span>자동<br>구성
   </button>
+  <div class="wizard-submenu" id="wizard-submenu" hidden aria-label="자동 구성 하위 메뉴">
   <button type="button" class="side-tutorial-btn" id="side-tutorial-btn" onclick="openWizardMenuTutorial()" title="빠른 설정·고급 설정·패치·점검·기존 설정 불러오기 메뉴 안내"><span class="tutorial-emoji" aria-hidden="true">💡</span><span>메뉴 사용 안내</span></button>
   <div class="side-guides" id="side-guides" hidden aria-label="OneClick 사용 가이드">
     <span class="side-guide-rocket" id="side-guide-rocket" aria-hidden="true"><span class="rocket-flight"><span class="rocket-smoke smoke-a"></span><span class="rocket-smoke smoke-b"></span><span class="rocket-smoke smoke-c"></span><span class="rocket-smoke smoke-d"></span><span class="rocket-fire fire-outer"></span><span class="rocket-fire fire-inner"></span><span class="rocket-symbol">🚀</span></span></span>
     <a class="side-guide-link" href="./guide/guide-install.html" target="_blank" rel="noopener" title="ELK OneClick 신규 설치 가이드">신규 설치 가이드</a>
     <a class="side-guide-link" href="./guide/guide-adopt.html" target="_blank" rel="noopener" title="기존 ELK 서버 OneClick 관리 등록 가이드">기존 ELK 등록 가이드</a>
     <a class="side-guide-link" href="./guide/guide-upgrade.html" target="_blank" rel="noopener" title="OneClick 구버전 업그레이드 가이드">구버전 업그레이드 가이드</a>
+  </div>
   </div>
   <button type="button" class="side-btn" id="nav-conf" onclick="showView('conf')" title="Logstash 설정파일 만들기">
     <span class="sb-icon">⚙️</span>Logstash<br>설정
@@ -444,14 +458,14 @@
   }
   window.showView=function(view){
     const result=wrapper.apply(this,arguments);
-    panel.hidden=(view!=='wizard');document.getElementById('side-tutorial-btn')?.classList.toggle('visible',view==='wizard');
+    panel.hidden=(view!=='wizard');document.getElementById('wizard-submenu').hidden=(view!=='wizard');document.getElementById('side-tutorial-btn')?.classList.toggle('visible',view==='wizard');
     syncCurrentMini(view);
     return result;
   };
   panel.hidden=!(document.getElementById('view-wizard')?.style.display!=='none' && document.getElementById('view-home')?.style.display==='none');
   const currentView=['calc','wizard','conf'].find(key=>document.getElementById('view-'+key)?.style.display!=='none');
   syncCurrentMini(document.getElementById('view-home')?.style.display==='none'?currentView:null);
-  document.getElementById('side-tutorial-btn')?.classList.toggle('visible',!panel.hidden);
+  document.getElementById('side-tutorial-btn')?.classList.toggle('visible',!panel.hidden);document.getElementById('wizard-submenu').hidden=panel.hidden;
   const rocket=document.getElementById('side-guide-rocket');
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
   if(rocket){
