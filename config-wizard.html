@@ -729,6 +729,33 @@ a.mbadge:hover{filter:brightness(1.1)}
   height:auto!important;
   overflow:visible!important;
 }
+
+/* Patch 00/01/02: 내부 항목을 각 단계 헤더의 색상과 함께 통일 */
+#patch-major-adopt{--patch-accent:#334155;--patch-dark:#192538;--patch-soft:#f1f5f9;--patch-line:#a5b4c6}
+#patch-major-version{--patch-accent:#6d28d9;--patch-dark:#4c1d95;--patch-soft:#f7f2ff;--patch-line:#c4b5fd}
+#patch-major-settings{--patch-accent:#2563eb;--patch-dark:#1e40af;--patch-soft:#eff6ff;--patch-line:#93c5fd}
+#patch-major-adopt.open,#patch-major-version.open,#patch-major-settings.open{background:linear-gradient(180deg,var(--patch-soft),#fff 195px)}
+#patch-major-adopt > .patchacc-body,#patch-major-version > .patchacc-body,#patch-major-settings > .patchacc-body{border-top:0}
+#patch-major-adopt .adoptbox{border-color:var(--patch-line);background:linear-gradient(180deg,var(--patch-soft),#fff)}
+#patch-major-adopt .adopthead{border-bottom-color:var(--patch-line);background:var(--patch-soft)}
+#patch-major-adopt .adoptico{background:var(--patch-accent);color:#fff}
+#patch-major-adopt .adopthead b,#patch-major-adopt .adoptstep b{color:var(--patch-dark)}
+#patch-major-adopt .adoptstep{border-color:var(--patch-line);background:#fff}
+#patch-major-adopt .adoptstep::selection{background:var(--patch-line)}
+#patch-major-version .legacyupgrade{border-color:var(--patch-line);background:linear-gradient(135deg,var(--patch-soft),#fff)}
+#patch-major-version .legacyupgrade .luhead{border-bottom-color:var(--patch-line);background:var(--patch-soft)}
+#patch-major-version .legacyupgrade .luico{background:var(--patch-accent);color:#fff}
+#patch-major-version .legacyupgrade .luhead b{color:var(--patch-dark)}
+#patch-major-settings .pgroup{border-color:var(--patch-line);box-shadow:0 2px 7px rgba(37,99,235,.08)}
+#patch-major-settings .pghead b{color:var(--patch-dark)}
+#patch-major-settings .pghead{border-bottom-color:var(--patch-line)}
+#patch-major-settings .prow.sel{background:var(--patch-soft)}
+#patch-major-settings .pcb,#patch-major-settings input[type=checkbox],#patch-major-settings input[type=radio]{accent-color:var(--patch-accent)}
+#patch-major-settings .pgroup:focus-within{border-color:var(--patch-accent)}
+#patch-major-settings .prow:focus-within{background:var(--patch-soft)}
+#patch-major-settings .pname small{color:#5b7bb6}
+#patch-major-settings .pgroup input:focus,#patch-major-settings .pgroup textarea:focus,#patch-major-settings .pgroup select:focus{border-color:var(--patch-accent);outline-color:var(--patch-line)}
+
 </style></head><body>
 <header class="top"><div class="topin"><div class="hleft"><div class="brand">ELK Oneclick Installer <small>v2.9.55</small></div><div class="mode"><button id="simpleBtn" class="on">빠른 설정</button><button id="advancedBtn">고급 설정</button><button id="patchBtn" title="이미 설치된 서버에서 바꾼 값만 골라 적용합니다">패치</button><button id="inspectBtn" title="서버 정기점검: 버전·Uptime·디스크·CPU·메모리·마지막 로그 시각 등을 한눈에 확인하는 명령을 만들어 줍니다">점검</button></div></div><div class="search"><input id="search" placeholder="변수명/설명 검색"></div><div class="actions"><button id="folderBtn" title="생성한 SH/ENV를 이 폴더에 직접 저장하려면 Config Wizard가 있는 폴더를 처음 한 번 선택하세요.">📁 저장 폴더 연결</button><span id="folderState" class="saveFolderState">브라우저 다운로드 폴더 사용</span><span id="defaultsState" class="saveFolderState" hidden></span><div class="hgroup" role="group" aria-label="기존 입력값 불러오기"><span class="hgtitle">기존 입력값 불러오기</span><button id="importBtn" title="저장해 둔 elk.env 파일의 값을 불러옵니다.">elk.env</button><button id="importShBtn" title="이전에 Config Wizard에서 생성한 elk-oneclick-install*.sh를 불러와 환경변수와 Ubuntu 배포 설정을 복원합니다.">sh 파일</button></div><button id="resetBtn">초기화</button></div><input id="fileInput" type="file" accept=".env,.txt" hidden><input id="shFileInput" type="file" accept=".sh,text/x-shellscript" hidden></div></header>
 <div class="wrap"><div id="defaultsWarn" class="info warn" hidden></div><div class="layout"><div class="sidecol"><aside id="side" class="side"></aside><div class="sidecredit"><span class="creditmark" aria-hidden="true">✦</span><p class="credittext">ELK 마스터 <b>윤태리 선임</b>의 가이드를 기반으로 제작되었습니다.</p></div><div class="sidebuild" id="sidebuild" title="지금 열려 있는 Wizard 파일의 빌드 번호입니다. 수정본을 올렸는데 화면이 그대로면 이 번호가 안내받은 번호와 같은지 확인하세요."></div></div><main id="main" class="main"></main></div></div>
@@ -1352,8 +1379,8 @@ function patchPage(){
   return `<div class="panel patchpage"><div class="statusbar"><span class="pill ok">패치</span><span class="pill">3단계로 진행</span></div>
 <h2>패치<span class="titlenote" title="이미 설치된 서버에서 바꾼 값만 골라 그 부분만 다시 적용합니다. 전체 재설치는 하지 않습니다.">설치된 서버의 일부 값만 바꿔 적용하는 기능</span></h2>
 <div class="info"><b>패치/등록은 세 종류입니다.</b> <b>기존 ELK 서버 등록</b>은 수동 구축 ELK를 재설치 없이 관리 대상으로 등록하고, <b>OneClick 버전 업그레이드</b>는 기존 OneClick 서버를 최신 체계로 올립니다. <b>설정값 패치</b>는 등록된 서버에서 선택한 값만 변경합니다.</div>
-<section class="patchaccordion adopt open" id="patch-major-adopt">
-<button type="button" class="patchacc-head" data-patch-acc="patch-major-adopt" aria-expanded="true"><span class="patchacc-left"><span class="patchacc-num">00</span><span class="patchacc-title"><b>기존 ELK 서버 OneClick 관리 등록</b><span>OneClick으로 설치하지 않은 ELK를 재설치 없이 관리 대상으로 등록합니다.</span></span></span><span class="patchacc-arrow" aria-hidden="true"></span></button>
+<section class="patchaccordion adopt" id="patch-major-adopt">
+<button type="button" class="patchacc-head" data-patch-acc="patch-major-adopt" aria-expanded="false"><span class="patchacc-left"><span class="patchacc-num">00</span><span class="patchacc-title"><b>기존 ELK 서버 OneClick 관리 등록</b><span>OneClick으로 설치하지 않은 ELK를 재설치 없이 관리 대상으로 등록합니다.</span></span></span><span class="patchacc-arrow" aria-hidden="true"></span></button>
 <div class="patchacc-body"><div class="adoptbox"><div class="adopthead"><span class="adoptico">＋</span><div><b>기존 ELK를 그대로 유지하고 관리 도구만 추가</b><small>elasticsearch.yml · kibana.yml · logstash.yml · 기존 pipeline은 수정하지 않습니다.</small></div></div><div class="adoptbody">
 <div class="adoptflow"><div class="adoptstep"><b>1. 읽기 전용 검사</b>경로·서비스·포트와 기존 설정 확인</div><div class="adoptstep"><b>2. 기존 설정 백업</b><code>/var/backups/elk-oneclick-adopt</code></div><div class="adoptstep"><b>3. 관리 환경 생성</b><code>/etc/elk-auto/elk.env</code>와 관리 도구만 설치</div><div class="adoptstep"><b>4. 필요한 기능만 패치</b>ProxySG·ILM·Dashboard는 이후 선택 적용</div></div>
 <div class="adoptcmds"><div class="adoptcmd"><b>먼저 호환성 검사</b><code>sudo bash _internal/core/elk-oneclick-adopt.sh --inspect</code><div class="luactions"><button type="button" id="adoptCopyInspect" class="ubtn">명령 복사</button></div></div><div class="adoptcmd"><b>관리 대상으로 등록</b><code>sudo bash _internal/core/elk-oneclick-adopt.sh --apply --source-dir _internal/core</code><div class="luactions"><button type="button" id="adoptCopyApply" class="ubtn primary">등록 명령 복사</button></div></div></div>
