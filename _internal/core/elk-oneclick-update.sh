@@ -20,10 +20,35 @@ RELEASE="${ELK_ONECLICK_RELEASE_FILE:-/etc/elk-auto/oneclick-release.env}"
 REMOTE_MANIFEST="${ELK_ONECLICK_REMOTE_MANIFEST:-/etc/elk-auto/oneclick-github-blobs.tsv}"
 BACKUP_ROOT="${ELK_ONECLICK_BACKUP_DIR:-/var/backups/elk-oneclick}"
 
-MODE="${1:---check}"
+MODE="--check"
+for _arg in "$@"; do
+  case "$_arg" in --color=always|--color=never|--no-color) ;; *) MODE="$_arg"; break ;; esac
+done
 
+# ANSI colors: only on an interactive terminal, never in redirected logs or pipes.
+UI_COLOR_MODE="${ELK_UPDATE_COLOR:-auto}"
+for _arg in "$@"; do
+  case "$_arg" in --color=always) UI_COLOR_MODE=always ;; --color=never|--no-color) UI_COLOR_MODE=never ;; esac
+done
+case "${UI_COLOR_MODE,,}" in
+  always) UI_COLOR=1 ;;
+  never) UI_COLOR=0 ;;
+  *) if [[ -t 1 && -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then UI_COLOR=1; else UI_COLOR=0; fi ;;
+esac
+if (( UI_COLOR )); then
+  UI_RESET=$'\033[0m'; UI_BOLD=$'\033[1m'; UI_BLUE=$'\033[1;94m'; UI_CYAN=$'\033[1;96m'
+  UI_GREEN=$'\033[1;92m'; UI_YELLOW=$'\033[1;93m'; UI_RED=$'\033[1;91m'; UI_DIM=$'\033[2m'
+else
+  UI_RESET=''; UI_BOLD=''; UI_BLUE=''; UI_CYAN=''; UI_GREEN=''; UI_YELLOW=''; UI_RED=''; UI_DIM=''
+fi
 say(){ printf '%s\n' "$*"; }
-die(){ say "[ERROR] $*" >&2; exit 1; }
+ui_heading(){ printf '\n%s━━━━━━━━ %s ━━━━━━━━%s\n' "$UI_BLUE" "$*" "$UI_RESET"; }
+ui_kv(){ printf '  %s%-19s%s : %s\n' "$UI_DIM" "$1" "$UI_RESET" "$2"; }
+ui_info(){ printf '%s[INFO]%s %s\n' "$UI_CYAN" "$UI_RESET" "$*"; }
+ui_ok(){ printf '%s[OK]%s %s\n' "$UI_GREEN" "$UI_RESET" "$*"; }
+ui_warn(){ printf '%s[WARN]%s %s\n' "$UI_YELLOW" "$UI_RESET" "$*" >&2; }
+ui_error(){ printf '%s[ERROR]%s %s\n' "$UI_RED" "$UI_RESET" "$*" >&2; }
+die(){ ui_error "$*"; exit 1; }
 need(){ command -v "$1" >/dev/null 2>&1 || die "$1 명령이 필요합니다."; }
 
 for c in curl jq sha1sum sha256sum stat cmp sort; do need "$c"; done
@@ -169,15 +194,15 @@ print_reconcile_advice(){
   # install-elk.sh는 target_for 대상이 아니므로 CHANGED_SOURCE에 잡힌다.
   if (( ${#CHANGED_RUNTIME[@]} + ${#CHANGED_SOURCE[@]} == 0 )); then
     say
-    say "  [적용 권장사항]"
-    say "    · 추가 작업 없음 — 현재 설치 파일과 GitHub 기준이 동일합니다."
+    ui_heading "적용 권장사항"
+    ui_ok "현재 설치 파일과 GitHub 기준이 동일합니다."
     return 0
   fi
 
   say
-  say "  [적용 권장사항]"
+  ui_heading "적용 권장사항"
   if (( _runtime_only )); then
-    say "    · --apply만으로 충분합니다. 런타임 파일 교체 외 추가 구성 재적용이 필요하지 않습니다."
+    ui_ok "--apply만으로 충분합니다. 추가 구성 재적용이 필요하지 않습니다."
   else
     if (( _filter_changed )); then
       say "    · proxysg-log-filter.conf 변경 감지"
@@ -195,7 +220,7 @@ print_reconcile_advice(){
     fi
     if (( _need_full )); then
       say "    · 권장: 필요한 elk.env 값을 먼저 패치/확인한 뒤 아래 명령으로 전체 구성을 재적용하세요."
-      say "      sudo elk-oneclick-update --full"
+      say "      ${UI_CYAN}sudo elk-oneclick-update --full${UI_RESET}"
     else
       say "    · 설치 소스 변경이 있으므로 변경 내용을 확인한 뒤 필요할 때만 --full을 사용하세요."
     fi
@@ -282,32 +307,32 @@ for N in "${NAMES[@]}"; do
   fi
 done
 
-say "ELK One-Click GitHub 증분 업데이트 확인"
-say "  저장소       : https://github.com/$OWNER/$REPO ($BRANCH)"
-say "  설치 버전    : ${IV:-확인 불가}"
-say "  설치 빌드    : ${IB:-확인 불가}"
-say "  GitHub 버전  : $LV"
-say "  GitHub 빌드  : $LB"
-say "  모드         : delta-only"
-say "  비교 방식    : GitHub blob SHA ↔ 실제 설치 파일"
+ui_heading "ELK OneClick 업데이트"
+ui_kv "저장소" "https://github.com/$OWNER/$REPO ($BRANCH)"
+ui_kv "설치 버전" "${IV:-확인 불가}  ·  ${IB:-빌드 확인 불가}"
+ui_kv "GitHub 최신" "${UI_GREEN}v$LV${UI_RESET}  ·  $LB"
+ui_kv "실행 모드" "$MODE"
+ui_kv "비교 방식" "GitHub blob SHA ↔ 로컬 파일"
+ui_heading "변경 파일 분석"
 
 if (( ${#CHANGED_RUNTIME[@]} )); then
   say
-  say "  [실제 업데이트 대상]"
+  ui_info "런타임 변경: ${#CHANGED_RUNTIME[@]}개"
   for N in "${CHANGED_RUNTIME[@]}"; do
-    say "    · $N -> $(target_for "$N")"
+    printf "    %s●%s %s\n" "$UI_GREEN" "$UI_RESET" "$N"
+    say "      ↳ $(target_for "$N")"
     say "      ↳ $(impact_text "$(impact_for "$N")")"
   done
 else
   say
-  say "  [실제 업데이트 대상] 없음"
+  ui_ok "런타임 변경 파일 없음"
 fi
 
 if (( ${#CHANGED_SOURCE[@]} )); then
   say
-  say "  [설치 엔진/소스 변경 - 기본 --apply에서는 적용하지 않음]"
+  ui_warn "설치 엔진/소스 변경: ${#CHANGED_SOURCE[@]}개 (--apply에서는 미적용)"
   for N in "${CHANGED_SOURCE[@]}"; do
-    say "    · $N"
+    printf "    %s●%s %s\n" "$UI_YELLOW" "$UI_RESET" "$N"
     say "      ↳ $(impact_text "$(impact_for "$N")")"
   done
   say "    ※ --apply는 런타임 파일만 교체하며 Dashboard/Logstash 재렌더링/installer 기본값은 자동 재적용하지 않습니다."
@@ -315,7 +340,7 @@ fi
 
 if (( ${#BASELINE_SOURCE[@]} )); then
   say
-  say "  [소스 비교 기준 최초 등록]"
+  ui_info "소스 비교 기준 최초 등록"
   for N in "${BASELINE_SOURCE[@]}"; do say "    · $N"; done
   say "    ※ 파일 다운로드 없이 GitHub SHA만 기준값으로 등록합니다."
 fi
@@ -327,9 +352,10 @@ print_reconcile_advice
 
 if [[ "$MODE" == "--check" || "$MODE" == "check" || "$MODE" == "--version" ]]; then
   say
-  say "  core 파일 다운로드 : 0개"
-  say "  런타임 변경        : $TOTAL_RUNTIME개"
-  say "  소스 변경          : $TOTAL_SOURCE개"
+  ui_heading "검사 결과"
+  ui_kv "Core 다운로드" "0개"
+  ui_kv "런타임 변경" "$TOTAL_RUNTIME개"
+  ui_kv "소스 변경" "$TOTAL_SOURCE개"
   (( TOTAL_RUNTIME + TOTAL_SOURCE > 0 )) && exit 10 || exit 0
 fi
 
@@ -342,7 +368,7 @@ trap cleanup EXIT
 
 download_one(){
   local n="$1"
-  say "  [DOWNLOAD] $n"
+  ui_info "다운로드: $n"
   curl -fsSL --connect-timeout 10 --max-time 120 \
     "$RAW/_internal/core/$n" -o "$T/$n" || die "다운로드 실패: $n"
 }
@@ -358,7 +384,7 @@ else
 fi
 
 say
-say "[다운로드]"
+ui_heading "다운로드"
 if (( ${#DOWNLOAD_NAMES[@]} == 0 )); then
   say "  변경된 런타임 파일이 없어 core 다운로드를 수행하지 않습니다."
 else
@@ -375,11 +401,11 @@ if (( ${#DOWNLOAD_NAMES[@]} > 0 )); then
       EXP="$(awk -v p="_internal/core/$N" '$2==p{print $1}' <<<"$SUMS" | tail -1)"
       [[ -z "$EXP" ]] && continue
       ACT="$(sha256sum "$T/$N" | awk '{print $1}')"
-      [[ "$ACT" == "$EXP" ]] || { say "[ERROR] SHA256 불일치: $N"; bad=1; }
+      [[ "$ACT" == "$EXP" ]] || { ui_error "SHA256 불일치: $N"; bad=1; }
     done
     (( bad == 0 )) || die "파일 무결성 검증에 실패했습니다."
   else
-    say "[WARN] SHA256SUMS.txt를 읽지 못해 다운로드 파일의 repository hash 검증을 생략합니다."
+    ui_warn "SHA256SUMS.txt를 읽지 못해 다운로드 파일 검증을 생략합니다."
   fi
 fi
 
@@ -421,10 +447,10 @@ if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
   }
   trap full_cleanup EXIT
 
-  say "[1/3] 최신 설치기 검증"
+  ui_heading "[1/3] 최신 설치기 검증"
   bash "$T/install-elk.sh" "$PATCH_ENV" --validate
 
-  say "[2/3] 전체 구성 재적용"
+  ui_heading "[2/3] 전체 구성 재적용"
   bash "$T/install-elk.sh" "$PATCH_ENV"
 
   if (( LOGSTASH_WAS_ACTIVE )) && ! systemctl is-active --quiet logstash 2>/dev/null; then
@@ -432,19 +458,19 @@ if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
   fi
 
   if [[ -f "$T/check-elk.sh" ]]; then
-    say "[3/3] 전체 상태 점검"
+    ui_heading "[3/3] 전체 상태 점검"
     set +e
     bash "$T/check-elk.sh" "$ENVF"
     CHECK_RC=$?
     set -e
-    (( CHECK_RC == 0 )) || say "[WARN] 상태 점검에서 확인할 항목이 있습니다. (rc=$CHECK_RC)"
+    (( CHECK_RC == 0 )) || ui_warn "상태 점검에서 확인할 항목이 있습니다. (rc=$CHECK_RC)"
   fi
 
   FULL_OK=1
   trap cleanup EXIT
 else
   if (( ${#CHANGED_RUNTIME[@]} == 0 )); then
-    say "[OK] 변경된 런타임 파일이 없습니다."
+    ui_ok "변경된 런타임 파일이 없습니다."
     say "     install-elk.sh / ELK 패키지 / Logstash 구성 재적용은 수행하지 않았습니다."
   else
     TS="$(date +%Y%m%d-%H%M%S)"
@@ -457,7 +483,7 @@ else
     APPLIED=0
 
     say
-    say "[적용] 다운로드한 변경 파일만 교체합니다."
+    ui_heading "변경 파일 적용"
 
     for N in "${CHANGED_RUNTIME[@]}"; do
       DEST="$(target_for "$N")"
@@ -472,7 +498,7 @@ else
       [[ -f "$DEST" ]] && cp -a "$DEST" "$BKDIR/$(basename "$DEST").before"
       install -m "$MODE_N" "$T/$N" "$DEST"
 
-      say "  [UPDATED] $N -> $DEST"
+      ui_ok "교체 완료: $N → $DEST"
       APPLIED=$((APPLIED+1))
 
       [[ "$N" == "elk-report-web.py" ]] && WEB_CHANGED=1
@@ -482,13 +508,13 @@ else
     if (( WEB_CHANGED )) && command -v systemctl >/dev/null 2>&1; then
       if systemctl is-enabled --quiet elk-report-web.service 2>/dev/null || \
          systemctl is-active --quiet elk-report-web.service 2>/dev/null; then
-        say "  [RESTART] elk-report-web.service"
+        ui_info "리포트 웹 서비스 재시작"
         systemctl restart elk-report-web.service
       fi
     fi
 
     if (( REPORT_CHANGED )) && [[ -x /usr/local/sbin/elk-report ]]; then
-      say "  [REFRESH] ELK 점검 리포트 재생성"
+      ui_info "ELK 점검 리포트 재생성"
       /usr/local/sbin/elk-report --no-color >/dev/null 2>&1 || true
     fi
 
@@ -496,7 +522,7 @@ else
       DEST="/usr/local/sbin/elk-oneclick-update"
       [[ -f "$DEST" ]] && cp -a "$DEST" "$BKDIR/elk-oneclick-update.before"
       install -m 755 "$T/elk-oneclick-update.sh" "$DEST"
-      say "  [UPDATED] elk-oneclick-update.sh -> $DEST"
+      ui_ok "업데이터 자체 갱신: $DEST"
       APPLIED=$((APPLIED+1))
     fi
 
@@ -529,12 +555,12 @@ META
 chmod 644 "$RELEASE"
 
 if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
-  say "[OK] 전체 구성 재적용 완료: v$LV · build $LB"
+  ui_ok "전체 구성 재적용 완료: v$LV · build $LB"
   say "     Dashboard / Logstash 렌더링 / Kibana 설정은 현재 elk.env 기준으로 재적용되었습니다."
 else
-  say "[OK] delta-only 업데이트 완료: 실제 변경 파일만 반영했습니다. v$LV · build $LB"
+  ui_ok "차등 업데이트 완료: v$LV · build $LB"
   say
-  say "[다음 단계]"
+  ui_heading "다음 단계"
   _NEXT_FULL=0
   for N in "${CHANGED_RUNTIME[@]}" "${CHANGED_SOURCE[@]}"; do
     [[ -n "$N" ]] || continue
