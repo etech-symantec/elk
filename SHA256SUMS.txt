@@ -5,7 +5,7 @@ f9be6d00c5e90ef564d516d170272c896aedb48748bafad7446150264dd7378e  ./_internal/co
 31f64220edb3bf48af7a674d90ab16f9b5910108d7c0657d9fd307340ab1ee73  ./_internal/core/elk-oneclick-adopt.sh
 9344e157560d1d02051926a791d9e4801a23359278d521298687e44caa2296d5  ./_internal/core/elk-oneclick-update.sh
 24cce110aea0e41cd724dbd05e62f380417a514894875edab9ce19b9745cf74d  ./_internal/core/elk-ops.sh
-13ae8a9c3ac531324f9b44048371ca795ee9c64e572f9ce05c86b180fef744fa  ./_internal/core/elk-patch.sh
+e730cbe06b210b5f1fa43abaa75bc701e183085b6382e6904c0e5c830cef581b  ./_internal/core/elk-patch.sh
 7601812a996f151e9ff52ea446851d96e3db5b8b861137717b9915123c48b087  ./_internal/core/elk-report-web.py
 21d545e3fd3c0d338d4245329b32e93cb9cbfda465c45c10da692aba029ff9cd  ./_internal/core/elk-report.sh
 ccb7600cf9e0828021e72ed02bd36e8fedb14fca4eff768b42735ae194a4f753  ./_internal/core/elk-tls-lib.sh
@@ -29,7 +29,7 @@ a3a2f775905dd44e8cf46efc8b1371e67de91f7e6a9495c2133ae2bf19a84ab3  ./_internal/to
 d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./_internal/tools/run-remote-deploy.ps1
 aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report-update.sh
 a57f33319a9175d3a366d4195c2276ab8e1adc7659c3d2c67a73dbee87d77c1a  ./bootstrap-update.sh
-ad90f7e2a5235a83aede030597d36830826dc46ceed4df4ae6a671aff8e1434b  ./config-wizard.html
+4176bcc70b1924f87fa1dd891720faa78bc5fd5320afe6bd9d2c8d8fdcda9d22  ./config-wizard.html
 28ae82d80821bda286ea29db3250f0e7058d9095af7a9b90b5ef2d8ce050459d  ./guide/guide-adopt-easy.html
 89aea20a40a20ed993244eb80365aa75cb17484e3feaf6ed911c4cb0c9f60d96  ./guide/guide-adopt.html
 896b01f30ae4d7e03890a6c14bbea594f2b4a307bf3f17e6884396d674a040b8  ./guide/guide-install-easy.html
@@ -38,4 +38,4 @@ f0b3c35768cb75cd987c933c9719d729ee5cb63a82db7b0e6c91d6b1657c13c9  ./guide/guide-
 12290890dc3041f93b1f52a21a83b25c3c367543caccba65719493cbd24d3348  ./guide/guide-upgrade.html
 89018ec01b9b4fb61ab8788e9153acb55f4d2c215e933d21d96efa658d91e5c2  ./run-remote-deploy.cmd
 d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./run-remote-deploy.ps1
-dcbbcb5e5656ab9e41a512649c7a1199ee933e1b4a41d158c0e0cb2e3a984189  ./version.json
+108ec950f3ed5bf1ccebdd5d5ae570da85ed76f37418956374ce686f804187ad  ./version.json
