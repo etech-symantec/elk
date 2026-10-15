@@ -14,7 +14,7 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 PATCH_VERSION="32"
-ELK_AUTO_VERSION="2.9.54"
+ELK_AUTO_VERSION="2.9.55"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 도구 파일(proxysg-lib.sh 등)은 이 스크립트 옆에 있으면 그것을, 없으면 설치기가 넣어 둔 /usr/local/lib/elk-auto 를 사용
@@ -54,6 +54,13 @@ declare -A KEY_ACTIONS=(
   [PROXYSG_MAIN_BACKUP_DIR]="dirs" [PROXYSG_SSL_BACKUP_DIR]="dirs" [PROXYSG_CLOUD_BACKUP_DIR]="dirs"
   [PROXYSG_MAIN_INDEX_PREFIX]="pipeline index dataview dashboard" [PROXYSG_SSL_INDEX_PREFIX]="pipeline index dataview dashboard" [PROXYSG_CLOUD_INDEX_PREFIX]="pipeline index dataview"
   [PROXYSG_CLOUD_ENABLED]="dirs pipeline index dataview"
+  # Cloud API fetch settings are read from elk.env on each scheduled log-processing run.
+  [PROXYSG_CLOUD_API_ENABLED]="envonly"
+  [PROXYSG_CLOUD_API_USERNAME]="envonly"
+  [PROXYSG_CLOUD_API_PASSWORD]="envonly"
+  [PROXYSG_CLOUD_API_URL]="envonly"
+  [PROXYSG_CLOUD_API_LOOKBACK_DAYS]="envonly"
+  [PROXYSG_CLOUD_API_INSECURE]="envonly"
   [PROXYSG_MAIN_DATA_VIEW_NAME]="dataview" [PROXYSG_SSL_DATA_VIEW_NAME]="dataview" [PROXYSG_CLOUD_DATA_VIEW_NAME]="dataview"
   [KIBANA_CREATE_PROXYSG_DASHBOARD]="dashboard"
   [KIBANA_PROXYSG_DASHBOARD_TITLE]="dashboard"
@@ -63,6 +70,7 @@ declare -A KEY_ACTIONS=(
 # 값이 같아도 "지금 갱신"으로 실행하는 항목 (인증서는 값이 그대로여도 새로 발급할 수 있어야 한다)
 declare -A FORCE_KEYS=([ES_CA_DAYS]=1 [ES_CERT_DAYS]=1 [NGINX_TLS_DAYS]=1 [KIBANA_PROXYSG_DASHBOARD_WIDGETS]=1)
 declare -A ACTION_TEXT=(
+  [envonly]="Cloud API 설정 저장 (다음 로그 처리 실행부터 적용)"
   [dirs]="로그 폴더 생성·권한 설정(없는 폴더만 새로 만듦)"
   [pipeline]="Logstash pipeline 다시 만들기 → 문법 검사 → Logstash 재시작 (검사 실패 시 자동 복구)"
   [cron]="cron 파일의 실행 시간만 교체"
@@ -73,7 +81,7 @@ declare -A ACTION_TEXT=(
   [escerts]="Elasticsearch 인증서(CA·HTTP·transport) 유효기간 연장·갱신 (같은 CA 키 유지) → elasticsearch.yml 을 PEM 설정으로 → Elasticsearch 재시작(수십 초, 실패 시 자동 복구)"
   [nginxcert]="Nginx 자체 서명 인증서 유효기간 연장·갱신 (같은 키·같은 주소) → nginx 문법 검사 → reload (실패 시 자동 복구)"
 )
-ACTION_ORDER=(dirs pipeline cron ilm index dataview dashboard escerts nginxcert)
+ACTION_ORDER=(envonly dirs pipeline cron ilm index dataview dashboard escerts nginxcert)
 
 usage() { sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
@@ -81,7 +89,7 @@ list_keys() {
   echo "패치할 수 있는 항목:   (★ = 이전 버전(2.9.4 미만, GUIDE_*)으로 설치한 서버에서도 패치 가능)"
   local k; for k in $(printf '%s\n' "${!KEY_ACTIONS[@]}" | sort); do
     local a="" x acts; IFS=' ' read -ra acts <<<"${KEY_ACTIONS[$k]}"; for x in "${acts[@]}"; do a+="${ACTION_TEXT[$x]}; "; done
-    local star=""; IFS=' ' read -ra acts <<<"${KEY_ACTIONS[$k]}"; local ok=1; for x in "${acts[@]}"; do case "$x" in cron|ilm|dirs|dataview|escerts|nginxcert) ;; *) ok=0 ;; esac; done; (( ok )) && star="  ★"
+    local star=""; IFS=' ' read -ra acts <<<"${KEY_ACTIONS[$k]}"; local ok=1; for x in "${acts[@]}"; do case "$x" in envonly|cron|ilm|dirs|dataview|escerts|nginxcert) ;; *) ok=0 ;; esac; done; (( ok )) && star="  ★"
     printf '  %-36s %s%s\n' "$k" "${a%; }" "$star"
   done
 }
@@ -246,6 +254,14 @@ fi
 # ---------------------------------------------------------------- 변경 내용 표시
 cur() { local n="$1"; printf '%s' "${!n-}"; }
 (( LEGACY )) && echo "※ 이전 버전(2.9.4 미만, GUIDE_*)으로 설치된 서버입니다. 설정 파일의 이전 이름을 그대로 수정하고, Logstash 파이프라인은 건드리지 않습니다."
+# API credentials must not appear in terminal previews, tee logs or support bundles.
+patch_display_value() {
+  local k="$1" v="$2"
+  case "$k" in
+    PROXYSG_CLOUD_API_PASSWORD) [[ -n "$v" ]] && printf '[비공개]' || printf '[비어 있음]' ;;
+    *) printf '%s' "${v:0:60}" ;;
+  esac
+}
 echo "=== 적용 예정 변경 ($ENV_FILE) ==="
 changed=0
 for k in "${ORDER[@]}"; do
@@ -255,9 +271,9 @@ for k in "${ORDER[@]}"; do
     if [[ "$k" == "KIBANA_PROXYSG_DASHBOARD_WIDGETS" ]]; then
       printf '  ! %-34s 값은 그대로 — Dashboard를 지금 다시 생성합니다\n' "$k"
     else
-      printf '  ! %-34s 값은 그대로(%s) — 인증서를 지금 새로 발급합니다\n' "$k" "${n:0:60}"
+      printf '  ! %-34s 값은 그대로(%s) — 인증서를 지금 새로 발급합니다\n' "$k" "$(patch_display_value "$k" "$n")"
     fi
-  elif [[ "$o" == "$n" ]]; then printf '  = %-34s 변경 없음 (%s)\n' "$k" "${n:0:60}"; else changed=1; printf '  ~ %-34s %s  →  %s\n' "$k" "${o:0:60}" "${n:0:60}"; fi
+  elif [[ "$o" == "$n" ]]; then printf '  = %-34s 변경 없음 (%s)\n' "$k" "$(patch_display_value "$k" "$n")"; else changed=1; printf '  ~ %-34s %s  →  %s\n' "$k" "$(patch_display_value "$k" "$o")" "$(patch_display_value "$k" "$n")"; fi
 done
 (( changed )) || { echo "바뀐 값이 없어 아무것도 하지 않습니다."; exit 0; }
 echo "=== 적용할 작업 ==="
