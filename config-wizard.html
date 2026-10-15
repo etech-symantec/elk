@@ -779,7 +779,7 @@ function generateOneClick(opts){
   L.push('    elk_say WARN "GitHub 자동 업데이트 저장소가 아직 설정되지 않았습니다. Wizard의 ONECLICK_GITHUB_OWNER/REPO를 수정하세요."');
   L.push('    return 0');
   L.push('  fi');
-  L.push('  cat > "$ONECLICK_UPDATE_BIN" <<EOF');
+  L.push("  cat > \"$ONECLICK_UPDATE_BIN\" <<'EOF'");
   L.push('#!/usr/bin/env bash');
   L.push('set -Eeuo pipefail');
   L.push('OWNER="${ELK_ONECLICK_GITHUB_OWNER:-__OWNER__}"');
