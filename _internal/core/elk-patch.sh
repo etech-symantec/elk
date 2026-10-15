@@ -13,8 +13,8 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-PATCH_VERSION="32"
-ELK_AUTO_VERSION="2.9.54"
+PATCH_VERSION="33"
+ELK_AUTO_VERSION="2.9.55"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 도구 파일(proxysg-lib.sh 등)은 이 스크립트 옆에 있으면 그것을, 없으면 설치기가 넣어 둔 /usr/local/lib/elk-auto 를 사용
@@ -249,6 +249,20 @@ if istrue "$_target_cloud"; then
   [[ -n "$_target_api_pass" ]] || { echo "[거절] Cloud 로그 사용 시 PROXYSG_CLOUD_API_PASSWORD는 필수입니다." >&2; bad=1; }
   [[ "$_target_api_url" =~ ^https:// ]] || { echo "[거절] Cloud 로그 사용 시 PROXYSG_CLOUD_API_URL은 https:// URL이어야 합니다." >&2; bad=1; }
 fi
+# Never mutate elk.env if a selected action has no implementation.
+for _action in "${!ACTIONS[@]}"; do
+  declare -F "act_$_action" >/dev/null 2>&1 || {
+    # Action functions are declared below in this script; check against the known set here.
+    case "$_action" in envonly|dirs|pipeline|cron|ilm|index|dataview|dashboard|escerts|nginxcert) ;; *)
+      echo "[거절] 구현되지 않은 패치 작업: $_action" >&2; bad=1 ;;
+    esac
+  }
+done
+# An externally overridden pipeline will not reflect a regenerated ProxySG log format.
+if [[ -n "${ACTIONS[pipeline]+x}" && -s "$LIB_DIR/custom-pipeline.conf" ]]; then
+  echo "[거절] custom-pipeline.conf 가 있어 자동 Logstash 파이프라인 재생성이 적용되지 않습니다. 수동으로 custom-pipeline.conf 를 편집한 뒤 재검증하세요." >&2
+  bad=1
+fi
 (( bad )) && die "잘못된 항목이 있어 아무것도 바꾸지 않았습니다."
 
 # ---------------------------------------------------------------- 변경 내용 표시
@@ -258,7 +272,7 @@ cur() { local n="$1"; printf '%s' "${!n-}"; }
 patch_display_value() {
   local k="$1" v="$2"
   case "$k" in
-    PROXYSG_CLOUD_API_PASSWORD) [[ -n "$v" ]] && printf '[비공개]' || printf '[비어 있음]' ;;
+    PROXYSG_CLOUD_API_PASSWORD|PROXYSG_CLOUD_API_USERNAME) [[ -n "$v" ]] && printf '[비공개]' || printf '[비어 있음]' ;;
     *) printf '%s' "${v:0:60}" ;;
   esac
 }
@@ -277,7 +291,15 @@ for k in "${ORDER[@]}"; do
 done
 (( changed )) || { echo "바뀐 값이 없어 아무것도 하지 않습니다."; exit 0; }
 echo "=== 적용할 작업 ==="
-for a in "${ACTION_ORDER[@]}"; do [[ -n "${ACTIONS[$a]+x}" ]] && echo "  - ${ACTION_TEXT[$a]}"; done
+for a in "${ACTION_ORDER[@]}"; do
+  [[ -n "${ACTIONS[$a]+x}" ]] || continue
+  echo "  - ${ACTION_TEXT[$a]}"
+done
+if [[ -n "${ACTIONS[dirs]+x}" || -n "${ACTIONS[cron]+x}" || -n "${ACTIONS[index]+x}" || -n "${ACTIONS[dataview]+x}" ]]; then
+  if ! istrue "${PROXYSG_FLOW_ENABLED:-false}"; then
+    echo "  ! 주의: PROXYSG_FLOW_ENABLED=false 이므로 관련 폴더/cron/인덱스/데이터뷰 작업은 건너뛸 수 있습니다."
+  fi
+fi
 (( DRY )) && { echo "(--dry-run: 여기까지만 보여 주고 종료합니다)"; exit 0; }
 if (( ! YES )); then
   if [[ -t 0 ]]; then read -r -p "적용할까요? [y/N] " ans; [[ "${ans,,}" == y* ]] || die "취소했습니다."; else die "대화형 입력이 없습니다. --yes 를 붙여 실행하세요."; fi
@@ -329,6 +351,12 @@ ok_()   { OK_LIST+=("$1"); log "완료: $1"; }
 fail_() { FAIL_LIST+=("$1"); warn "실패: $1"; }
 
 # ---------------------------------------------------------------- 동작들
+# Cloud API variables are read directly from elk.env by proxysg-log-process.sh
+# at the start of each scheduled execution. No service restart is necessary.
+act_envonly() {
+  ok_ "Cloud API 설정 저장됨 (다음 로그 처리 실행부터 적용; 현재 실행 중인 작업은 변경되지 않음)"
+}
+
 act_dirs() {
   istrue "$PROXYSG_FLOW_ENABLED" || { log "로그 처리 스크립트가 꺼져 있어 폴더 작업은 건너뜁니다."; return 0; }
   local src=("$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR") bak=("$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR") prc=("$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR") d
@@ -425,7 +453,7 @@ act_dataview() {
     body="$(jq -nc --arg title "$t" --arg name "$n" --arg tf "$KIBANA_DATA_VIEW_TIME_FIELD" --argjson allow "$allow" '{data_view:{title:$title,name:$name,timeFieldName:$tf,allowNoIndex:$allow},override:true}')"
     out="$(curl -sS -w '\n%{http_code}' -u "${ELASTIC_USERNAME}:${ELASTIC_PASSWORD:-}" -H 'kbn-xsrf: true' -H 'Content-Type: application/json' -X POST "$url/api/data_views/data_view" -d "$body" || true)"
     code="$(printf '%s' "$out" | tail -n1)"
-    if [[ "$code" == "200" ]]; then ok_ "Data View '$n' → $t"; any=1; else fail_ "Data View '$n' 생성 (HTTP=$code)"; fi
+    if [[ "$code" == "200" || "$code" == "201" ]]; then ok_ "Data View '$n' → $t"; any=1; else fail_ "Data View '$n' 생성 (HTTP=$code)"; fi
   done
 }
 
