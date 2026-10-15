@@ -108,6 +108,7 @@ target_for(){
     proxysg-log-filter.conf)   printf '%s' "/usr/local/lib/elk-auto/proxysg-log-filter.conf" ;;
     elk-health-monitor.sh)     printf '%s' "/usr/local/sbin/elk-health-monitor" ;;
     elk-ops.sh)                printf '%s' "/usr/local/sbin/elk-ops" ;;
+    elk-stack-upgrade.sh)      printf '%s' "/usr/local/sbin/elk-stack-upgrade" ;;
     elk-patch.sh)              printf '%s' "/usr/local/sbin/elk-patch" ;;
     elk-color.sh)              printf '%s' "/usr/local/lib/elk-auto/elk-color.sh" ;;
     elk-report.sh)             printf '%s' "/usr/local/sbin/elk-report" ;;
@@ -148,7 +149,7 @@ impact_for(){
       printf '%s' "env-review"
       ;;
     # 런타임 교체만으로 즉시 반영되는 파일.
-    check-elk.sh|proxysg-log-process.sh|elk-health-monitor.sh|elk-ops.sh|elk-patch.sh|elk-color.sh|elk-report.sh|elk-report-web.py|elk-tls-lib.sh|proxysg-lib.sh|log-ingest-manager.sh|elk-oneclick-update.sh|elk-oneclick-adopt.sh)
+    check-elk.sh|proxysg-log-process.sh|elk-health-monitor.sh|elk-ops.sh|elk-stack-upgrade.sh|elk-patch.sh|elk-color.sh|elk-report.sh|elk-report-web.py|elk-tls-lib.sh|proxysg-lib.sh|log-ingest-manager.sh|elk-oneclick-update.sh|elk-oneclick-adopt.sh)
       printf '%s' "runtime"
       ;;
     *)
@@ -422,6 +423,15 @@ fi
 
 validate_patch_download
 
+# ELK Stack 업그레이드 도구는 단독 실행 파일이며, --apply 시 신규 설치도 허용한다.
+if [[ -f "$T/elk-stack-upgrade.sh" ]]; then
+  bash -n "$T/elk-stack-upgrade.sh" || die "elk-stack-upgrade.sh Bash 문법 오류: 배포를 중단합니다."
+  grep -q -- '--check' "$T/elk-stack-upgrade.sh" || die "elk-stack-upgrade.sh 필수 --check 옵션이 없습니다."
+  grep -q -- '--plan' "$T/elk-stack-upgrade.sh" || die "elk-stack-upgrade.sh 필수 --plan 옵션이 없습니다."
+  grep -q -- '--upgrade' "$T/elk-stack-upgrade.sh" || die "elk-stack-upgrade.sh 필수 --upgrade 옵션이 없습니다."
+  ui_ok "elk-stack-upgrade.sh 사전 검증 완료"
+fi
+
 if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
   [[ -f "$T/install-elk.sh" ]] || die "업데이트에 install-elk.sh가 없습니다."
 
@@ -512,6 +522,9 @@ if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
     else
       install -m "$MODE_N" "$T/$N" "$DEST"
     fi
+    if [[ "$N" == "elk-stack-upgrade.sh" ]]; then
+      [[ -x "$DEST" ]] && bash -n "$DEST" || die "ELK 업그레이드 도구 설치 후 검증 실패: $DEST"
+    fi
     ui_ok "도구 갱신: $N → $DEST"
     APPLIED=$((APPLIED+1))
     [[ "$N" == "elk-report-web.py" ]] && WEB_CHANGED=1
@@ -583,6 +596,9 @@ else
         install -m "$MODE_N" "$T/$N" "$DEST"
       fi
 
+      if [[ "$N" == "elk-stack-upgrade.sh" ]]; then
+        [[ -x "$DEST" ]] && bash -n "$DEST" || die "ELK 업그레이드 도구 설치 후 검증 실패: $DEST"
+      fi
       ui_ok "교체 완료: $N → $DEST"
       APPLIED=$((APPLIED+1))
 
