@@ -8,6 +8,7 @@ c3c266aca28922f21053b2a533d373772fd6a214cfe5ca3539aeb3e844c07de6  ./_internal/co
 e730cbe06b210b5f1fa43abaa75bc701e183085b6382e6904c0e5c830cef581b  ./_internal/core/elk-patch.sh
 7601812a996f151e9ff52ea446851d96e3db5b8b861137717b9915123c48b087  ./_internal/core/elk-report-web.py
 21d545e3fd3c0d338d4245329b32e93cb9cbfda465c45c10da692aba029ff9cd  ./_internal/core/elk-report.sh
+6198acf45d4bcef525e796cfae26b7b2d55d8dd4923c4967fab0e753c52164a7  ./_internal/core/elk-stack-upgrade.sh
 ccb7600cf9e0828021e72ed02bd36e8fedb14fca4eff768b42735ae194a4f753  ./_internal/core/elk-tls-lib.sh
 1acd04a2363a690870e60ab0eb076f6a8e3970a7810f5b9ef8ad22612643d616  ./_internal/core/install-elk.sh
 d3236c3007e7fae32ab3e1de0af160253fe42a961664bf6a028e55be4dfbde2c  ./_internal/core/log-ingest-manager.sh
@@ -29,7 +30,7 @@ a3a2f775905dd44e8cf46efc8b1371e67de91f7e6a9495c2133ae2bf19a84ab3  ./_internal/to
 d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./_internal/tools/run-remote-deploy.ps1
 aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report-update.sh
 a57f33319a9175d3a366d4195c2276ab8e1adc7659c3d2c67a73dbee87d77c1a  ./bootstrap-update.sh
-4176bcc70b1924f87fa1dd891720faa78bc5fd5320afe6bd9d2c8d8fdcda9d22  ./config-wizard.html
+91d4c6c485a6db74b82c49f7d67eab177df69aab6966b1a945eef56425733d86  ./config-wizard.html
 28ae82d80821bda286ea29db3250f0e7058d9095af7a9b90b5ef2d8ce050459d  ./guide/guide-adopt-easy.html
 89aea20a40a20ed993244eb80365aa75cb17484e3feaf6ed911c4cb0c9f60d96  ./guide/guide-adopt.html
 896b01f30ae4d7e03890a6c14bbea594f2b4a307bf3f17e6884396d674a040b8  ./guide/guide-install-easy.html
@@ -38,4 +39,4 @@ f0b3c35768cb75cd987c933c9719d729ee5cb63a82db7b0e6c91d6b1657c13c9  ./guide/guide-
 12290890dc3041f93b1f52a21a83b25c3c367543caccba65719493cbd24d3348  ./guide/guide-upgrade.html
 89018ec01b9b4fb61ab8788e9153acb55f4d2c215e933d21d96efa658d91e5c2  ./run-remote-deploy.cmd
 d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./run-remote-deploy.ps1
-108ec950f3ed5bf1ccebdd5d5ae570da85ed76f37418956374ce686f804187ad  ./version.json
+d536cf0e4ee861a890b149ba704c3416f0b7f0293baafce8263912f37dbcfed5  ./version.json
