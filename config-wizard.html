@@ -650,6 +650,8 @@ function legacyBootstrapCmd(apply=false){
 function utf8B64(s){const b=new TextEncoder().encode(s);let out='';const n=0x8000;for(let i=0;i<b.length;i+=n)out+=String.fromCharCode(...b.subarray(i,i+n));return btoa(out)}
 function generateOneClick(opts){
   opts=opts||{};
+  syncCurrentFormValues();
+  syncDeployFormValues();
   const L=[];
   const q=s=>s.replace(/'/g,"'\\''");
   L.push('#!/usr/bin/env bash');
@@ -1922,14 +1924,52 @@ function syncCurrentFormValues(){
     values[k]=xs.join(',');
   });
 }
+// 빠른/고급 설정의 모든 값을 내보내되, 실제 서버에 보존되는 env에는
+// Windows PC의 SSH/sudo 비밀번호를 넣지 않습니다. 비밀번호는 로컬 설치 SH에만 저장됩니다.
+const DEPLOY_ENV_KEYS={
+  host:'DEPLOY_HOST',user:'DEPLOY_USER',sudoSame:'DEPLOY_SUDO_SAME_AS_SSH',
+  port:'DEPLOY_SSH_PORT',remoteDir:'DEPLOY_REMOTE_DIR',
+  autoInstall:'DEPLOY_AUTO_INSTALL',removeAfter:'DEPLOY_REMOVE_REMOTE_INSTALLER_AFTER'
+};
+function syncDeployFormValues(){
+  document.querySelectorAll('[data-deploy-k]').forEach(el=>{
+    const k=el.dataset.deployK;
+    if(!k||!(k in deployValues))return;
+    deployValues[k]=el.type==='checkbox'?el.checked:el.value;
+  });
+}
 function generateEnv(){
   syncCurrentFormValues();
-  const map=new Map(DATA.vars.map(v=>[v.key,v]));
-  return DATA.template.split(/\r?\n/).map(line=>{
+  syncDeployFormValues();
+  const all=new Map(DATA.vars.map(v=>[v.key,String(values[v.key]??'')]));
+  const emitted=new Set();
+  const result=DATA.template.split(/\r?\n/).map(line=>{
     const m=line.match(/^([A-Z][A-Z0-9_]*)=(?:".*"|'.*')$/);
-    if(m&&map.has(m[1]))return m[1]+'='+shellQuote(values[m[1]]??'');
-    return line
-  }).join('\n')+'\n'
+    if(m&&all.has(m[1])){emitted.add(m[1]);return m[1]+'='+shellQuote(all.get(m[1]))}
+    return line;
+  });
+  const missing=[...all].filter(([key])=>!emitted.has(key));
+  if(missing.length){
+    result.push('','# ---- Wizard 전체 설정 (기본 템플릿에 없는 항목) ----');
+    for(const [key,val] of missing)result.push(key+'='+shellQuote(val));
+  }
+  result.push('','# ---- PC → Ubuntu 자동 전송 / 설치 설정 (비밀번호 제외) ----');
+  for(const [key,envKey] of Object.entries(DEPLOY_ENV_KEYS)){
+    result.push(envKey+'='+shellQuote(String(deployValues[key]??'')));
+  }
+  result.push('# SSH/sudo 비밀번호는 서버에 남는 elk.env에 저장하지 않습니다.');
+  result.push('# 자동 인증 비밀번호는 로컬에서 생성한 설치 SH에만 포함됩니다.');
+  return result.join('\n').replace(/\n*$/,'')+'\n';
+}
+function restoreDeployEnv(o){
+  let n=0;
+  for(const [key,envKey] of Object.entries(DEPLOY_ENV_KEYS)){
+    if(!Object.prototype.hasOwnProperty.call(o,envKey))continue;
+    const raw=String(o[envKey]);
+    const val=typeof deployValues[key]==='boolean'?raw.toLowerCase()==='true':raw;
+    deployValues[key]=val;n++;
+  }
+  return n;
 }
 function cloudGeneratedSummary(){
   syncCurrentFormValues();
@@ -1957,7 +1997,7 @@ function parseOneClickSh(t){
   return {env,meta};
 }
 function importOneClickShText(t){
-  const r=parseOneClickSh(t);let n=applyLegacyEnv(r.env);snapshotBaseline('sh 파일');PATCH_MANUAL.clear();PATCH_TOUCHED.clear();
+  const r=parseOneClickSh(t);let n=applyLegacyEnv(r.env);restoreDeployEnv(r.env);snapshotBaseline('sh 파일');PATCH_MANUAL.clear();PATCH_TOUCHED.clear();
   for(const k of Object.keys(FILE_EDITS))delete FILE_EDITS[k];let fe=0;
   for(const nm of ['proxysg-log-process.sh','proxysg-log-filter.conf','custom-pipeline.conf']){const tx=embeddedBlockText(t,nm);if(tx===null)continue;if(nm==='custom-pipeline.conf'||normText(tx)!==normText(builtinText(nm))){FILE_EDITS[nm]=normText(tx);fe++}}
   const m=r.meta;if(m.host)deployValues.host=m.host;if(m.user)deployValues.user=m.user;if(m.port)deployValues.port=m.port;if(m.remoteDir)deployValues.remoteDir=m.remoteDir;
@@ -2862,6 +2902,6 @@ function keepActiveVisible(){const side=document.getElementById('side'),a=side&&
 function render(){setHdr();if(mode==='simple')step=Math.min(step,DATA.simple.length);else if(mode==='advanced')step=Math.min(step,DATA.advanced.length);renderSide();renderMain();keepActiveVisible()}
 document.getElementById('folderBtn').onclick=pickWorkDir;restoreWorkDirHandle();
 function setMode(m){if(m!=='patch'&&m!=='inspect'&&!tryLeave())return;mode=m;step=1;query='';PATCH_STEP=0;INSPECT_STEP=0;const si=document.getElementById('search');if(si)si.value='';for(const [id,mm] of [['simpleBtn','simple'],['advancedBtn','advanced'],['patchBtn','patch'],['inspectBtn','inspect']])document.getElementById(id).classList.toggle('on',mm===m);document.body.classList.toggle('patchmode',m==='patch'||m==='inspect');document.body.classList.toggle('inspectmode',m==='inspect');render();if(m==='patch'||m==='inspect')toTop()}
-document.getElementById('simpleBtn').onclick=()=>setMode('simple');document.getElementById('advancedBtn').onclick=()=>setMode('advanced');document.getElementById('patchBtn').onclick=()=>setMode('patch');document.getElementById('inspectBtn').onclick=()=>setMode('inspect');document.getElementById('resetBtn').onclick=()=>{if(confirm('처음 화면의 기본값으로 초기화할까요?\n(직접 수정한 스크립트·Logstash 설정 내용도 기본으로 돌아갑니다)')){initialPreset()}};document.getElementById('importBtn').onclick=()=>document.getElementById('fileInput').click();document.getElementById('fileInput').onchange=async e=>{let f=e.target.files[0];if(!f)return;let o=parseEnv(await f.text()),n=applyLegacyEnv(o);snapshotBaseline('elk.env');PATCH_MANUAL.clear();PATCH_TOUCHED.clear();alert(`${n}개 변수를 불러왔습니다.`);e.target.value='';render()};document.getElementById('importShBtn').onclick=()=>document.getElementById('shFileInput').click();document.getElementById('shFileInput').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{const r=importOneClickShText(await f.text());alert(`기존 One-Click SH 설정을 불러왔습니다.\n\nSH 버전: ${r.version}\nELK 환경변수: ${r.count}개\nUbuntu 배포 설정: 복원 완료\n\n현재 v2.9.45 형식으로 다시 저장하면 됩니다.`);step=deployStepId()}catch(err){alert('SH 불러오기 실패: '+(err?.message||err))}e.target.value='';render()};document.getElementById('search').oninput=e=>{query=e.target.value.trim();renderMain()};initialPreset();
+document.getElementById('simpleBtn').onclick=()=>setMode('simple');document.getElementById('advancedBtn').onclick=()=>setMode('advanced');document.getElementById('patchBtn').onclick=()=>setMode('patch');document.getElementById('inspectBtn').onclick=()=>setMode('inspect');document.getElementById('resetBtn').onclick=()=>{if(confirm('처음 화면의 기본값으로 초기화할까요?\n(직접 수정한 스크립트·Logstash 설정 내용도 기본으로 돌아갑니다)')){initialPreset()}};document.getElementById('importBtn').onclick=()=>document.getElementById('fileInput').click();document.getElementById('fileInput').onchange=async e=>{let f=e.target.files[0];if(!f)return;let o=parseEnv(await f.text()),n=applyLegacyEnv(o);let dn=restoreDeployEnv(o);snapshotBaseline('elk.env');PATCH_MANUAL.clear();PATCH_TOUCHED.clear();alert(`${n}개 ELK 변수와 ${dn}개 자동 전송 설정을 불러왔습니다.\nSSH/sudo 비밀번호는 보안상 elk.env에 저장하지 않으므로 다시 입력해야 합니다.`);e.target.value='';render()};document.getElementById('importShBtn').onclick=()=>document.getElementById('shFileInput').click();document.getElementById('shFileInput').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{const r=importOneClickShText(await f.text());alert(`기존 One-Click SH 설정을 불러왔습니다.\n\nSH 버전: ${r.version}\nELK 환경변수: ${r.count}개\nUbuntu 배포 설정: 복원 완료\n\n현재 v2.9.45 형식으로 다시 저장하면 됩니다.`);step=deployStepId()}catch(err){alert('SH 불러오기 실패: '+(err?.message||err))}e.target.value='';render()};document.getElementById('search').oninput=e=>{query=e.target.value.trim();renderMain()};initialPreset();
 {const sb=document.getElementById('sidebuild');if(sb)sb.innerHTML='v'+esc(PKG_VER)+' <span class="sep">·</span> 빌드 <span class="buildname">'+esc(WIZARD_BUILD)+'</span>'}
 </script></body></html>
