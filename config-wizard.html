@@ -788,6 +788,13 @@ a.mbadge:hover{filter:brightness(1.1)}
 .patchdeps code{font:10.5px Consolas,monospace;background:#fff;border-radius:4px;padding:2px 4px;color:#334155;overflow-wrap:anywhere}
 .patchdeps-invalid{border-color:#fca5a5;background:#fff5f5}
 .patchdeps-invalid .patchdeps-title{color:#991b1b}
+
+/* 연관 필수값은 각 입력 항목 바로 아래에서 확인 */
+.prow.dep-required{border-left:3px solid #f59e0b;padding-left:8px}
+.prow.dep-missing{background:#fff7f7!important;border-left-color:#dc2626}
+.prow.dep-missing .pctl input,.prow.dep-missing .pctl select,.prow.dep-missing .pctl textarea{border-color:#ef4444!important}
+.patch-inline-required{margin:6px 0 0;padding:7px 9px;border:1px solid #fecaca;border-radius:7px;background:#fef2f2;color:#b91c1c;font-size:11px;font-weight:750;line-height:1.5}
+.patch-inline-required.ok{border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8}
 </style></head><body>
 <header class="top"><div class="topin"><div class="hleft"><div class="brand">ELK Oneclick Installer <small>v2.9.55</small></div><div class="mode"><button id="simpleBtn" class="on">빠른 설정</button><button id="advancedBtn">고급 설정</button><button id="patchBtn" title="이미 설치된 서버에서 바꾼 값만 골라 적용합니다">패치</button><button id="inspectBtn" title="서버 정기점검: 버전·Uptime·디스크·CPU·메모리·마지막 로그 시각 등을 한눈에 확인하는 명령을 만들어 줍니다">점검</button></div></div><div class="search"><input id="search" placeholder="변수명/설명 검색"></div><div class="actions"><button id="folderBtn" title="생성한 SH/ENV를 이 폴더에 직접 저장하려면 Config Wizard가 있는 폴더를 처음 한 번 선택하세요.">📁 저장 폴더 연결</button><span id="folderState" class="saveFolderState">브라우저 다운로드 폴더 사용</span><span id="defaultsState" class="saveFolderState" hidden></span><div class="hgroup" role="group" aria-label="기존 입력값 불러오기"><span class="hgtitle">기존 입력값 불러오기</span><button id="importBtn" title="저장해 둔 elk.env 파일의 값을 불러옵니다.">elk.env</button><button id="importShBtn" title="이전에 Config Wizard에서 생성한 elk-oneclick-install*.sh를 불러와 환경변수와 Ubuntu 배포 설정을 복원합니다.">sh 파일</button></div><button id="resetBtn">초기화</button></div><input id="fileInput" type="file" accept=".env,.txt" hidden><input id="shFileInput" type="file" accept=".sh,text/x-shellscript" hidden></div></header>
 <div class="wrap"><div id="defaultsWarn" class="info warn" hidden></div><div class="layout"><div class="sidecol"><aside id="side" class="side"></aside><div class="sidecredit"><span class="creditmark" aria-hidden="true">✦</span><p class="credittext">ELK 마스터 <b>윤태리 선임</b>의 가이드를 기반으로 제작되었습니다.</p></div><div class="sidebuild" id="sidebuild" title="지금 열려 있는 Wizard 파일의 빌드 번호입니다. 수정본을 올렸는데 화면이 그대로면 이 번호가 안내받은 번호와 같은지 확인하세요."></div></div><main id="main" class="main"></main></div></div>
@@ -1440,6 +1447,26 @@ function renderPatchDependencies(){
     g.entries.map(e=>'<span style="display:inline-block;margin:1px 5px 2px 0"><code>'+esc(e.key)+'</code> '+
     (e.issue?'<span class="patchdeps-bad">필수 · '+esc(e.issue)+'</span>':'<span class="patchdeps-good">✓ '+(e.selected?'패치에 포함':'기존 입력값 사용')+'</span>')+'</span>').join('')+'</span></div>').join('');
 }
+// 체크한 기능이 켜져 있으면, 연관 필수값을 해당 입력칸 바로 아래 표시한다.
+function renderPatchDependencyInline(){
+  const info=patchDependencyState(),required=new Map();
+  for(const group of info.groups)for(const entry of group.entries){
+    const prev=required.get(entry.key);
+    if(!prev||(!prev.issue&&entry.issue))required.set(entry.key,{...entry,group:group.name});
+  }
+  document.querySelectorAll('[data-prow]').forEach(row=>{
+    const k=row.getAttribute('data-prow'),req=required.get(k),ctl=row.querySelector('.pctl');
+    if(!ctl)return;
+    let note=ctl.querySelector('.patch-inline-required');
+    row.classList.toggle('dep-required',!!req);
+    row.classList.toggle('dep-missing',!!(req&&req.issue));
+    if(!req){if(note)note.remove();return;}
+    if(!note){note=document.createElement('div');note.className='patch-inline-required';ctl.appendChild(note)}
+    note.classList.toggle('ok',!req.issue);
+    note.textContent=req.issue?'필수 입력 필요 · '+req.group+' 사용 시 '+req.issue:'✓ '+req.group+' 연관 필수값 확인됨'+(req.selected?' · 이번 패치에 포함':' · 현재 입력값 기준');
+  });
+  // 현재 선택한 기능에 속한 항목이 접힌 카드 바깥에 있을 경우 요약도 유지한다.
+}
 function patchFileEdits(){return JSON.stringify(FILE_EDITS)!==BASELINE_EDITS}
 function patchShortBlocked(){if(PROC_PATCH_SELECTED)return '스크립트 전체를 포함해야 하므로 짧은 명령을 사용할 수 없습니다. 패치 파일 또는 전체 명령 복사를 이용하세요.';return (BASELINE&&patchFileEdits())?'스크립트·필터·파이프라인 파일 카드의 내용을 불러온 기준값에서 바꿨습니다. 짧은 명령은 서버에 설치된 파일을 쓰므로 "전체 붙여넣기"를 사용하세요.':''}
 function patchPasteSizeText(){const n=(PROC_PATCH_SELECTED?Math.ceil(new Blob([procPatchScript()]).size*1.38):0)+['elk-patch.sh','proxysg-lib.sh','elk-tls-lib.sh','proxysg-log-filter.conf'].reduce((a,f)=>a+(PATCH_GZ[f]||'').length,0)+1500;return `약 ${Math.round(n/1024)}KB · ${Math.ceil(n/77)+45}줄`}
@@ -1615,6 +1642,7 @@ function refreshPatchUi(only){
     if(!only||only===k){const ex=r.querySelector('[data-pextra]');if(ex)ex.innerHTML=patchExtra(k)}
   });
   renderPatchDependencies();
+  renderPatchDependencyInline();
   const blocked=patchShortBlocked();
   for(const [id,off] of [['patchMake',!total],['patchCopyFull',!total],['patchCopyShort',!keys.length||!!blocked]]){const b=document.getElementById(id);if(b)b.disabled=off}
   const size=document.getElementById('patchSize');if(size)size.textContent=patchPasteSizeText();
@@ -2594,7 +2622,7 @@ function advancedFieldsHtml(sec,normal){
 function renderMain(){
   refreshErrors();
   const main=document.getElementById('main');
-  if(mode==='patch'){main.innerHTML=patchPage();wire();wirePatch();renderPatchDependencies();return}
+  if(mode==='patch'){main.innerHTML=patchPage();wire();wirePatch();renderPatchDependencies();renderPatchDependencyInline();return}
   if(mode==='inspect'){main.innerHTML=inspectPage();wire();wireInspect();return}
   if(query){let q=query.toLowerCase(),found=DATA.vars.filter(v=>(v.key+' '+v.label+' '+v.help).toLowerCase().includes(q));main.innerHTML=`<div class="panel"><h2>검색 결과</h2><div class="desc">${found.length}개 변수 · 카드를 클릭하면 상세 설명이 펼쳐집니다.</div><div class="fields">${found.map(v=>`<div class="foundwrap">${locBar(v.key)}${field(v.key)}</div>`).join('')||'<div class="info">검색 결과가 없습니다.</div>'}</div></div>`;wire();return}
   if(mode==='simple'){
