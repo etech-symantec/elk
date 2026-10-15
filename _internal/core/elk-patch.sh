@@ -14,7 +14,7 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 PATCH_VERSION="33"
-ELK_AUTO_VERSION="2.9.54"
+ELK_AUTO_VERSION="2.9.55"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 도구 파일(proxysg-lib.sh 등)은 이 스크립트 옆에 있으면 그것을, 없으면 설치기가 넣어 둔 /usr/local/lib/elk-auto 를 사용
@@ -34,9 +34,17 @@ SET_FILE=""; DRY=0; YES=0; LIST=0
 declare -a ARG_KV=()
 
 _ts() { date '+%Y-%m-%d %H:%M:%S'; }
-log()  { echo "[$(_ts)] [INFO] $*"; }
-warn() { echo "[$(_ts)] [WARN] $*" >&2; }
-die()  { echo "[$(_ts)] [ERROR] $*" >&2; exit 1; }
+# Terminal colors are for display only. Non-TTY output stays plain (clean logs/redirects).
+PATCH_COLOR=0
+if [[ -t 1 && -t 2 && "${NO_COLOR:-}" == "" && "${TERM:-dumb}" != "dumb" ]]; then PATCH_COLOR=1; fi
+if ((PATCH_COLOR)); then
+  PC_RESET=$'\033[0m'; PC_BLUE=$'\033[1;36m'; PC_GREEN=$'\033[1;32m'; PC_YELLOW=$'\033[1;33m'; PC_RED=$'\033[1;31m'; PC_MUTED=$'\033[2m'; PC_KEY=$'\033[1;94m'
+else
+  PC_RESET=''; PC_BLUE=''; PC_GREEN=''; PC_YELLOW=''; PC_RED=''; PC_MUTED=''; PC_KEY=''
+fi
+log()  { printf '%s[%s] [INFO]%s %s\n' "$PC_BLUE" "$(_ts)" "$PC_RESET" "$*"; }
+warn() { printf '%s[%s] [WARN]%s %s\n' "$PC_YELLOW" "$(_ts)" "$PC_RESET" "$*" >&2; }
+die()  { printf '%s[%s] [ERROR]%s %s\n' "$PC_RED" "$(_ts)" "$PC_RESET" "$*" >&2; exit 1; }
 istrue() { [[ "${1,,}" =~ ^(1|true|yes|y|on)$ ]]; }
 
 # ---------------------------------------------------------------- 패치 가능한 항목 -> 적용 동작
@@ -287,10 +295,10 @@ for k in "${ORDER[@]}"; do
     else
       printf '  ! %-34s 값은 그대로(%s) — 인증서를 지금 새로 발급합니다\n' "$k" "$(patch_display_value "$k" "$n")"
     fi
-  elif [[ "$o" == "$n" ]]; then printf '  = %-34s 변경 없음 (%s)\n' "$k" "$(patch_display_value "$k" "$n")"; else changed=1; printf '  ~ %-34s %s  →  %s\n' "$k" "$(patch_display_value "$k" "$o")" "$(patch_display_value "$k" "$n")"; fi
+  elif [[ "$o" == "$n" ]]; then printf '  %s=%s %-34s 변경 없음 (%s)\n' "$PC_MUTED" "$PC_RESET" "$k" "$(patch_display_value "$k" "$n")"; else changed=1; printf '  %s~%s %-34s %s  →  %s\n' "$PC_YELLOW" "$PC_RESET" "$k" "$(patch_display_value "$k" "$o")" "$(patch_display_value "$k" "$n")"; fi
 done
 (( changed )) || { echo "바뀐 값이 없어 아무것도 하지 않습니다."; exit 0; }
-echo "=== 적용할 작업 ==="
+printf "%s=== 적용할 작업 ===%s\n" "$PC_BLUE" "$PC_RESET"
 for a in "${ACTION_ORDER[@]}"; do
   [[ -n "${ACTIONS[$a]+x}" ]] || continue
   echo "  - ${ACTION_TEXT[$a]}"
