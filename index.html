@@ -195,42 +195,56 @@
 </head>
 <body>
     
-<!-- 공통 헤더 + 제목 + 버전 -->
+<!-- 공통 헤더: index.html 최종 배포 수정일을 ver.YYYY.MM.DD로 표시 -->
 <script>
   window.pageTitle = "ELK";
-  window.pageVersion = "";
+  // 브라우저 현지 날짜가 아니라 서버의 Last-Modified 날짜를 기준으로 표시합니다.
+  // 조회 불가 시 이 값을 실제 배포일로 갱신하세요.
+  const ELK_HEADER_DATE_FALLBACK = "2026.10.15";
+  window.pageVersion = "ver." + ELK_HEADER_DATE_FALLBACK;
   window.pageBuild = "";
 
-  async function loadElkVersionInfo(){
-    let info={version:"",build:""};
-    try{
-      const r=await fetch("./version.json?ts="+Date.now(),{cache:"no-store"});
-      if(!r.ok)throw new Error("HTTP "+r.status);
-      info=await r.json();
-    }catch(e){
-      console.warn("version.json load failed:",e);
-    }
-
-    const v=String(info.version||"").trim();
-    const b=String(info.build||"").trim();
-    window.pageVersion=v?("v"+v+(b?" · build: "+b:"")):"";
-    window.pageBuild=b;
-
-    document.querySelectorAll("[data-runtime-version]").forEach(el=>{
-      el.textContent=v?("v"+v):"version";
-    });
-    document.querySelectorAll("[data-runtime-build]").forEach(el=>{
-      el.textContent=b?("build: "+b):"";
-      el.style.display=b?"":"none";
-    });
-
-    const s=document.createElement("script");
-    s.src="https://etech-symantec.github.io/header.js";
-    document.head.appendChild(s);
+  function formatSeoulUpdatedDate(value){
+    const d = new Date(value);
+    if(!Number.isFinite(d.getTime())) return "";
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(d);
+    const part = type => parts.find(p=>p.type===type)?.value || '';
+    return `${part('year')}.${part('month')}.${part('day')}`;
   }
-  loadElkVersionInfo();
+
+  async function loadElkHeader(){
+    let updated = "";
+    try {
+      // GitHub Pages가 제공하는 Last-Modified 값으로 최종 배포/갱신일을 확인합니다.
+      const response = await fetch('./index.html?updated='+Date.now(), {
+        method:'HEAD', cache:'no-store'
+      });
+      if(response.ok) updated = formatSeoulUpdatedDate(response.headers.get('Last-Modified'));
+    } catch(err) {
+      console.warn('최종 수정 날짜 조회 실패:', err);
+    }
+    // 정적 배포 환경에서 Last-Modified를 제공하지 않을 경우 version.json의 날짜를 시도합니다.
+    if(!updated){
+      try {
+        const response = await fetch('./version.json?updated='+Date.now(), {cache:'no-store'});
+        if(response.ok){
+          const info = await response.json();
+          const candidate = info.last_updated || info.updated_at || info.date || '';
+          if(/^\d{4}\.\d{2}\.\d{2}$/.test(candidate)) updated = candidate;
+          else if(candidate) updated = formatSeoulUpdatedDate(candidate);
+        }
+      } catch(err) { console.warn('version.json 수정 날짜 조회 실패:', err); }
+    }
+    window.pageVersion = 'ver.' + (updated || ELK_HEADER_DATE_FALLBACK);
+    // 공통 헤더는 날짜 값이 결정된 다음 한 번만 불러와 중복 및 이전 버전 표기를 방지합니다.
+    const script = document.createElement('script');
+    script.src='https://etech-symantec.github.io/header.js';
+    document.head.appendChild(script);
+  }
+  loadElkHeader();
 </script>
-<script src="https://etech-symantec.github.io/header.js"></script>
 
 <div class="layout">
 <!-- 좌측 미니 메뉴 (첫 화면에서는 숨김) -->
