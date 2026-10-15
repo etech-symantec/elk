@@ -392,6 +392,17 @@ else
   for N in "${DOWNLOAD_NAMES[@]}"; do download_one "$N"; done
 fi
 
+# Patch tool is updated as a first-class runtime component. Validate the downloaded
+# Bash script before touching the existing, working /usr/local/sbin/elk-patch.
+validate_patch_download(){
+  [[ -f "$T/elk-patch.sh" ]] || return 0
+  bash -n "$T/elk-patch.sh" || die "elk-patch.sh Bash 문법 오류: 기존 패치 도구를 유지합니다."
+  if ! grep -qE '(^|[[:space:]])act_envonly[[:space:]]*\(\)' "$T/elk-patch.sh"; then
+    die "elk-patch.sh에 Cloud API 설정 작업 함수(act_envonly)가 없습니다. 기존 패치 도구를 유지합니다."
+  fi
+  ui_ok "elk-patch.sh 사전 검증 완료 (Bash 문법·Cloud API 작업 함수)"
+}
+
 # 다운로드한 파일만 SHA256 검증.
 if (( ${#DOWNLOAD_NAMES[@]} > 0 )); then
   SUMS="$(GET "$RAW/SHA256SUMS.txt" 2>/dev/null || true)"
@@ -408,6 +419,8 @@ if (( ${#DOWNLOAD_NAMES[@]} > 0 )); then
     ui_warn "SHA256SUMS.txt를 읽지 못해 다운로드 파일 검증을 생략합니다."
   fi
 fi
+
+validate_patch_download
 
 if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
   [[ -f "$T/install-elk.sh" ]] || die "업데이트에 install-elk.sh가 없습니다."
@@ -489,7 +502,16 @@ if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
     fi
     install -d -m 755 "$(dirname "$DEST")"
     [[ -f "$DEST" ]] && cp -a "$DEST" "$BKDIR/$(basename "$DEST").before"
-    install -m "$MODE_N" "$T/$N" "$DEST"
+    if [[ "$N" == "elk-patch.sh" ]]; then
+      _patch_tmp="$(mktemp "$(dirname "$DEST")/.elk-patch.XXXXXXXX")"
+      if ! install -m 755 "$T/$N" "$_patch_tmp" || ! mv -f "$_patch_tmp" "$DEST"; then
+        rm -f "$_patch_tmp"
+        die "elk-patch 교체 실패: 기존 백업 위치 $BKDIR"
+      fi
+      bash -n "$DEST" || die "elk-patch 설치 후 Bash 검증 실패: $DEST"
+    else
+      install -m "$MODE_N" "$T/$N" "$DEST"
+    fi
     ui_ok "도구 갱신: $N → $DEST"
     APPLIED=$((APPLIED+1))
     [[ "$N" == "elk-report-web.py" ]] && WEB_CHANGED=1
@@ -550,7 +572,16 @@ else
 
       install -d -m 755 "$(dirname "$DEST")"
       [[ -f "$DEST" ]] && cp -a "$DEST" "$BKDIR/$(basename "$DEST").before"
-      install -m "$MODE_N" "$T/$N" "$DEST"
+      if [[ "$N" == "elk-patch.sh" ]]; then
+        _patch_tmp="$(mktemp "$(dirname "$DEST")/.elk-patch.XXXXXXXX")"
+        if ! install -m 755 "$T/$N" "$_patch_tmp" || ! mv -f "$_patch_tmp" "$DEST"; then
+          rm -f "$_patch_tmp"
+          die "elk-patch 교체 실패: 기존 백업 위치 $BKDIR"
+        fi
+        bash -n "$DEST" || die "elk-patch 설치 후 Bash 검증 실패: $DEST"
+      else
+        install -m "$MODE_N" "$T/$N" "$DEST"
+      fi
 
       ui_ok "교체 완료: $N → $DEST"
       APPLIED=$((APPLIED+1))
