@@ -28,8 +28,8 @@ systemctl status elk-report-web --no-pager
 1. **ELK 자동 구성**을 엽니다.
 2. 1~9단계에서 설정을 확인하고, 10단계(자동 전송 및 설치)에 Ubuntu 서버 주소와 SSH 계정을 입력합니다.
 3. 11단계(검증 및 완료)에서 오류가 없는지 확인한 뒤 아래 중 하나를 받습니다.
-   - **자동 실행 파일 (.cmd)** — 더블클릭하면 임시 폴더에 자동으로 풀고 `run-remote-deploy`까지 실행합니다. 끝나면(또는 오류가 나면) 결과가 노란 글씨로 표시되고 창이 유지되며, 임시 폴더는 자동으로 삭제됩니다. (`ELK_KEEP_TEMP=1`을 설정하면 유지, 다시 연결하려면 `elk-auto-install-v2.9.67.cmd --status`)
-   - **ZIP 전체 다운로드** — 직접 풀어서 `run-remote-deploy.cmd`를 실행합니다. (Ubuntu에서 직접 설치: `sudo bash elk-oneclick-install-v2.9.67.sh --local-install`)
+   - **자동 실행 파일 (.cmd)** — 더블클릭하면 임시 폴더에 자동으로 풀고 `run-remote-deploy`까지 실행합니다. 끝나면(또는 오류가 나면) 결과가 노란 글씨로 표시되고 창이 유지되며, 임시 폴더는 자동으로 삭제됩니다. (`ELK_KEEP_TEMP=1`을 설정하면 유지, 다시 연결하려면 `elk-auto-install-v2.9.68.cmd --status`)
+   - **ZIP 전체 다운로드** — 직접 풀어서 `run-remote-deploy.cmd`를 실행합니다. (Ubuntu에서 직접 설치: `sudo bash elk-oneclick-install-v2.9.68.sh --local-install`)
 
 > Wizard는 브라우저 안에서만 동작합니다. 입력한 값(비밀번호 포함)은 서버로 전송되지 않고, 다운로드한 ZIP에만 들어갑니다.
 
@@ -94,19 +94,19 @@ SHA256SUMS.txt                     패키지 파일 체크섬
 
 ## 서버에 직접 붙여넣기 (전송이 안 되는 환경)
 
-PC에서 서버로 파일을 보낼 수 없을 때(SSH/SCP 불가, 폐쇄망, 콘솔만 접속 가능 등)는 마지막 단계(빠른 설정 11단계 / 고급 설정 26단계)의 **방법 2 "서버에 직접 붙여넣기"** 를 쓰세요. 명령을 복사해 Ubuntu 서버 터미널에 붙여넣으면 설치 스크립트(`~/elk-oneclick-install-v2.9.67.sh`)가 서버에 **직접 만들어지고**, 고른 동작이 이어서 실행됩니다.
+PC에서 서버로 파일을 보낼 수 없을 때(SSH/SCP 불가, 폐쇄망, 콘솔만 접속 가능 등)는 마지막 단계(빠른 설정 11단계 / 고급 설정 26단계)의 **방법 2 "서버에 직접 붙여넣기"** 를 쓰세요. 명령을 복사해 Ubuntu 서버 터미널에 붙여넣으면 설치 스크립트(`~/elk-oneclick-install-v2.9.68.sh`)가 서버에 **직접 만들어지고**, 고른 동작이 이어서 실행됩니다.
 
 | 선택 | 붙여넣은 뒤 실행되는 것 |
 |---|---|
-| 생성 후 바로 설치 (기본) | `sudo bash ~/elk-oneclick-install-v2.9.67.sh --local-install` |
+| 생성 후 바로 설치 (기본) | `sudo bash ~/elk-oneclick-install-v2.9.68.sh --local-install` |
 | 생성 후 검증만 | `sudo bash … --validate` (설치하지 않고 설정만 검사) |
 | 스크립트만 만들기 | 파일만 만들고 실행 명령을 안내 |
 
 - **bash 터미널**에 붙여넣고 Enter 를 누르세요. 붙여넣기 뒤에 다른 명령을 이어 붙이지 마세요. 마지막 줄에서 `sudo` 비밀번호를 물을 수 있습니다.
 - 설치 파일은 **압축**해서 담습니다(일반 `.sh` 약 350KB → 붙여넣기 약 125KB, 1,700줄). 본문은 76자 줄의 Base64라서 탭·긴 줄·특수문자 때문에 깨지지 않습니다.
 - **무결성 확인**: 붙여넣기가 도중에 잘리거나 글자가 바뀌면 SHA-256 검사에서 걸러져 실행되지 않고, 만들어진 파일도 지워집니다.
-- **보안**: 파일은 소유자만 읽을 수 있게(700) 만들고, 붙여넣는 동안 셸 기록(history)을 꺼서 명령이 기록에 남지 않게 합니다. SSH/sudo **배포** 비밀번호는 서버에 필요 없어서 넣지 않습니다. (입력한 ELK 비밀번호는 설치에 필요해 들어 있습니다) 설치가 끝나면 `shred -u ~/elk-oneclick-install-v2.9.67.sh` 로 지우세요.
-- 서버에서 다시 실행: `sudo bash ~/elk-oneclick-install-v2.9.67.sh --local-install` (검증만 `--validate`, 점검 `--check`)
+- **보안**: 파일은 소유자만 읽을 수 있게(700) 만들고, 붙여넣는 동안 셸 기록(history)을 꺼서 명령이 기록에 남지 않게 합니다. SSH/sudo **배포** 비밀번호는 서버에 필요 없어서 넣지 않습니다. (입력한 ELK 비밀번호는 설치에 필요해 들어 있습니다) 설치가 끝나면 `shred -u ~/elk-oneclick-install-v2.9.68.sh` 로 지우세요.
+- 서버에서 다시 실행: `sudo bash ~/elk-oneclick-install-v2.9.68.sh --local-install` (검증만 `--validate`, 점검 `--check`)
 - 이렇게 만든 스크립트도 Wizard의 "기존 SH 불러오기"로 `elk.env` 값을 다시 불러올 수 있습니다. (수정한 스크립트·필터 파일 내용은 압축되어 있어 불러오지 않습니다)
 
 ## 서버 스펙으로 권장값 자동 입력 · Swap
