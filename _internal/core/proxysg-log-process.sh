@@ -26,6 +26,10 @@ source "$ENV_FILE"
 : "${PROXYSG_MAIN_PROCESS_DIR:=/home/main_process}"
 : "${PROXYSG_SSL_PROCESS_DIR:=/home/ssl_process}"
 : "${PROXYSG_FILE_GLOB:=*.log.gz}"
+: "${PROXYSG_BACKUP_FORMAT:=gz}"   # gz | zstd
+: "${PROXYSG_ZSTD_LEVEL:=19}"     # 1..19; highest standard compression, CPU/RAM intensive
+: "${PROXYSG_ZSTD_THREADS:=2}"  # positive integer
+
 : "${PROXYSG_DIR_MODE:=0775}"
 : "${PROXYSG_PROCESS_LOG:=/var/log/elk-proxysg-log-process.log}"
 : "${FTP_USER:=elkftp}"
@@ -232,56 +236,86 @@ PY
   (( bad == 0 ))
 }
 
+# Backup mode: gz keeps original, zstd streams gzip -> zstd without a plaintext .log file.
+case "${PROXYSG_BACKUP_FORMAT,,}" in gz|zstd) PROXYSG_BACKUP_FORMAT="${PROXYSG_BACKUP_FORMAT,,}";;
+  *) log "ERROR: PROXYSG_BACKUP_FORMAT must be gz or zstd"; exit 1;; esac
+if [[ "$PROXYSG_BACKUP_FORMAT" == zstd ]]; then
+  command -v gzip >/dev/null || { log 'ERROR: gzip not found'; exit 1; }
+  command -v zstd >/dev/null || { log 'ERROR: zstd not found (sudo apt-get install zstd)'; exit 1; }
+  [[ "$PROXYSG_ZSTD_LEVEL" =~ ^([1-9]|1[0-9])$ ]] || { log 'ERROR: ZSTD level must be 1..19'; exit 1; }
+  [[ "$PROXYSG_ZSTD_THREADS" =~ ^[1-9][0-9]*$ ]] || { log 'ERROR: ZSTD threads must be positive integer'; exit 1; }
+fi
+
 process_dir() {
   local label="$1" source_dir="$2" process_dir="$3" backup_dir="$4"
-  local source_file filename process_tmp backup_tmp process_file backup_file
+  local source_file filename process_tmp backup_tmp process_file backup_file txt_base
 
-  find "$source_dir" -maxdepth 1 -type f -name "$PROXYSG_FILE_GLOB" -print0 2>/dev/null | while IFS= read -r -d '' source_file; do
+  while IFS= read -r -d '' source_file; do
     filename="$(basename "$source_file")"
     process_file="$process_dir/$filename"
-    backup_file="$backup_dir/$filename"
+    txt_base="${filename%.gz}"
+    if [[ "$PROXYSG_BACKUP_FORMAT" == zstd ]]; then
+      backup_file="$backup_dir/${txt_base}.zst"
+    else
+      backup_file="$backup_dir/$filename"
+    fi
     process_tmp="${process_file}.part.$$"
     backup_tmp="${backup_file}.part.$$"
 
-    # 중복 실행 방지 의도를 유지: 이미 backup/process에 있으면 source를 건드리지 않음.
-    if [[ -e "$backup_file" ]]; then log "$label WARNING: backup already exists: $filename"; continue; fi
+    # Existing archive / process means manual review, never silently delete input.
+    if [[ -e "$backup_file" ]]; then log "$label WARNING: backup already exists: $backup_file"; continue; fi
     if [[ -e "$process_file" ]]; then log "$label WARNING: process copy already exists: $filename"; continue; fi
-
-    log "$label Processing: $filename"
-    rm -f "$process_tmp" "$backup_tmp"
-
+    log "$label Processing: $filename [backup=$PROXYSG_BACKUP_FORMAT]"
+    rm -f -- "$process_tmp" "$backup_tmp"
     if ! cp -p -- "$source_file" "$process_tmp"; then
-      log "$label ERROR: process copy failed: $filename"; rm -f "$process_tmp"; continue
+      log "$label ERROR: process copy failed: $filename"; rm -f -- "$process_tmp"; continue
     fi
-    chmod "$PROXYSG_DIR_MODE" "$process_tmp" || true
-
-    if ! cp -p -- "$source_file" "$backup_tmp"; then
-      log "$label ERROR: backup copy failed: $filename"; rm -f "$process_tmp" "$backup_tmp"; continue
-    fi
-    chmod "$PROXYSG_DIR_MODE" "$backup_tmp" || true
-
-    # 두 복사본이 원본과 동일한지 확인한 뒤 atomic rename.
     if ! cmp -s -- "$source_file" "$process_tmp"; then
-      log "$label ERROR: process verification failed: $filename"; rm -f "$process_tmp" "$backup_tmp"; continue
+      log "$label ERROR: process verification failed: $filename"; rm -f -- "$process_tmp"; continue
     fi
-    if ! cmp -s -- "$source_file" "$backup_tmp"; then
-      log "$label ERROR: backup verification failed: $filename"; rm -f "$process_tmp" "$backup_tmp"; continue
+    if [[ "$PROXYSG_BACKUP_FORMAT" == zstd ]]; then
+      # Decompress to stdout and immediately compress: no intermediate plaintext on disk.
+      if ! (set -o pipefail; gzip -cd -- "$source_file" | zstd -q -T"$PROXYSG_ZSTD_THREADS" -"$PROXYSG_ZSTD_LEVEL" -o "$backup_tmp"); then
+        log "$label ERROR: streaming zstd compression failed: $filename"; rm -f -- "$process_tmp" "$backup_tmp"; continue
+      fi
+      if ! zstd -q -t -- "$backup_tmp"; then
+        log "$label ERROR: archive zstd integrity test failed: $filename"; rm -f -- "$process_tmp" "$backup_tmp"; continue
+      fi
+      # Check round-trip content identity, not only archive checksum.
+      if [[ "$(gzip -cd -- "$source_file" | sha256sum | cut -d' ' -f1)" != "$(zstd -dcq -- "$backup_tmp" | sha256sum | cut -d' ' -f1)" ]]; then
+        log "$label ERROR: decompressed sha256 mismatch: $filename"; rm -f -- "$process_tmp" "$backup_tmp"; continue
+      fi
+    else
+      if ! cp -p -- "$source_file" "$backup_tmp" || ! cmp -s -- "$source_file" "$backup_tmp"; then
+        log "$label ERROR: backup copy/verification failed: $filename"; rm -f -- "$process_tmp" "$backup_tmp"; continue
+      fi
     fi
+    chmod "$PROXYSG_DIR_MODE" "$process_tmp" 2>/dev/null || true
+    chmod "$PROXYSG_DIR_MODE" "$backup_tmp" 2>/dev/null || true
 
-    mv -f -- "$process_tmp" "$process_file"
-    mv -f -- "$backup_tmp" "$backup_file"
+    # Commit backup first, then publish process to Logstash.
+    if ! mv -n -- "$backup_tmp" "$backup_file"; then
+      log "$label ERROR: archive rename failed: $filename"; rm -f -- "$process_tmp" "$backup_tmp"; continue
+    fi
+    # GNU mv -n can return zero without moving. Verify archive exists and temp is gone.
+    if [[ ! -s "$backup_file" || -e "$backup_tmp" ]]; then
+      log "$label ERROR: archive finalization failed: $filename"; rm -f -- "$process_tmp" "$backup_tmp"; continue
+    fi
+    if ! mv -n -- "$process_tmp" "$process_file"; then
+      log "$label ERROR: process publish failed: $filename"; rm -f -- "$process_tmp"; continue
+    fi
+    if [[ ! -s "$process_file" || -e "$process_tmp" ]]; then
+      log "$label ERROR: process file finalization failed: $filename"; rm -f -- "$process_tmp"; continue
+    fi
     chown logstash:logstash "$process_file" 2>/dev/null || true
     chown "$FTP_USER:$FTP_GROUP" "$backup_file" 2>/dev/null || true
 
-    # 최종본이 모두 존재할 때만 source 삭제.
-    if [[ -s "$process_file" && -s "$backup_file" ]]; then
-      if rm -f -- "$source_file"; then
-        log "$label SUCCESS: $filename copied to PROCESS and BACKUP; source removed"
-      else
-        log "$label WARNING: source removal failed: $filename"
-      fi
+    if rm -f -- "$source_file"; then
+      log "$label SUCCESS: $filename -> PROCESS gzip + BACKUP $PROXYSG_BACKUP_FORMAT; source removed"
+    else
+      log "$label WARNING: source removal failed: $filename"
     fi
-  done
+  done < <(find "$source_dir" -maxdepth 1 -type f -name "$PROXYSG_FILE_GLOB" -print0 2>/dev/null)
 }
 
 log "File processing started"
