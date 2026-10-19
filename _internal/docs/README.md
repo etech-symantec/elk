@@ -1,4 +1,4 @@
-# ELK OneClick v2.9.63
+# ELK OneClick v2.9.64
 
 현행 패키지: `elk-oneclick-install-v2.9.45.sh`, `elk-auto-installer-v2.9.45.zip`, `elk-auto-install-v2.9.45.cmd`.
 서버 런타임 갱신은 `sudo elk-oneclick-update --apply`, Dashboard/Logstash 구성 재생성은 기존 elk.env 검토 후 `sudo elk-oneclick-update --full`을 사용합니다.
