@@ -1,3 +1,4 @@
+337af1c692df8e31d04ff96dfc2a7263830c3aaa99d3eabba0573c1a8140932e  ./README_적용안내.md
 f9be6d00c5e90ef564d516d170272c896aedb48748bafad7446150264dd7378e  ./_internal/core/__pycache__/elk-report-web.cpython-313.pyc
 06f3c4433acd71d47fd746e275357a4613e32c88977d9215b7b32c2ae6199243  ./_internal/core/check-elk.sh
 2c6c78afbdbca385786ee16d6356d721ae57abb71e56ea81e217f33d55650ade  ./_internal/core/elk-color.sh
@@ -5,20 +6,20 @@ f9be6d00c5e90ef564d516d170272c896aedb48748bafad7446150264dd7378e  ./_internal/co
 31f64220edb3bf48af7a674d90ab16f9b5910108d7c0657d9fd307340ab1ee73  ./_internal/core/elk-oneclick-adopt.sh
 460831d669985c0d9b973c407a0612822db731472511234ae6c3b7751c58177e  ./_internal/core/elk-oneclick-update.sh
 24cce110aea0e41cd724dbd05e62f380417a514894875edab9ce19b9745cf74d  ./_internal/core/elk-ops.sh
-58fd6077e56bec60e4a0adc090b9e9700c83641f0d860a44c1e7a0634ef07f4c  ./_internal/core/elk-patch.sh
+61590560eee3be79640b5f4921a69b082ee9de0683ea28649850bf4fa9c822f5  ./_internal/core/elk-patch.sh
 7601812a996f151e9ff52ea446851d96e3db5b8b861137717b9915123c48b087  ./_internal/core/elk-report-web.py
-601ea061f82b33d96bf9c47c2e2920e1a19f3fd38e1649754b39ab100452045d  ./_internal/core/elk-report.sh
+e1f6080cb1049a4f0b4b172be8efa4bcbc930bdbcd32bf306f11a4e751a861cc  ./_internal/core/elk-report.sh
 6198acf45d4bcef525e796cfae26b7b2d55d8dd4923c4967fab0e753c52164a7  ./_internal/core/elk-stack-upgrade.sh
 ccb7600cf9e0828021e72ed02bd36e8fedb14fca4eff768b42735ae194a4f753  ./_internal/core/elk-tls-lib.sh
-dd1f00004c5ba6b230f6fb9198608a4dd94002ae09bbb7078b8063b31ba9ed7b  ./_internal/core/install-elk.sh
+cc70dcaf0715b99ed91b162a93eea937fd298914ded35732676bccb2631ee700  ./_internal/core/install-elk.sh
 d3236c3007e7fae32ab3e1de0af160253fe42a961664bf6a028e55be4dfbde2c  ./_internal/core/log-ingest-manager.sh
 fc1184e75c0b87064b84c125929dc276f2d14ad2d9264bf20bf2962fa033583a  ./_internal/core/proxysg-lib.sh
 7fef3ca4c5f99175a291c110d998382b23f775118e9c77009e24f750d66c49fb  ./_internal/core/proxysg-log-filter.conf
-44f38f677c05d439cd45538902c3edf210226aa7130c0f6cdeb8539d40c60f34  ./_internal/core/proxysg-log-process.sh
-b5af3cc16ddd81d49acd083b2e14514c23cfa194ef6b0c967e7a08dab4944b2e  ./_internal/docs/CHANGELOG.md
+bc3243b4b963e493fb0ab2e212be5fa47ac4e4f6af0f95e5ef6874a5cc71e055  ./_internal/core/proxysg-log-process.sh
+77071ce093f64670a2687c80b19480285592a9fba10e15272e0d4fc1938bd47d  ./_internal/docs/CHANGELOG.md
 0eba7fb05486e9d0853f44fa7ae85b8faa0bcdc346c083497cbbc2b19025ab24  ./_internal/docs/INSTALL_STEP_MAPPING.md
-f0bc6bf908f74f75bbeb42ab9fa59bc85b10c94c7822fa29f138a77e0621bdcd  ./_internal/docs/README.md
-a3ce3752b3f95dbb46238761edaf3ed99928de172cf12c6633b9c09500be446c  ./_internal/docs/VERSION
+e6d0dce98b60873b2afa9a6cf0e4c763ce55927d3c8c1f43dbee3964be35ad68  ./_internal/docs/README.md
+d401faafdf88d4f01d60a98902ac92c83c172146d921a27f285a422d5dfaf792  ./_internal/docs/VERSION
 4f5a37540816e9c8c3ea7561e3b2a106e55091e222e0dfcd6794383a6bca4538  ./_internal/examples/custom-filter.example.conf
 3d5d11063a3dbda1a13a23b29e8a588b1e77b74a5f63a5598aad17cfab21794a  ./_internal/examples/elk-proxysg.env.example
 60283c5dbb9824cc5c2db88da818f0ee961ec33fbf5a4e3e1094478702aacdda  ./_internal/examples/elk.env
@@ -30,7 +31,7 @@ a3a2f775905dd44e8cf46efc8b1371e67de91f7e6a9495c2133ae2bf19a84ab3  ./_internal/to
 d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./_internal/tools/run-remote-deploy.ps1
 aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report-update.sh
 a57f33319a9175d3a366d4195c2276ab8e1adc7659c3d2c67a73dbee87d77c1a  ./bootstrap-update.sh
-021c31a7b8a57a9d226ac2eb9088d80be50a7e783f41ae1fceba8f46b3a09078  ./config-wizard.html
+4812704abc3d2a4767db500e1916094224b39fcb71fb733fe66fbea77ca35dea  ./config-wizard.html
 28ae82d80821bda286ea29db3250f0e7058d9095af7a9b90b5ef2d8ce050459d  ./guide/guide-adopt-easy.html
 89aea20a40a20ed993244eb80365aa75cb17484e3feaf6ed911c4cb0c9f60d96  ./guide/guide-adopt.html
 896b01f30ae4d7e03890a6c14bbea594f2b4a307bf3f17e6884396d674a040b8  ./guide/guide-install-easy.html
@@ -39,4 +40,4 @@ f0b3c35768cb75cd987c933c9719d729ee5cb63a82db7b0e6c91d6b1657c13c9  ./guide/guide-
 12290890dc3041f93b1f52a21a83b25c3c367543caccba65719493cbd24d3348  ./guide/guide-upgrade.html
 89018ec01b9b4fb61ab8788e9153acb55f4d2c215e933d21d96efa658d91e5c2  ./run-remote-deploy.cmd
 d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./run-remote-deploy.ps1
-7e6e06d78625948dbb00df3379077a61e3d950cc9376f225dfeff7f08bab4600  ./version.json
+e90c99143699cbb4484a338947f43b49c426830d7e2f2e62b0a8c86ca47080a9  ./version.json
