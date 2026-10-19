@@ -14,7 +14,7 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 PATCH_VERSION="34"
-ELK_AUTO_VERSION="2.9.64"
+ELK_AUTO_VERSION="2.9.55"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 도구 파일(proxysg-lib.sh 등)은 이 스크립트 옆에 있으면 그것을, 없으면 설치기가 넣어 둔 /usr/local/lib/elk-auto 를 사용
@@ -252,8 +252,7 @@ for k in "${ORDER[@]}"; do
 done
 _backup_target="${NEWV[PROXYSG_BACKUP_FORMAT]:-${PROXYSG_BACKUP_FORMAT:-gz}}"
 if [[ "${_backup_target,,}" == "zstd" ]] && ! command -v zstd >/dev/null 2>&1; then
-  echo "[거절] ZSTD 모드에는 Ubuntu zstd 패키지가 필요합니다. sudo apt-get install -y zstd" >&2
-  bad=1
+  echo "[INFO] ZSTD 모드 선택: zstd 패키지가 없어 실제 적용 단계에서 자동 설치합니다. (--dry-run에서는 설치하지 않음)"
 fi
 if [[ -n "${ACTIONS[escerts]+x}" ]]; then
   _ca="${NEWV[ES_CA_DAYS]:-${ES_CA_DAYS:-7300}}"; _ce="${NEWV[ES_CERT_DAYS]:-${ES_CERT_DAYS:-7300}}"
@@ -322,6 +321,20 @@ fi
 (( DRY )) && { echo "(--dry-run: 여기까지만 보여 주고 종료합니다)"; exit 0; }
 if (( ! YES )); then
   if [[ -t 0 ]]; then read -r -p "적용할까요? [y/N] " ans; [[ "${ans,,}" == y* ]] || die "취소했습니다."; else die "대화형 입력이 없습니다. --yes 를 붙여 실행하세요."; fi
+fi
+
+# ZSTD mode requires the Ubuntu zstd package. Run only after consent, never in dry-run.
+if [[ "${_backup_target,,}" == "zstd" ]] && ! command -v zstd >/dev/null 2>&1; then
+  echo "[INFO] zstd 패키지를 자동 설치합니다 (APT)."
+  command -v apt-get >/dev/null 2>&1 || die "apt-get을 찾지 못했습니다. zstd 패키지를 설치할 수 없습니다."
+  export DEBIAN_FRONTEND=noninteractive
+  if ! apt-get install -y zstd; then
+    echo "[WARN] 로컬 패키지 목록에서 설치 실패: apt-get update 후 재시도합니다." >&2
+    apt-get update || die "APT 인덱스 업데이트 실패: zstd 설치를 중단합니다."
+    apt-get install -y zstd || die "zstd 설치 실패: 서버 저장소/인터넷 연결을 확인하세요. 패치는 적용하지 않았습니다."
+  fi
+  command -v zstd >/dev/null 2>&1 || die "zstd 설치 확인 실패: 패치는 적용하지 않았습니다."
+  echo "[OK] zstd 패키지 설치 확인: $(zstd --version | head -n 1)"
 fi
 
 # ---------------------------------------------------------------- 백업 + env 수정
