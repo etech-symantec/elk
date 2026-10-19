@@ -13,8 +13,8 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-PATCH_VERSION="33"
-ELK_AUTO_VERSION="2.9.63"
+PATCH_VERSION="34"
+ELK_AUTO_VERSION="2.9.55"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 도구 파일(proxysg-lib.sh 등)은 이 스크립트 옆에 있으면 그것을, 없으면 설치기가 넣어 둔 /usr/local/lib/elk-auto 를 사용
@@ -50,6 +50,9 @@ istrue() { [[ "${1,,}" =~ ^(1|true|yes|y|on)$ ]]; }
 # ---------------------------------------------------------------- 패치 가능한 항목 -> 적용 동작
 declare -A KEY_ACTIONS=(
   [PROXYSG_PROCESS_CRON]="cron"
+  [PROXYSG_BACKUP_FORMAT]="envonly"
+  [PROXYSG_ZSTD_LEVEL]="envonly"
+  [PROXYSG_ZSTD_THREADS]="envonly"
   [ILM_DELETE_MIN_AGE]="ilm"
   [ILM_DELETE_ENABLED]="ilm"
   [PROXYSG_MAIN_LOG_FORMAT]="pipeline"   [PROXYSG_SSL_LOG_FORMAT]="pipeline"   [PROXYSG_CLOUD_LOG_FORMAT]="pipeline"
@@ -78,7 +81,7 @@ declare -A KEY_ACTIONS=(
 # 값이 같아도 "지금 갱신"으로 실행하는 항목 (인증서는 값이 그대로여도 새로 발급할 수 있어야 한다)
 declare -A FORCE_KEYS=([ES_CA_DAYS]=1 [ES_CERT_DAYS]=1 [NGINX_TLS_DAYS]=1 [KIBANA_PROXYSG_DASHBOARD_WIDGETS]=1)
 declare -A ACTION_TEXT=(
-  [envonly]="Cloud API 설정 저장 (다음 로그 처리 실행부터 적용)"
+  [envonly]="설정값 저장 (다음 로그 처리 실행부터 적용)"
   [dirs]="로그 폴더 생성·권한 설정(없는 폴더만 새로 만듦)"
   [pipeline]="Logstash pipeline 다시 만들기 → 문법 검사 → Logstash 재시작 (검사 실패 시 자동 복구)"
   [cron]="cron 파일의 실행 시간만 교체"
@@ -204,6 +207,9 @@ unset _old _new
 check_value() {
   local k="$1" v="$2"
   case "$k" in
+    PROXYSG_BACKUP_FORMAT) [[ "${v,,}" =~ ^(gz|zstd)$ ]] || echo "GZ 파일 사용(gz) 또는 ZSTD 파일 사용(zstd)을 선택하세요." ;;
+    PROXYSG_ZSTD_LEVEL) [[ "$v" =~ ^[0-9]+$ ]] && (( 10#$v >= 1 && 10#$v <= 19 )) || echo "ZSTD 레벨은 1~19여야 합니다." ;;
+    PROXYSG_ZSTD_THREADS) [[ "$v" =~ ^[0-9]+$ ]] && (( 10#$v >= 1 && 10#$v <= 32 )) || echo "ZSTD 스레드는 1~32여야 합니다." ;;
     PROXYSG_PROCESS_CRON) [[ "$v" =~ ^[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+$ ]] && [[ "$v" =~ ^[0-9*/,[:space:]-]+$ ]] || echo "cron은 5개 필드여야 합니다. 예: 0 3 * * *  (매분: * * * * *)" ;;
     ILM_DELETE_MIN_AGE) [[ "$v" =~ ^[0-9]+(ms|s|m|h|d|w)$ ]] || echo "보존기간 형식이 올바르지 않습니다. 예: 90d" ;;
     ILM_DELETE_ENABLED|PROXYSG_CSV_FILTER_ENABLED|PROXYSG_CLOUD_ENABLED|PROXYSG_CLOUD_API_ENABLED|PROXYSG_CLOUD_API_INSECURE|KIBANA_CREATE_PROXYSG_DASHBOARD) [[ "${v,,}" =~ ^(true|false)$ ]] || echo "true 또는 false 여야 합니다." ;;
@@ -244,6 +250,11 @@ for k in "${ORDER[@]}"; do
   fi
   IFS=' ' read -ra _acts <<<"${KEY_ACTIONS[$k]}"; for a in "${_acts[@]}"; do ACTIONS[$a]=1; done
 done
+_backup_target="${NEWV[PROXYSG_BACKUP_FORMAT]:-${PROXYSG_BACKUP_FORMAT:-gz}}"
+if [[ "${_backup_target,,}" == "zstd" ]] && ! command -v zstd >/dev/null 2>&1; then
+  echo "[거절] ZSTD 모드에는 Ubuntu zstd 패키지가 필요합니다. sudo apt-get install -y zstd" >&2
+  bad=1
+fi
 if [[ -n "${ACTIONS[escerts]+x}" ]]; then
   _ca="${NEWV[ES_CA_DAYS]:-${ES_CA_DAYS:-7300}}"; _ce="${NEWV[ES_CERT_DAYS]:-${ES_CERT_DAYS:-7300}}"
   if (( _ce > _ca )); then echo "[거절] ES_CERT_DAYS : 서버 인증서 유효기간(${_ce}일)은 CA 유효기간(${_ca}일)보다 길 수 없습니다. ES_CA_DAYS 도 함께 늘리세요." >&2; bad=1; fi
@@ -362,7 +373,7 @@ fail_() { FAIL_LIST+=("$1"); warn "실패: $1"; }
 # Cloud API variables are read directly from elk.env by proxysg-log-process.sh
 # at the start of each scheduled execution. No service restart is necessary.
 act_envonly() {
-  ok_ "Cloud API 설정 저장됨 (다음 로그 처리 실행부터 적용; 현재 실행 중인 작업은 변경되지 않음)"
+  ok_ "로그 백업 방식/Cloud API 설정 저장됨 (다음 로그 처리 실행부터 적용)"
 }
 
 act_dirs() {
