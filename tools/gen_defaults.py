@@ -14,6 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 WIZ = ROOT / 'config-wizard.html'
+ENGINE = ROOT / 'assets' / 'wizard-engine.js'
 OUT = ROOT / 'wizard-defaults.js'
 DEPLOY_KEYS = {'host': 's', 'user': 's', 'port': 'n', 'remoteDir': 'p', 'autoInstall': 'b', 'removeAfter': 'b', 'sudoSame': 'b'}
 
@@ -38,8 +39,14 @@ def find_obj(text, token):
 
 
 def load_wizard():
-    w = WIZ.read_text(encoding='utf-8')
-    sc = re.search(r'<script>(.*?)</script>', w, re.S).group(1)
+    if ENGINE.is_file():
+        sc = ENGINE.read_text(encoding='utf-8')
+    else:
+        w = WIZ.read_text(encoding='utf-8')
+        scripts = re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>', w, re.S | re.I)
+        sc = next((x for x in scripts if 'const DATA=' in x), None)
+        if sc is None:
+            raise RuntimeError('Wizard 데이터가 없습니다: assets/wizard-engine.js 또는 config-wizard.html의 DATA를 확인하세요.')
     a, b = find_obj(sc, 'const DATA=')
     D = json.loads(sc[a:b])
     # 빠른 설정 초기값(initialPreset)과 배포 기본값(reset) — 파일이 없을 때의 내장 동작
