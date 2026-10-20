@@ -21,15 +21,21 @@ def write(p, t):
 def version(): return read('_internal/docs/VERSION').strip()
 
 def wizard_text():
-    return B64.sub('""', read('config-wizard.html'))
+    return B64.sub('""', read('assets/wizard-engine.js' if (ROOT/'assets/wizard-engine.js').exists() else 'config-wizard.html'))
 
 def problems(v):
     P = []
     w = wizard_text()
     def need(cond, msg):
         if not cond: P.append(msg)
-    need(f'<title>ELK Oneclick Installer v{v}</title>' in w, f'config-wizard.html: <title> 이 v{v} 가 아닙니다')
-    need(f'<div class="brand">ELK Oneclick Installer <small>v{v}</small></div>' in w, f'config-wizard.html: 상단 표기가 v{v} 가 아닙니다')
+    modular = (ROOT/'assets/wizard-engine.js').exists()
+    if modular:
+        for page in ('config-wizard.html', 'patch.html', 'inspect.html'):
+            if (ROOT/page).exists():
+                need(f'<div class="brand">ELK Oneclick Installer <small>v{v}</small></div>' in read(page), f'{page}: 헤더 버전이 v{v}가 아닙니다')
+    else:
+        need(f'<title>ELK Oneclick Installer v{v}</title>' in w, f'config-wizard.html: <title> 이 v{v} 가 아닙니다')
+        need(f'<div class="brand">ELK Oneclick Installer <small>v{v}</small></div>' in w, f'config-wizard.html: 상단 표기가 v{v} 가 아닙니다')
     need(f"const PKG_VER='{v}'" in w, f"config-wizard.html: PKG_VER 이 {v} 가 아닙니다")
     need(f"ONECLICK_PAYLOAD_VERSION=\\'{v}\\'" in w or f"ONECLICK_PAYLOAD_VERSION='{v}'" in w, f'config-wizard.html: ONECLICK_PAYLOAD_VERSION 이 {v} 가 아닙니다')
     for m in set(re.findall(r'elk-oneclick-install-v(' + SEMVER + r')\.sh', w)):
@@ -60,7 +66,8 @@ def set_version(new):
     if not re.fullmatch(SEMVER, new): sys.exit('버전 형식은 X.Y.Z 입니다.')
     if new == old: print('이미 같은 버전입니다:', old); return
     # wizard (embedded payloads untouched)
-    parts = re.split('(' + B64.pattern + ')', read('config-wizard.html'))
+    wizard_path = 'assets/wizard-engine.js' if (ROOT/'assets/wizard-engine.js').exists() else 'config-wizard.html'
+    parts = re.split('(' + B64.pattern + ')', read(wizard_path))
     for i, p in enumerate(parts):
         if B64.fullmatch(p): continue
         p = p.replace(f'<title>ELK Oneclick Installer v{old}</title>', f'<title>ELK Oneclick Installer v{new}</title>')
@@ -71,7 +78,11 @@ def set_version(new):
         p = p.replace(f'ELK One-Click Installer v{old}', f'ELK One-Click Installer v{new}')
         p = p.replace(f'현재 v{old} 형식', f'현재 v{new} 형식')
         parts[i] = p
-    write('config-wizard.html', ''.join(parts))
+    write(wizard_path, ''.join(parts))
+    if wizard_path != 'config-wizard.html':
+        for page in ('config-wizard.html', 'patch.html', 'inspect.html'):
+            if (ROOT/page).exists():
+                write(page, read(page).replace(f'<small>v{old}</small>', f'<small>v{new}</small>'))
     for f in ('_internal/core/install-elk.sh', '_internal/core/elk-patch.sh', '_internal/core/elk-report.sh'):
         write(f, read(f).replace(f'ELK_AUTO_VERSION="{old}"', f'ELK_AUTO_VERSION="{new}"'))
     s = re.sub(r'^# ELK Auto Installer v' + SEMVER + r'[^\n]*', f'# ELK Auto Installer v{new}', read('_internal/core/install-elk.sh'), count=1, flags=re.M)

@@ -12,7 +12,7 @@ import argparse, base64, gzip, hashlib, json, re, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-WIZ = ROOT / 'config-wizard.html'
+WIZ = ROOT / 'assets/wizard-engine.js' if (ROOT / 'assets/wizard-engine.js').exists() else ROOT / 'config-wizard.html'
 
 # 생성되는 단일 설치 파일(.sh)에 들어가는 파일: Wizard 내부 이름 -> (저장소 경로, ZIP 내 경로와 동일)
 EMBEDDED = {
@@ -215,13 +215,13 @@ def main():
     a = ap.parse_args()
     cur = WIZ.read_text(encoding='utf-8')
     if a.extract_js:
-        Path(a.extract_js).write_text(re.search(r'<script>(.*?)</script>', cur, re.S).group(1), encoding='utf-8')
+        Path(a.extract_js).write_text(cur if WIZ.suffix == '.js' else re.search(r'<script>(.*?)</script>', cur, re.S).group(1), encoding='utf-8')
         return 0
     new = build(cur)
     if a.check:
         bad = []
         if new != cur:
-            bad.append('config-wizard.html (내장 사본이 저장소 파일과 다릅니다)')
+            bad.append(f'{WIZ.relative_to(ROOT)} (내장 사본이 저장소 파일과 다릅니다)')
         s = ROOT / 'SHA256SUMS.txt'
         # SHA256SUMS 는 갱신된 Wizard 기준으로 계산해야 하므로 임시로 덮어써서 비교
         if new != cur:
