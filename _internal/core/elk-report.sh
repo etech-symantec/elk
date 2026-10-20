@@ -16,7 +16,7 @@ set -uo pipefail
 export LC_ALL=C.UTF-8 2>/dev/null || export LC_ALL=en_US.UTF-8 2>/dev/null || true
 
 REPORT_VERSION="1"
-ELK_AUTO_VERSION="2.9.79"
+ELK_AUTO_VERSION="2.9.55"
 # Config Wizard / One-Click Installer와 동일한 빌드 번호
 ELK_AUTO_BUILD="${ELK_AUTO_BUILD:-version-auto-sync}"
 REPORT_BUILD="$ELK_AUTO_BUILD"
@@ -1021,21 +1021,21 @@ write_html() {
 .svcmini{margin-top:12px;padding-top:10px;border-top:1px solid #e8eef6;text-align:left}.svcminihead{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:7px}.svcminihead b{font-size:11px;color:#334155}.svcminihead span{font-size:9px;color:#94a3b8}.svcminilist{display:grid;gap:5px}.svcminirow{display:grid;grid-template-columns:minmax(76px,1fr) 48px 58px;gap:7px;align-items:center;font-size:10px}.svcminirow .name{font-weight:700;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.svcminirow .val{text-align:right;font-weight:800;color:#172033}.svcminirow .badge{justify-self:end;border-radius:999px;padding:2px 6px;font-size:9px;font-weight:900}.svcminirow .badge.ok{background:#d1fae5;color:#065f46}.svcminirow .badge.warn{background:#fef3c7;color:#92400e}.svcminirow .badge.crit{background:#fee2e2;color:#991b1b}.svcminirow .badge.info{background:#e2e8f0;color:#475569}.svcminibar{grid-column:1/-1;height:4px;border-radius:999px;background:#e8eef6;overflow:hidden;margin-top:-2px}.svcminibar i{display:block;height:100%;border-radius:999px;background:#10b981}.svcminibar.warn i{background:#f59e0b}.svcminibar.crit i{background:#ef4444}@media(max-width:760px){.hero-top{flex-direction:column}.hero-status{width:100%;justify-content:flex-start;flex-wrap:wrap}}.configsection{margin:20px 0;background:#fff;border:1px solid #dbe4ef;border-radius:16px;padding:17px;box-shadow:var(--shadow)}.configtitle h2{margin:0 0 5px;font-size:17px}.configtitle p{margin:0 0 14px;color:#64748b;font-size:12px}.formatgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.configgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.cfgsubtitle{font-size:13px;margin:17px 0 10px}.cfgpanel{min-width:0;overflow:hidden;border:1px solid #dbe4ef;border-radius:11px;background:#fbfdff}.cfgpanel>summary{padding:12px;cursor:pointer;display:flex;flex-direction:column;gap:4px;font-weight:800;color:#0f172a;font-size:12px}.cfgpanel>summary span{color:#64748b;font-weight:500;font-size:10px;overflow-wrap:anywhere}.cfgpanel[open]>summary{background:#eff6ff;border-bottom:1px solid #dbe4ef}.cfgbody{padding:10px}.cfgbody pre{margin:0;max-height:440px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.65 ui-monospace,Consolas,monospace;color:#334155}.cfgnotice{margin-top:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:10px;color:#64748b;font-size:11px}@media(max-width:900px){.formatgrid,.configgrid{grid-template-columns:1fr}}
 /* 웹 리포트 책갈피형 플로팅 메뉴 */
 html{scroll-behavior:smooth;scroll-padding-top:24px}
-.report-bookmark{position:fixed;left:12px;top:86px;z-index:1001;display:flex;align-items:flex-start;gap:8px;font-family:inherit}
-.report-bookmark-toggle{border:1px solid #b8cdf0;border-radius:12px;background:linear-gradient(145deg,#1d4ed8,#16377c);color:white;box-shadow:0 6px 18px #1e3a8a35;cursor:pointer;min-width:42px;padding:10px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;font-weight:800;line-height:1.15}
+.report-bookmark{position:fixed;left:12px;top:78px;z-index:1001;display:flex;align-items:flex-start;gap:8px;font-family:inherit;pointer-events:none}
+.report-bookmark-toggle{display:none!important;border:1px solid #b8cdf0;border-radius:12px;background:linear-gradient(145deg,#1d4ed8,#16377c);color:white;box-shadow:0 6px 18px #1e3a8a35;cursor:pointer;min-width:42px;padding:10px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;font-weight:800;line-height:1.15}
 .report-bookmark-toggle:hover{filter:brightness(1.12)}.report-bookmark-toggle:focus-visible,.report-bookmark a:focus-visible{outline:3px solid #60a5fa;outline-offset:2px}
 .report-bookmark-toggle svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9}
-.report-bookmark-panel{display:none;width:248px;max-height:min(74vh,690px);overflow:auto;border:1px solid #dbe4ef;background:#fff;border-radius:14px;padding:10px;box-shadow:0 16px 45px #0f172a35}
+.report-bookmark-panel{display:block;width:220px;max-height:none;overflow:visible;pointer-events:auto;border:1px solid #dbe4ef;background:#fff;border-radius:14px;padding:10px;box-shadow:0 16px 45px #0f172a35}
 .report-bookmark.open .report-bookmark-panel{display:block}.report-bookmark-head{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e2e8f0;padding:3px 4px 10px;margin-bottom:7px}
-.report-bookmark-head strong{font-size:13px;color:#172033}.report-bookmark-close{border:0;background:#f1f5f9;border-radius:7px;padding:4px 7px;color:#475569;cursor:pointer}
-.report-bookmark-list{display:flex;flex-direction:column;gap:3px}.report-bookmark-list a{display:block;padding:9px 10px;border-radius:9px;text-decoration:none;color:#334155;font-size:12px;font-weight:650;border:1px solid transparent;line-height:1.45;overflow-wrap:anywhere}
+.report-bookmark-head strong{font-size:13px;color:#172033}.report-bookmark-close{display:none!important;border:0;background:#f1f5f9;border-radius:7px;padding:4px 7px;color:#475569;cursor:pointer}
+.report-bookmark-list{display:grid;grid-auto-flow:column;grid-template-rows:repeat(var(--bookmark-rows,20),auto);grid-template-columns:repeat(var(--bookmark-cols,1),minmax(0,1fr));gap:3px 7px}.report-bookmark-list a{display:block;padding:5px 8px;border-radius:8px;text-decoration:none;color:#334155;font-size:11px;font-weight:650;border:1px solid transparent;line-height:1.45;overflow-wrap:anywhere}
 .report-bookmark-list a:hover{background:#f1f5ff;color:#1d4ed8}.report-bookmark-list a.active{background:#dbeafe;color:#1d4ed8;border-color:#bfdbfe;font-weight:850}
-.report-bookmark-list a[data-depth="1"]{padding-left:20px;font-size:11px;color:#64748b}.report-bookmark-list a[data-depth="1"].active{color:#1d4ed8}
-.report-bookmark-caption{padding:9px 5px 2px;font-size:10px;color:#94a3b8}
-@media(max-width:800px){.report-bookmark{top:66px;left:7px}.report-bookmark-toggle{min-width:37px;padding:9px 6px}.report-bookmark-panel{width:min(78vw,270px);max-height:70vh}}
+.report-bookmark-list a[data-depth="1"]{padding-left:14px;font-size:10px;color:#64748b}.report-bookmark-list a[data-depth="1"].active{color:#1d4ed8}
+.report-bookmark-caption{padding:7px 5px 1px;font-size:9px;color:#94a3b8}
+@media(max-width:800px){.report-bookmark{top:62px;left:6px}.report-bookmark-panel{width:min(42vw,190px)}.report-bookmark-list a{padding:4px 6px;font-size:10px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
-</style></head><body><nav class="report-bookmark" id="reportBookmark" aria-label="리포트 섹션 바로가기">
- <button class="report-bookmark-toggle" id="reportBookmarkToggle" type="button" aria-expanded="false" aria-controls="reportBookmarkPanel" title="섹션 바로가기">
+</style></head><body><nav class="report-bookmark open" id="reportBookmark" aria-label="리포트 섹션 바로가기">
+ <button class="report-bookmark-toggle" id="reportBookmarkToggle" type="button" aria-expanded="true" aria-controls="reportBookmarkPanel" title="섹션 바로가기">
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span>목차</span>
  </button>
  <div class="report-bookmark-panel" id="reportBookmarkPanel">
@@ -1412,11 +1412,8 @@ applyMeanings();buildDashboard();
  const close=document.getElementById('reportBookmarkClose');
  const links=document.getElementById('reportBookmarkLinks');
  let sections=[], activeId='', refreshPending=false;
- function show(open){nav.classList.toggle('open',open);toggle.setAttribute('aria-expanded',String(open));}
- toggle.addEventListener('click',()=>show(!nav.classList.contains('open')));
- close.addEventListener('click',()=>show(false));
- document.addEventListener('keydown',e=>{if(e.key==='Escape')show(false)});
- document.addEventListener('pointerdown',e=>{if(nav.classList.contains('open')&&!nav.contains(e.target))show(false)});
+ // 책갈피는 항상 펼친 상태로 유지합니다. 외부 클릭과 ESC로 닫지 않습니다.
+ nav.classList.add('open');toggle.setAttribute('aria-expanded','true');
  function entries(){
    const out=[];
    const add=(el,title,depth)=>{if(el&&title&&el.getClientRects().length)out.push({el,title,depth});};
@@ -1446,10 +1443,28 @@ applyMeanings();buildDashboard();
    links.replaceChildren();
    sections.forEach(s=>{
      const a=document.createElement('a');a.href='#'+s.id;a.textContent=s.title;a.dataset.depth=String(s.depth);
-     a.addEventListener('click',e=>{e.preventDefault();s.el.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});history.replaceState(null,'','#'+encodeURIComponent(s.id));show(false);});
+     a.addEventListener('click',e=>{e.preventDefault();s.el.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});history.replaceState(null,'','#'+encodeURIComponent(s.id));});
      links.appendChild(a);
    });
+   fitBookmark();
    updateActive();
+ }
+ // 세로 스크롤 없이 항목을 전부 배치: 화면 높이에 맞춰 열 수/행 수 자동 조정.
+ function fitBookmark(){
+   const count=links.children.length;
+   const freeHeight=Math.max(180,window.innerHeight-nav.getBoundingClientRect().top-24);
+   const rowsPerCol=Math.max(3,Math.floor((freeHeight-78)/34));
+   const columns=Math.max(1,Math.min(5,Math.ceil(count/rowsPerCol)));
+   const actualCols=Math.min(columns,Math.max(1,Math.floor((window.innerWidth-28)/205)));
+   const rows=Math.max(1,Math.ceil(count/actualCols));
+   links.style.setProperty('--bookmark-cols',actualCols);
+   links.style.setProperty('--bookmark-rows',rows);
+   nav.querySelector('.report-bookmark-panel').style.width=(actualCols*205+20)+'px';
+   const available=Math.max(180,window.innerHeight-nav.getBoundingClientRect().top-16);
+   const panel=nav.querySelector('.report-bookmark-panel');
+   panel.style.zoom='1';
+   const natural=panel.getBoundingClientRect().height;
+   if(natural>available)panel.style.zoom=String(Math.max(.63,available/natural));
  }
  function scheduleBuild(){if(refreshPending)return;refreshPending=true;requestAnimationFrame(build);}
  build();
