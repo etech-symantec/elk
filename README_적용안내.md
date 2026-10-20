@@ -1,10 +1,25 @@
-# ZSTD 디스크 절약 우선 설정
+# ELK OneClick v2.9.81 · 패치/점검 메뉴 문자 번호 수정
 
-- ZSTD 백업 기본 압축 레벨: 10 → 19 (일반 ZSTD 최고 레벨)
-- 압축 흐름: gzip -dc | zstd -19 -T2 (평문 중간 파일 없음)
-- ZSTD 스레드 기본값: 2 유지
-- 기존 GZ 방식은 변경하지 않음
-- 원본과 백업 검증·성공 후 원본 삭제 로직 유지
-- 주의: 레벨 19는 CPU, 압축 시간 및 RAM 사용량이 크게 증가할 수 있음. 여유 공간과 메모리, 야간 처리 완료 시각 확인 필요
+기준: 이전에 제공한 ELK_OneClick_Remote_AutoUpgrade_v2.9.81.zip 내 최신 wizard-engine.js
 
-GitHub 배포 시 config-wizard.html과 _internal/core/proxysg-log-process.sh를 갱신하고, 기존 서버는 도구만 교체해도 elk.env에 PROXYSG_ZSTD_LEVEL이 명시된 경우 그 설정값이 우선 적용됨.
+## GitHub 교체 경로
+
+- assets/wizard-engine.js
+- SHA256SUMS.txt
+
+## 변경 사항
+
+패치 페이지 좌측 메뉴 표시 순서: A / B / C / C-1 / C-2 / C-3 / D
+점검 페이지 좌측 메뉴: A / B
+본문 각 섹션의 번호도 동일하게 수정했습니다.
+메뉴 ID, 클릭 이벤트, 하위 아코디언 동작, ELK 업그레이드 CMD 생성 기능은 유지했습니다.
+
+## 적용
+
+ZIP 압축을 풀고 GitHub 저장소 루트에서 위 두 파일을 같은 경로에 덮어쓴 후 커밋하세요.
+브라우저 캐시로 이전 값이 보이면 Ctrl+F5로 새로고침하세요.
+
+## 테스트
+
+node --check 문법 검사 및 메뉴 아이템 순서/번호 검증, SHA256 체크섬 검증 수행.
+실제 브라우저 UI 클릭 테스트는 별도로 필요합니다.
