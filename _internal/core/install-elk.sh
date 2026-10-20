@@ -2601,19 +2601,50 @@ if istrue "$START_SERVICES_AFTER_INSTALL"; then
       }
 
       resolve_dash_field() {
-        local _index="$1" _base="$2" _resp _kw
+        local _index="$1" _base="$2" _resp _kw _detected _mapping_type
         _kw="${_base}.keyword"
         _resp="$(es_curl GET "/${_index}/_field_caps?fields=${_base},${_kw}" 2>/dev/null || true)"
-        jq -r --arg b "$_base" --arg k "$_kw" '
+        _detected="$(jq -r --arg b "$_base" --arg k "$_kw" '
           def agg($n):
             if (.fields[$n] // null) == null then false
             else any(.fields[$n][]; .aggregatable == true) end;
           if agg($k) then $k
           elif agg($b) then $b
           else "" end
-        ' <<<"$_resp" 2>/dev/null | head -n1
-      }
+        ' <<<"$_resp" 2>/dev/null | head -n1 || true)"
+        if [[ -n "$_detected" ]]; then
+          printf '%s\n' "$_detected"
+          return 0
+        fi
 
+        # FIRST_INSTALL_DYNAMIC_MAPPING_FALLBACK:
+        # During initial installation there may be ZERO matching indices and
+        # therefore no _field_caps. The original code then generated a static
+        # '데이터 없음' Vega spec, which remained frozen even after ingestion.
+        # The default ProxySG ELFF parser emits *strings* for all term fields
+        # (numeric conversion is limited to time_taken/sc_bytes/cs_bytes).
+        # Elasticsearch dynamically maps such strings as text+keyword.
+        # Build a working Vega spec now; it will show actual data as soon as
+        # the first real indices/logs arrive (without --full reinstall).
+        # Prefer explicitly configured aggregation-capable mappings, if any.
+        if [[ -n "${INDEX_MAPPING_FILE:-}" && -r "$INDEX_MAPPING_FILE" ]]; then
+          _mapping_type="$(jq -r --arg b "$_base" '
+            .properties[$b] as $m
+            | if ($m|type)!="object" then ""
+              elif $m.type=="keyword" or $m.type=="ip" or
+                   $m.type=="integer" or $m.type=="long" or $m.type=="short" or
+                   $m.type=="byte" or $m.type=="double" or $m.type=="float" or
+                   $m.type=="scaled_float" or $m.type=="boolean" then "base"
+              elif $m.fields.keyword.type=="keyword" then "keyword"
+              else "" end
+          ' "$INDEX_MAPPING_FILE" 2>/dev/null || true)"
+          case "$_mapping_type" in
+            base) printf '%s\n' "$_base"; return 0 ;;
+            keyword) printf '%s\n' "$_kw"; return 0 ;;
+          esac
+        fi
+        printf '%s\n' "$_kw"
+      }
       dash_widget_def() {
         local _id="$1"
         DW_INDEX="${_dash_scope_index:-$_dash_all}"; DW_KIND="terms_bar"; DW_FIELD_BASE=""; DW_FIELD=""; DW_TITLE=""; DW_NOTE=""
@@ -2623,7 +2654,7 @@ if istrue "$START_SERVICES_AFTER_INSTALL"; then
           response_avg)        DW_TITLE="응답시간 Avg · P95"; DW_KIND="metric_latency" ;;
           error_requests)      DW_TITLE="HTTP 오류율"; DW_KIND="metric_error_rate"; DW_FIELD_BASE="sc_status" ;;
           requests_timeline)   DW_TITLE="요청 · 오류 추이"; DW_KIND="time_requests_errors"; DW_FIELD_BASE="sc_status" ;;
-          user_agent_top)      DW_TITLE="User Agent 분포"; DW_KIND="terms_donut"; DW_FIELD_BASE="cs_User_Agent" ;;
+          user_agent_top)      DW_TITLE="User Agent 분포"; DW_KIND="terms_donut"; DW_FIELD_BASE="cs_user_agent" ;;
           server_ip_top)       DW_TITLE="Top Server IP"; DW_KIND="terms_bar"; DW_FIELD_BASE="s_ip" ;;
           status_top)          DW_TITLE="HTTP 상태코드 분포"; DW_KIND="terms_donut"; DW_FIELD_BASE="sc_status" ;;
           client_ip_top)       DW_TITLE="Top Client IP"; DW_FIELD_BASE="c_ip" ;;

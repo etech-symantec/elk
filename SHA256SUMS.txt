@@ -14,7 +14,7 @@ b03a5c2ca3048c2d27433300043c82ffdda0e1ab7db55cf671fef905bd106920  ./_internal/co
 6ed320104cdcaa9da9a527e5fd62a9b739d45b2e6e797f43538b89246b518bec  ./_internal/core/elk-report.sh
 6198acf45d4bcef525e796cfae26b7b2d55d8dd4923c4967fab0e753c52164a7  ./_internal/core/elk-stack-upgrade.sh
 ccb7600cf9e0828021e72ed02bd36e8fedb14fca4eff768b42735ae194a4f753  ./_internal/core/elk-tls-lib.sh
-2cb415cb8ea507051bf6d210f8f808dc51090ecd2ea81611438c4e1b4fdb2e21  ./_internal/core/install-elk.sh
+780a88e779a2fd93ad407f8072c5433ac59c2222376d1b58c8e1352526006683  ./_internal/core/install-elk.sh
 d3236c3007e7fae32ab3e1de0af160253fe42a961664bf6a028e55be4dfbde2c  ./_internal/core/log-ingest-manager.sh
 fc1184e75c0b87064b84c125929dc276f2d14ad2d9264bf20bf2962fa033583a  ./_internal/core/proxysg-lib.sh
 479f26e3682486c6af8ae86d71ebd3b99b2352023c87f0b78582336a8a76aee4  ./_internal/core/proxysg-log-filter.conf
@@ -35,7 +35,7 @@ d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./_internal/to
 aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report-update.sh
 a3233343980cb333d915550c2fa68b9f53eb5e22c2cc922e11b6424fee64dc27  ./assets/adopt.js
 f0e7677da27fd4a7c40b1929b7ffb95836262871a948ba20800c9f28a7bb9aab  ./assets/menu-tour.js
-1e5bcb87f2df5d001c22b39e40e9fbea3067d77c8de5ebbfb75cb4cf3c71be1d  ./assets/wizard-engine.js
+27720df936f7c02c495f5c30cd5a27eb0ff659215a7ecad770ec2e82e3fa885d  ./assets/wizard-engine.js
 8b0a3adf7a74597ab11e1e535d6fe0a4d21595a76290492c6d4769c78a1cfa72  ./assets/wizard.css
 a57f33319a9175d3a366d4195c2276ab8e1adc7659c3d2c67a73dbee87d77c1a  ./bootstrap-update.sh
 55e92948f23361dbc00991245cb7069918086677efe0c0328fb1f3cd89835a83  ./config-wizard.html
