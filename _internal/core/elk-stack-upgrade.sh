@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 # ELK OneClick - Elastic Stack package upgrade helper (no Ubuntu release upgrades).
+# Fix: validate installed major versions independently, allowing Debian epoch (1:) and revision (-1).
 usage(){ cat <<'HELP'
 Usage:
   sudo bash elk-stack-upgrade.sh --check
@@ -12,6 +13,15 @@ HELP
 }
 log(){ printf '[INFO] %s\n' "$*"; }
 fail(){ printf '[ERROR] %s\n' "$*" >&2; exit 1; }
+# Debian packages may use an epoch/revision (e.g. 1:9.5.2-1).
+# Extract the upstream major without a sed pipeline or process substitution.
+version_major(){
+  local version="$1" major
+  version="${version##*:}"             # Strip Debian epoch: 1:9.5.2-1 -> 9.5.2-1
+  major="${version%%.*}"                # Upstream major: 9.5.2-1 -> 9
+  [[ "$major" =~ ^[0-9]+$ ]] || return 1
+  printf '%s\n' "$major"
+}
 [[ ${EUID} -eq 0 ]] || fail 'sudo로 실행하세요.'
 mode=${1:---check}; target=${2:-}
 [[ "$mode" =~ ^(--check|--plan|--upgrade|--help)$ ]] || { usage; exit 2; }
@@ -19,12 +29,19 @@ mode=${1:---check}; target=${2:-}
 command -v dpkg-query >/dev/null || fail 'Ubuntu/Debian 패키지 환경이 아닙니다.'
 command -v apt-cache >/dev/null || fail 'APT가 필요합니다.'
 installed=()
+declare -A installed_versions=()
 log '현재 Ubuntu 버전 (업그레이드 대상 아님)'
 . /etc/os-release; printf '  %s\n' "$PRETTY_NAME"
 log '설치된 Elastic Stack 버전'
 for pkg in elasticsearch kibana logstash; do
   v=$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null || true)
-  if [[ -n "$v" ]]; then installed+=("$pkg"); printf '  %-15s %s\n' "$pkg" "$v"; else printf '  %-15s %s\n' "$pkg" '(미설치)'; fi
+  if [[ -n "$v" ]]; then
+    installed+=("$pkg")
+    installed_versions["$pkg"]="$v"
+    printf '  %-15s %s\n' "$pkg" "$v"
+  else
+    printf '  %-15s %s\n' "$pkg" '(미설치)'
+  fi
 done
 ((${#installed[@]})) || fail '설치된 Elastic Stack 패키지가 없습니다.'
 if [[ "$mode" == '--check' ]]; then
@@ -34,14 +51,27 @@ if [[ "$mode" == '--check' ]]; then
   exit 0
 fi
 [[ "$target" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail '목표 버전은 x.y.z 형식이어야 합니다.'
-mapfile -t current_majors < <(for pkg in "${installed[@]}"; do dpkg-query -W -f='${Version}' "$pkg" | sed -E 's/^([0-9]+:)?([0-9]+)\..*/\2/'; done | sort -u)
-((${#current_majors[@]}==1)) || fail '제품 메이저 버전이 서로 다릅니다. 수동 진단이 필요합니다.'
-[[ "${target%%.*}" == "${current_majors[0]}" ]] || fail '메이저 버전 업그레이드는 지원하지 않습니다. 공식 업그레이드 가이드를 확인하세요.'
+target_major="${target%%.*}"
+log "요청한 업그레이드 대상: $target (메이저 $target_major)"
+# Compare each installed upstream major to the requested one.
+# Store and print concrete versions so failures can be diagnosed from the terminal log.
+base_major=''
+for pkg in "${installed[@]}"; do
+  current="${installed_versions[$pkg]}"
+  current_major="$(version_major "$current")" || fail "$pkg 설치 버전을 해석할 수 없습니다: $current"
+  printf '  [버전 검사] %-15s 설치=%-15s 메이저=%s  대상=%s\n' "$pkg" "$current" "$current_major" "$target_major"
+  if [[ -z "$base_major" ]]; then
+    base_major="$current_major"
+  elif [[ "$current_major" != "$base_major" ]]; then
+    fail "제품 메이저 버전이 서로 다릅니다 ($pkg=$current_major, 앞선 제품=$base_major). 수동 진단이 필요합니다."
+  fi
+  [[ "$current_major" == "$target_major" ]] || fail "$pkg 메이저 버전 변경($current_major → $target_major)은 지원하지 않습니다. 공식 업그레이드 가이드를 확인하세요."
+done
 packages=()
 for pkg in "${installed[@]}"; do
   found=$(apt-cache madison "$pkg" | awk -F '|' -v t="$target" '{gsub(/^[ \t]+|[ \t]+$/, "", $2); v=$2; sub(/^[0-9]+:/,"",v); if (v==t || index(v,t"-")==1) {print $2; exit}}')
   [[ -n "$found" ]] || fail "$pkg 목표 버전 $target 이 현재 APT 저장소에 없습니다. apt update / 저장소를 확인하세요."
-  current=$(dpkg-query -W -f='${Version}' "$pkg")
+  current="${installed_versions[$pkg]}"
   if dpkg --compare-versions "$found" lt "$current"; then fail "$pkg 다운그레이드는 지원하지 않습니다 ($current → $found)."; fi
   packages+=("$pkg=$found")
 done
