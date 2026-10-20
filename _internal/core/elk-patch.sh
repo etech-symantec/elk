@@ -13,8 +13,8 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-PATCH_VERSION="34"
-ELK_AUTO_VERSION="2.9.75"
+PATCH_VERSION="35"
+ELK_AUTO_VERSION="2.9.55"
 ENV_FILE="${ELK_ENV_FILE:-/etc/elk-auto/elk.env}"
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 도구 파일(proxysg-lib.sh 등)은 이 스크립트 옆에 있으면 그것을, 없으면 설치기가 넣어 둔 /usr/local/lib/elk-auto 를 사용
@@ -423,8 +423,18 @@ act_pipeline() {
     die "Logstash 프로필이 proxysg가 아니라 pipeline을 자동으로 다시 만들 수 없습니다. (현재: $LOGSTASH_PROFILE)"
   fi
   chown root:logstash "$LOGSTASH_PIPELINE_FILE" 2>/dev/null || warn "pipeline 파일 소유자 변경 실패(건너뜀)"; chmod 640 "$LOGSTASH_PIPELINE_FILE"
-  log "Logstash 설정 문법 검사"
-  if ! runuser -u logstash -- "$LOGSTASH_BIN" --path.settings "$LOGSTASH_SETTINGS" -t; then
+  # 실행 중인 Logstash의 persistent queue/DLQ 잠금과 충돌하지 않도록
+  # 문법 검사 프로세스에만 독립된 path.data를 사용합니다.
+  # 운영 /var/lib/logstash/queue 및 dead_letter_queue는 건드리지 않습니다.
+  log "Logstash 설정 문법 검사 (격리된 임시 데이터 경로)"
+  local _check_data="" _check_rc=0
+  _check_data="$(mktemp -d /var/tmp/elk-patch-ls-check.XXXXXXXX)" || die "Logstash 검사용 임시 디렉터리를 만들지 못했습니다."
+  chown logstash:logstash "$_check_data" || { rm -rf -- "$_check_data"; die "Logstash 검사용 임시 디렉터리 권한을 설정하지 못했습니다."; }
+  # Logstash 9.x: --path.data는 persistent queue와 dead-letter queue의
+  # 기본 경로를 검사 전용 임시 경로로 격리합니다.
+  runuser -u logstash -- "$LOGSTASH_BIN" --path.settings "$LOGSTASH_SETTINGS" --path.data "$_check_data" -t || _check_rc=$?
+  rm -rf -- "$_check_data"
+  if (( _check_rc != 0 )); then
     warn "Logstash 설정 검사에 실패했습니다. 이전 상태로 되돌립니다."
     if [[ -f "$BK/pipeline.conf.bak" ]]; then cp -p "$BK/pipeline.conf.bak" "$LOGSTASH_PIPELINE_FILE"; else rm -f "$LOGSTASH_PIPELINE_FILE"; fi
     restore_env; die "pipeline 패치 실패 → pipeline 과 elk.env 를 원래대로 복구했습니다. (백업: $BK)"
