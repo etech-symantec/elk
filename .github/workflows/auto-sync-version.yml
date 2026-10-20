@@ -1,49 +1,64 @@
-name: Sync OneClick release metadata
+name: Auto-bump and synchronize OneClick release
 on:
   push:
     branches: [main]
-    paths:
-      - '_internal/docs/VERSION'
-      - '_internal/core/**'
-      - '_internal/tools/run-remote-deploy.ps1'
-      - 'wizard-defaults.js'
-      - 'assets/**'
-      - 'config-wizard.html'
-      - 'patch.html'
-      - 'inspect.html'
-      - 'README.md'
-      - 'tools/sync_version.py'
-      - 'tools/sync_wizard.py'
-      - 'tools/sync_release.py'
   workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Increase PATCH version once (normally manual runs only resynchronize)'
+        type: boolean
+        default: false
 permissions:
   contents: write
 concurrency:
   group: oneclick-version-sync-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  sync:
+  release:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout main history
+        uses: actions/checkout@v4
         with:
           persist-credentials: true
           ref: main
           fetch-depth: 0
-      - name: Sync, verify and push (retry on concurrent main updates)
+      - name: Auto-bump once and synchronize all generated files
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_BUMP: ${{ inputs.bump }}
         run: |
           set -Eeuo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
           for attempt in 1 2 3 4 5; do
-            echo "--- Sync attempt ${attempt}/5 ---"
+            echo "--- OneClick release attempt ${attempt}/5 ---"
             git fetch --no-tags origin main
-            # Only discard generated changes inside this ephemeral Actions checkout.
-            # Never force-push or reset the remote branch.
             git reset --hard origin/main
+
+            bump=0
+            if [[ "$EVENT_NAME" == 'workflow_dispatch' ]]; then
+              [[ "$MANUAL_BUMP" == 'true' ]] && bump=1
+            else
+              set +e
+              python3 tools/release_should_bump.py
+              rc=$?
+              set -e
+              case "$rc" in
+                0) bump=1 ;;
+                3) bump=0 ;;
+                *) echo 'Failed to inspect release history' >&2; exit "$rc" ;;
+              esac
+            fi
+
+            if (( bump )); then
+              python3 tools/auto_bump_version.py
+            else
+              echo 'No version bump needed; syncing generated assets only.'
+            fi
 
             python3 tools/sync_version.py
             python3 tools/sync_wizard.py
@@ -54,25 +69,25 @@ jobs:
             python3 tools/check_version.py
             bash tools/check_patch_lib.sh
 
-            git add README.md config-wizard.html patch.html inspect.html assets/wizard-engine.js SHA256SUMS.txt version.json \
+            git add -- _internal/docs/VERSION README.md config-wizard.html patch.html inspect.html \
+              assets/wizard-engine.js SHA256SUMS.txt version.json \
               _internal/core/install-elk.sh _internal/core/elk-patch.sh \
               _internal/core/elk-report.sh _internal/docs/README.md \
               _internal/docs/CHANGELOG.md
             if git diff --cached --quiet; then
-              echo 'All generated files are already synchronized.'
+              echo 'Already up to date.'
               exit 0
             fi
 
-            git commit -m 'chore: sync OneClick version and embedded assets'
+            git commit -m 'chore(release): auto-bump OneClick version and synchronize assets [skip ci]'
             if git push origin HEAD:main; then
-              echo 'Synchronized files pushed successfully.'
+              echo 'Release synchronized successfully.'
               exit 0
             fi
-
             if (( attempt == 5 )); then
-              echo 'ERROR: main changed repeatedly or push is blocked by permissions/branch rules.' >&2
+              echo 'ERROR: main kept changing or pushes are forbidden.' >&2
               exit 1
             fi
-            echo 'Push failed; refresh main and rerun sync safely.'
-            sleep $(( attempt * 2 ))
+            echo 'Push raced with another commit; refresh history and retry safely.'
+            sleep $((attempt * 2))
           done
