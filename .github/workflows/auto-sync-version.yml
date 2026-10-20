@@ -1,7 +1,20 @@
-name: Auto-bump and synchronize OneClick release
+name: Sync OneClick release metadata
 on:
   push:
     branches: [main]
+    paths:
+      - '_internal/docs/VERSION'
+      - '_internal/core/**'
+      - '_internal/tools/run-remote-deploy.ps1'
+      - 'wizard-defaults.js'
+      - 'assets/**'
+      - 'config-wizard.html'
+      - 'patch.html'
+      - 'inspect.html'
+      - 'README.md'
+      - 'tools/sync_version.py'
+      - 'tools/sync_wizard.py'
+      - 'tools/sync_release.py'
   workflow_dispatch:
 permissions:
   contents: write
@@ -9,62 +22,57 @@ concurrency:
   group: oneclick-version-sync-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  release:
+  sync:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: true
+          ref: main
           fetch-depth: 0
-      - name: Advance one release for each changed push and publish synchronized assets
+      - name: Sync, verify and push (retry on concurrent main updates)
         shell: bash
-        env:
-          BEFORE: ${{ github.event.before }}
         run: |
           set -Eeuo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
           for attempt in 1 2 3 4 5; do
-            echo "--- release sync attempt ${attempt}/5 ---"
+            echo "--- Sync attempt ${attempt}/5 ---"
             git fetch --no-tags origin main
+            # Only discard generated changes inside this ephemeral Actions checkout.
+            # Never force-push or reset the remote branch.
             git reset --hard origin/main
 
-            # A push should produce one release, not one release per edited file.
-            # If main advanced while the workflow waited, still use the latest tree.
-            if [[ "${GITHUB_EVENT_NAME}" == 'workflow_dispatch' ]]; then
-              changed='manual-trigger'
-            elif [[ -n "${BEFORE:-}" && "${BEFORE}" != '0000000000000000000000000000000000000000' ]] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-              changed="$(git diff --name-only "${BEFORE}" HEAD)"
-            elif git rev-parse 'HEAD^' >/dev/null 2>&1; then
-              changed="$(git diff --name-only HEAD^ HEAD)"
-            else
-              changed='initial-push'
-            fi
-            if [[ -z "$changed" ]]; then
-              echo 'No source changes; skipping.'
-              exit 0
-            fi
-            printf 'Changed files:\n%s\n' "$changed"
-
-            python3 tools/auto_bump_version.py --min-version 2.9.56
-            python3 tools/sync_release.py
+            python3 tools/sync_version.py
+            python3 tools/sync_wizard.py
+            python3 tools/sync_version.py
+            python3 tools/sync_wizard.py
+            python3 tools/sync_version.py --check
+            python3 tools/sync_wizard.py --check
+            python3 tools/check_version.py
             bash tools/check_patch_lib.sh
 
-            git add -u
-            git add _internal/docs/VERSION version.json SHA256SUMS.txt config-wizard.html
+            git add README.md config-wizard.html patch.html inspect.html assets/wizard-engine.js SHA256SUMS.txt version.json \
+              _internal/core/install-elk.sh _internal/core/elk-patch.sh \
+              _internal/core/elk-report.sh _internal/docs/README.md \
+              _internal/docs/CHANGELOG.md
             if git diff --cached --quiet; then
-              echo 'Already synchronized.'
+              echo 'All generated files are already synchronized.'
               exit 0
             fi
-            git commit -m 'chore(release): auto-bump OneClick version and synchronize assets [skip ci]'
+
+            git commit -m 'chore: sync OneClick version and embedded assets'
             if git push origin HEAD:main; then
-              echo 'Version and build are synchronized.'
+              echo 'Synchronized files pushed successfully.'
               exit 0
             fi
+
             if (( attempt == 5 )); then
-              echo 'ERROR: unable to push. Check branch protection and Actions write permission.' >&2
+              echo 'ERROR: main changed repeatedly or push is blocked by permissions/branch rules.' >&2
               exit 1
             fi
-            sleep $((attempt * 2))
+            echo 'Push failed; refresh main and rerun sync safely.'
+            sleep $(( attempt * 2 ))
           done
