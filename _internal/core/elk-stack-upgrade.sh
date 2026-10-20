@@ -6,8 +6,9 @@ usage(){ cat <<'HELP'
 Usage:
   sudo bash elk-stack-upgrade.sh --check
   sudo bash elk-stack-upgrade.sh --plan VERSION
-  sudo bash elk-stack-upgrade.sh --upgrade VERSION
-Examples: --plan 9.2.1 / --upgrade 9.2.1
+  sudo bash elk-stack-upgrade.sh --upgrade VERSION [--yes] [--refresh]
+  sudo bash elk-stack-upgrade.sh --upgrade latest --yes --refresh
+Examples: --plan 9.5.5 / --plan latest / --upgrade 9.5.5
 Only upgrades the installed Elasticsearch/Kibana/Logstash packages. Never upgrades Ubuntu OS.
 HELP
 }
@@ -24,6 +25,22 @@ version_major(){
 }
 [[ ${EUID} -eq 0 ]] || fail 'sudo로 실행하세요.'
 mode=${1:---check}; target=${2:-}
+assume_yes=false
+refresh_apt=false
+if [[ "$mode" == '--check' || "$mode" == '--help' ]]; then
+  (($# <= 1)) || fail '이 모드에서는 추가 인수가 필요하지 않습니다.'
+else
+  (($# >= 2)) || fail '목표 버전 또는 latest를 지정하세요.'
+  for arg in "${@:3}"; do
+    case "$arg" in
+      --yes) assume_yes=true ;;
+      --refresh) refresh_apt=true ;;
+      *) fail "알 수 없는 옵션: $arg" ;;
+    esac
+  done
+fi
+if [[ "$mode" != '--upgrade' ]] && $assume_yes; then fail '--yes는 --upgrade에서만 사용합니다.'; fi
+
 [[ "$mode" =~ ^(--check|--plan|--upgrade|--help)$ ]] || { usage; exit 2; }
 [[ "$mode" == '--help' ]] && { usage; exit 0; }
 command -v dpkg-query >/dev/null || fail 'Ubuntu/Debian 패키지 환경이 아닙니다.'
@@ -50,7 +67,30 @@ if [[ "$mode" == '--check' ]]; then
   log '아직 업데이트하지 않았습니다. --plan VERSION 으로 검토하세요.'
   exit 0
 fi
-[[ "$target" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail '목표 버전은 x.y.z 형식이어야 합니다.'
+if $refresh_apt; then
+  log 'APT 패키지 목록 갱신 (Ubuntu OS 업그레이드 없음)'
+  if ! DEBIAN_FRONTEND=noninteractive apt-get update; then
+    fail 'APT 저장소 목록 갱신 실패. 사용 가능한 후보가 오래되었을 수 있어 업그레이드를 중단합니다.'
+  fi
+fi
+if [[ "$target" == latest ]]; then
+  log 'APT 저장소 최신 후보 버전 탐색 (설치된 구성 요소만)'
+  latest_version=''
+  for pkg in "${installed[@]}"; do
+    candidate="$(LC_ALL=C apt-cache policy "$pkg" | awk '/^[[:space:]]*Candidate:[[:space:]]*/ {print $2; exit}')"
+    [[ -n "$candidate" && "$candidate" != '(none)' ]] || fail "$pkg 저장소 후보 버전이 없습니다."
+    upstream="${candidate##*:}"
+    upstream="${upstream%%-*}"
+    [[ "$upstream" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "$pkg 후보 버전 해석 실패: $candidate"
+    printf '  %-15s 후보=%-20s upstream=%s\n' "$pkg" "$candidate" "$upstream"
+    if [[ -z "$latest_version" ]]; then latest_version="$upstream";
+    elif [[ "$latest_version" != "$upstream" ]]; then
+      fail "패키지별 최신 버전이 다릅니다 ($latest_version / $pkg=$upstream). 자동 업그레이드를 중단합니다."
+    fi
+  done
+  target="$latest_version"
+fi
+[[ "$target" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail '목표 버전은 x.y.z 또는 latest 형식이어야 합니다.' 
 target_major="${target%%.*}"
 log "요청한 업그레이드 대상: $target (메이저 $target_major)"
 # Compare each installed upstream major to the requested one.
@@ -75,19 +115,36 @@ for pkg in "${installed[@]}"; do
   if dpkg --compare-versions "$found" lt "$current"; then fail "$pkg 다운그레이드는 지원하지 않습니다 ($current → $found)."; fi
   packages+=("$pkg=$found")
 done
+# Already at the exact requested package versions: no changes are required.
+all_current=true
+for pkgver in "${packages[@]}"; do
+  pkg="${pkgver%%=*}"
+  requested="${pkgver#*=}"
+  if [[ "${installed_versions[$pkg]}" != "$requested" ]]; then all_current=false; break; fi
+done
+if $all_current; then
+  log "이미 모든 설치된 패키지가 목표 버전 $target 입니다. 변경하지 않습니다."
+  exit 0
+fi
 log '업그레이드 계획 (설치된 패키지만 대상)'
 printf '  %s\n' "${packages[@]}"
 log 'APT 설치 시뮬레이션'; apt-get -s install --only-upgrade "${packages[@]}" || fail 'APT 설치 시뮬레이션 실패'
 if [[ "$mode" == '--plan' ]]; then log '조회/시뮬레이션 완료. 실제 변경은 없습니다.'; exit 0; fi
-[[ -t 0 ]] || fail '실제 업그레이드는 대화형 서버 콘솔에서만 실행 가능합니다.'
+if ! $assume_yes; then
+  [[ -t 0 ]] || fail '무인 실행은 --yes가 필요합니다. (예: --upgrade latest --yes)'
+fi
 cat <<'WARN'
 [주의] 실제 업그레이드 시 서비스 중단이 발생할 수 있습니다.
 - Elasticsearch 스냅샷/데이터 백업은 별도 확인이 필요합니다.
 - 플러그인 호환성과 디스크 여유 공간 및 클러스터 상태를 먼저 점검하세요.
 - 이 스크립트는 Ubuntu OS 버전 업그레이드를 수행하지 않습니다.
 WARN
-read -r -p "대상 버전 $target 으로 진행하려면 UPGRADE 입력: " yes
-[[ "$yes" == UPGRADE ]] || fail '취소했습니다.'
+if $assume_yes; then
+  log '명시적인 --yes 옵션에 따라 자동 진행합니다. (예상되는 서비스 중단을 수락한 경우에만 사용하세요.)'
+else
+  read -r -p "대상 버전 $target 으로 진행하려면 UPGRADE 입력: " yes
+  [[ "$yes" == UPGRADE ]] || fail '취소했습니다.'
+fi
 backup="/var/backups/elk-stack-upgrade/$(date +%Y%m%d-%H%M%S)"
 install -d -m 700 "$backup"
 for f in /etc/elasticsearch/elasticsearch.yml /etc/kibana/kibana.yml /etc/logstash/logstash.yml /etc/elk-auto/elk.env; do
