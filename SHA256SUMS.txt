@@ -11,7 +11,7 @@ f9be6d00c5e90ef564d516d170272c896aedb48748bafad7446150264dd7378e  ./_internal/co
 24cce110aea0e41cd724dbd05e62f380417a514894875edab9ce19b9745cf74d  ./_internal/core/elk-ops.sh
 55e67da712b643b2af136b9413d8617ad1cb3c239d33d72a350f37b086c9b7f3  ./_internal/core/elk-patch.sh
 7601812a996f151e9ff52ea446851d96e3db5b8b861137717b9915123c48b087  ./_internal/core/elk-report-web.py
-a4c10aa839c43d35182e05e715bb6e02504dbc1a43f8bb92b6f5463ed4d7f9d3  ./_internal/core/elk-report.sh
+5e77bfddebf3dcd43b1ba97becbf84258cf120826803616fc7a2523165952a69  ./_internal/core/elk-report.sh
 6198acf45d4bcef525e796cfae26b7b2d55d8dd4923c4967fab0e753c52164a7  ./_internal/core/elk-stack-upgrade.sh
 ccb7600cf9e0828021e72ed02bd36e8fedb14fca4eff768b42735ae194a4f753  ./_internal/core/elk-tls-lib.sh
 6aa308ef93e83c0b965ce27440846302d7df7c669f387bfd620bc3a10827c38d  ./_internal/core/install-elk.sh
@@ -35,7 +35,7 @@ d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./_internal/to
 aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report-update.sh
 a3233343980cb333d915550c2fa68b9f53eb5e22c2cc922e11b6424fee64dc27  ./assets/adopt.js
 f0e7677da27fd4a7c40b1929b7ffb95836262871a948ba20800c9f28a7bb9aab  ./assets/menu-tour.js
-61b7d55ff018ea33f44c6f0bcc05ec571dd1534a2e01d22a36dcb02ef1584f26  ./assets/wizard-engine.js
+60739d433c3c6ef7d0d64601cdd6faa36c41febf758d63530182de9d56127d94  ./assets/wizard-engine.js
 8b0a3adf7a74597ab11e1e535d6fe0a4d21595a76290492c6d4769c78a1cfa72  ./assets/wizard.css
 a57f33319a9175d3a366d4195c2276ab8e1adc7659c3d2c67a73dbee87d77c1a  ./bootstrap-update.sh
 0a6e154547c42c9aefc2346d01cc72e687df3f94dc0b52ae59e4135018ca315d  ./config-wizard.html
@@ -49,4 +49,4 @@ f0b3c35768cb75cd987c933c9719d729ee5cb63a82db7b0e6c91d6b1657c13c9  ./guide/guide-
 ff8bcd8313a43fd055ce30967619f3ce804321bfff0584c18a45014e639aa32b  ./patch.html
 89018ec01b9b4fb61ab8788e9153acb55f4d2c215e933d21d96efa658d91e5c2  ./run-remote-deploy.cmd
 d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./run-remote-deploy.ps1
-926af838a3b8a2b2f735ade55ab49b7c49dc2a1c12493fa8e7ac6bf13efc4917  ./version.json
+fdfb3562841a1c584907ad80c83869442476fe89548d7b6de131e2e8608c13f0  ./version.json
