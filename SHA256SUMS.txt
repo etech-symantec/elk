@@ -17,7 +17,7 @@ ccb7600cf9e0828021e72ed02bd36e8fedb14fca4eff768b42735ae194a4f753  ./_internal/co
 6aa308ef93e83c0b965ce27440846302d7df7c669f387bfd620bc3a10827c38d  ./_internal/core/install-elk.sh
 d3236c3007e7fae32ab3e1de0af160253fe42a961664bf6a028e55be4dfbde2c  ./_internal/core/log-ingest-manager.sh
 fc1184e75c0b87064b84c125929dc276f2d14ad2d9264bf20bf2962fa033583a  ./_internal/core/proxysg-lib.sh
-988953c69b97fd663239e33593d16f5bafb38bfed7fdeee1e21d863fef8f94b6  ./_internal/core/proxysg-log-filter.conf
+479f26e3682486c6af8ae86d71ebd3b99b2352023c87f0b78582336a8a76aee4  ./_internal/core/proxysg-log-filter.conf
 bc3243b4b963e493fb0ab2e212be5fa47ac4e4f6af0f95e5ef6874a5cc71e055  ./_internal/core/proxysg-log-process.sh
 d2e0309ce012c122eac33c118071d09fc843933df8ad46e50b0fe1d9b5b084c7  ./_internal/docs/CHANGELOG.md
 0eba7fb05486e9d0853f44fa7ae85b8faa0bcdc346c083497cbbc2b19025ab24  ./_internal/docs/INSTALL_STEP_MAPPING.md
@@ -35,7 +35,7 @@ d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./_internal/to
 aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report-update.sh
 a3233343980cb333d915550c2fa68b9f53eb5e22c2cc922e11b6424fee64dc27  ./assets/adopt.js
 f0e7677da27fd4a7c40b1929b7ffb95836262871a948ba20800c9f28a7bb9aab  ./assets/menu-tour.js
-cd45c1d8a526cc09b7a7fd644d90dccaf261ddc5caa831b9edf7ed0ef60fc215  ./assets/wizard-engine.js
+61b7d55ff018ea33f44c6f0bcc05ec571dd1534a2e01d22a36dcb02ef1584f26  ./assets/wizard-engine.js
 8b0a3adf7a74597ab11e1e535d6fe0a4d21595a76290492c6d4769c78a1cfa72  ./assets/wizard.css
 a57f33319a9175d3a366d4195c2276ab8e1adc7659c3d2c67a73dbee87d77c1a  ./bootstrap-update.sh
 0a6e154547c42c9aefc2346d01cc72e687df3f94dc0b52ae59e4135018ca315d  ./config-wizard.html
@@ -49,4 +49,4 @@ f0b3c35768cb75cd987c933c9719d729ee5cb63a82db7b0e6c91d6b1657c13c9  ./guide/guide-
 ff8bcd8313a43fd055ce30967619f3ce804321bfff0584c18a45014e639aa32b  ./patch.html
 89018ec01b9b4fb61ab8788e9153acb55f4d2c215e933d21d96efa658d91e5c2  ./run-remote-deploy.cmd
 d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./run-remote-deploy.ps1
-098245a46027f3247e40a6704147835d2587366e9fb57899d276e6399f0a0688  ./version.json
+926af838a3b8a2b2f735ade55ab49b7c49dc2a1c12493fa8e7ac6bf13efc4917  ./version.json
