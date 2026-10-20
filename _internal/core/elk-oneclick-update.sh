@@ -240,8 +240,12 @@ LV="$(GET "$RAW/_internal/docs/VERSION" | tr -d '\r\n ')"
 [[ -n "$LV" ]] || die "GitHub VERSION 파일을 읽지 못했습니다."
 
 # build 정보는 config-wizard.html 헤더만 읽음 (core 파일과 무관)
-WIZ="$(GET "$RAW/config-wizard.html")" || die "config-wizard.html을 읽지 못했습니다."
-LB="$(grep -oE "WIZARD_BUILD=['\"][^'\"]+" <<<"$WIZ" | head -1 | sed -E "s/.*['\"]//")"
+WIZ="$(GET "$RAW/assets/wizard-engine.js")" \
+  || die "wizard-engine.js를 읽지 못했습니다."
+
+LB="$(grep -oE "WIZARD_BUILD=['\"][^'\"]+" \
+  <<<"$WIZ" | head -1 | sed -E "s/.*['\"]//" || true)"
+
 [[ -n "$LB" ]] || LB="unknown"
 
 C=-1
