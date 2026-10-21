@@ -1,21 +1,30 @@
-# ELK 업그레이드 진단·오류 메시지 개선 (v2.9.81.2)
+# ELK OneClick Stack Upgrade v2.9.81.5
 
-## 포함된 전체 교체 파일
-- `_internal/core/elk-stack-upgrade.sh`
-- `SHA256SUMS.txt`
+## 교체 경로
+GitHub 저장소의 `_internal/core/elk-stack-upgrade.sh` 파일을 ZIP 안의 동일 경로 파일로 **전체 교체**하세요.
 
-GitHub 저장소의 같은 경로로 교체하고 커밋하세요. `sudo elk-oneclick-update --apply`로 동기화한 후 `sudo elk-stack-upgrade --plan 9.5.5`로 먼저 점검하세요. GitHub 동기화에 실패했다면 서버의 실제 실행 파일이 예전 버전일 수 있으니 `sudo grep TOOL_VERSION /usr/local/sbin/elk-stack-upgrade`로 확인하세요.
+서버에서 업데이트: `sudo elk-oneclick-update --apply`
 
-## 변경 내용
-- 패키지 검색 시작/패키지별 선택 버전/조회 완료 로그 표시
-- `apt-cache madison` 오류가 `set -e`에 묻혀 무출력 종료하는 경우 원인 표시
-- 목표 버전이 APT 저장소에 없는 경우 조회 가능한 일부 버전과 안내 표시
-- 예기치 않은 셸 오류의 라인과 종료 코드 표시
-- 기존 메이저 버전/epoch 판별, 다운그레이드 차단, 백업, UPGRADE 확인/--yes, Ubuntu OS 비변경 유지
+### 지금 설치 9.5.4 / 실행 9.5.2 불일치 복구
+`sudo elk-stack-upgrade --reconcile`
 
-## 실제 운영 순서
-1. `sudo elk-oneclick-update --apply`
-2. `sudo elk-stack-upgrade --plan 9.5.5`
-3. `sudo elk-stack-upgrade --upgrade 9.5.5` (스냅샷과 점검 시간 확보 후)
+- 설치된 Elasticsearch 버전과 실제 JVM의 버전 표시를 비교합니다.
+- 다르면 Elasticsearch 서비스의 정상적인 `systemctl restart --no-block`을 요청하며, 최대 180초 동안 실제 프로세스 버전이 맞는지 확인합니다.
+- 사용자의 `RESTART` 입력이 필요합니다. 무인 실행은 `--reconcile --yes`를 사용합니다.
+- 이 작업은 패키지를 재설치하지 않고 Elasticsearch 서비스만 재시작합니다.
+- Elasticsearch 재시작으로 검색/색인에 일시적 영향이 있으므로 유지보수 시간에 실행하세요.
 
-스크린샷의 명령은 종료 프롬프트가 보이지 않아, 조회 중 지연인지 오류 종료인지 구분되지 않습니다. 실제 서버에서 `apt-cache madison elasticsearch` 등의 실행 결과를 확인해야 원인을 확정할 수 있습니다.
+### 다음 버전 업그레이드
+`sudo elk-stack-upgrade --plan 9.5.5`
+`sudo elk-stack-upgrade --upgrade 9.5.5`
+
+- Elasticsearch를 패키지 교체 후 실제 JVM 버전과 비교하고, 실행 버전 불일치 시 재시작합니다.
+- Kibana Keystore 자동 접근 권한 복구 및 Logstash 제한시간 종료 보호 유지.
+- 터미널에서는 컬러 출력, 비TTY에서는 ANSI 색상 제거.
+
+### 검증
+`sudo systemctl status elasticsearch --no-pager`
+`curl -k -sS -o /dev/null -w '%{http_code}\n' https://127.0.0.1:9200/` (보안 활성화 환경에서는 401도 정상 연결 응답)
+`sudo elk-stack-upgrade --check`
+
+주의: 실제 실행 버전은 `/proc` 내 Elasticsearch Java 실행 인자의 버전별 jar 이름을 기반으로 확인합니다. JVM 실행 인자 형식이 변경된 배포판에서는 버전 탐지가 실패할 수 있으며 그 경우 자동 완료 처리하지 않습니다.
