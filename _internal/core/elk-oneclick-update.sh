@@ -239,14 +239,19 @@ fi
 LV="$(GET "$RAW/_internal/docs/VERSION" | tr -d '\r\n ')"
 [[ -n "$LV" ]] || die "GitHub VERSION 파일을 읽지 못했습니다."
 
-# build 정보는 config-wizard.html 헤더만 읽음 (core 파일과 무관)
-WIZ="$(GET "$RAW/assets/wizard-engine.js")" \
-  || die "wizard-engine.js를 읽지 못했습니다."
-
-LB="$(grep -oE "WIZARD_BUILD=['\"][^'\"]+" \
-  <<<"$WIZ" | head -1 | sed -E "s/.*['\"]//" || true)"
-
-[[ -n "$LB" ]] || LB="unknown"
+# OneClick 서버 패키지 빌드와 Wizard 화면 빌드(WIZARD_BUILD)는 서로 다릅니다.
+# 생성된 설치 파일에 기록되는 ONECLICK_PAYLOAD_BUILD만 비교/기록합니다.
+# 추출 실패 시 set -e/pipefail로 조용히 종료하지 않습니다.
+WIZ_JS="$(GET "$RAW/assets/wizard-engine.js")" || die "assets/wizard-engine.js를 읽지 못했습니다."
+LB="$(grep -m1 -oE "ONECLICK_PAYLOAD_BUILD='[^']+'" <<<"$WIZ_JS" | cut -d"'" -f2 || true)"
+if [[ -z "$LB" ]]; then
+  ui_warn "GitHub Wizard에서 OneClick 설치 빌드를 확인하지 못했습니다."
+  if [[ "$IV" == "$LV" && -n "$IB" ]]; then
+    LB="$IB"
+  else
+    LB="unknown"
+  fi
+fi
 
 C=-1
 if [[ "$IV" =~ ^[0-9]+([.][0-9]+)*([._-][A-Za-z0-9.-]+)?$ ]]; then
