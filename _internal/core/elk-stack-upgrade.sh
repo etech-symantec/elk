@@ -9,9 +9,11 @@ Usage:
   sudo bash elk-stack-upgrade.sh --upgrade VERSION [--yes] [--refresh]
   sudo bash elk-stack-upgrade.sh --upgrade latest --yes --refresh
 Examples: --plan 9.5.5 / --plan latest / --upgrade 9.5.5
+Installed OneClick command: sudo elk-stack-upgrade --plan 9.5.5
 Only upgrades the installed Elasticsearch/Kibana/Logstash packages. Never upgrades Ubuntu OS.
 HELP
 }
+TOOL_VERSION='v2.9.81.1'
 log(){ printf '[INFO] %s\n' "$*"; }
 fail(){ printf '[ERROR] %s\n' "$*" >&2; exit 1; }
 # Debian packages may use an epoch/revision (e.g. 1:9.5.2-1).
@@ -43,6 +45,7 @@ if [[ "$mode" != '--upgrade' ]] && $assume_yes; then fail '--yes는 --upgrade에
 
 [[ "$mode" =~ ^(--check|--plan|--upgrade|--help)$ ]] || { usage; exit 2; }
 [[ "$mode" == '--help' ]] && { usage; exit 0; }
+log "ELK Stack Upgrade 도구: $TOOL_VERSION (동일 메이저 버전만 허용)"
 command -v dpkg-query >/dev/null || fail 'Ubuntu/Debian 패키지 환경이 아닙니다.'
 command -v apt-cache >/dev/null || fail 'APT가 필요합니다.'
 installed=()
