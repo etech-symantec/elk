@@ -13,9 +13,17 @@ Installed OneClick command: sudo elk-stack-upgrade --plan 9.5.5
 Only upgrades the installed Elasticsearch/Kibana/Logstash packages. Never upgrades Ubuntu OS.
 HELP
 }
-TOOL_VERSION='v2.9.81.1'
+TOOL_VERSION='v2.9.81.2'
 log(){ printf '[INFO] %s\n' "$*"; }
 fail(){ printf '[ERROR] %s\n' "$*" >&2; exit 1; }
+# set -e/pipefail 중단 위치를 반드시 출력한다. (설정/비밀번호는 출력하지 않음)
+unexpected_failure(){
+  local rc=$? line="$1"
+  printf '[ERROR] 예기치 못한 명령 실패: line=%s, exit=%s\n' "$line" "$rc" >&2
+  printf '[INFO] 조회 과정 진단: sudo elk-stack-upgrade --plan 9.5.5\n' >&2
+  exit "$rc"
+}
+trap 'unexpected_failure "$LINENO"' ERR
 # Debian packages may use an epoch/revision (e.g. 1:9.5.2-1).
 # Extract the upstream major without a sed pipeline or process substitution.
 version_major(){
@@ -110,14 +118,27 @@ for pkg in "${installed[@]}"; do
   fi
   [[ "$current_major" == "$target_major" ]] || fail "$pkg 메이저 버전 변경($current_major → $target_major)은 지원하지 않습니다. 공식 업그레이드 가이드를 확인하세요."
 done
+log 'APT 저장소 패키지 조회 시작 (각 패키지 조회 결과를 표시합니다)'
 packages=()
 for pkg in "${installed[@]}"; do
-  found=$(apt-cache madison "$pkg" | awk -F '|' -v t="$target" '{gsub(/^[ \t]+|[ \t]+$/, "", $2); v=$2; sub(/^[0-9]+:/,"",v); if (v==t || index(v,t"-")==1) {print $2; exit}}')
-  [[ -n "$found" ]] || fail "$pkg 목표 버전 $target 이 현재 APT 저장소에 없습니다. apt update / 저장소를 확인하세요."
+  log "패키지 조회 중: $pkg (목표 $target)"
+  # 명령 치환 안에서 set -e로 오류가 조용히 사라지지 않게 실패를 명시적으로 확인한다.
+  if ! madison_output="$(LC_ALL=C apt-cache madison "$pkg" 2>&1)"; then
+    fail "$pkg 저장소 조회 실패 (apt-cache madison): $madison_output"
+  fi
+  [[ -n "$madison_output" ]] || fail "$pkg APT 저장소에 제공 가능한 버전이 없습니다. apt-get update 및 저장소 설정을 확인하세요."
+  found="$(awk -F '|' -v t="$target" '{gsub(/^[ \t]+|[ \t]+$/, "", $2); v=$2; sub(/^[0-9]+:/,"",v); if (v==t || index(v,t"-")==1) {print $2; exit}}' <<<"$madison_output")" || fail "$pkg 저장소 버전 검색에 실패했습니다."
+  if [[ -z "$found" ]]; then
+    printf '[INFO] %s 저장소에 있는 버전(상위 5개):\n' "$pkg"
+    printf '%s\n' "$madison_output" | head -n 5 || true
+    fail "$pkg 목표 버전 $target 이 현재 APT 저장소에 없습니다. apt-get update / 저장소를 확인하세요."
+  fi
   current="${installed_versions[$pkg]}"
+  log "$pkg: 설치=$current, 선택=$found"
   if dpkg --compare-versions "$found" lt "$current"; then fail "$pkg 다운그레이드는 지원하지 않습니다 ($current → $found)."; fi
   packages+=("$pkg=$found")
 done
+log '패키지 조회 완료 — APT 시뮬레이션 준비' 
 # Already at the exact requested package versions: no changes are required.
 all_current=true
 for pkgver in "${packages[@]}"; do
