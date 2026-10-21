@@ -239,18 +239,17 @@ fi
 LV="$(GET "$RAW/_internal/docs/VERSION" | tr -d '\r\n ')"
 [[ -n "$LV" ]] || die "GitHub VERSION 파일을 읽지 못했습니다."
 
-# OneClick 서버 패키지 빌드와 Wizard 화면 빌드(WIZARD_BUILD)는 서로 다릅니다.
-# 생성된 설치 파일에 기록되는 ONECLICK_PAYLOAD_BUILD만 비교/기록합니다.
-# 추출 실패 시 set -e/pipefail로 조용히 종료하지 않습니다.
-WIZ_JS="$(GET "$RAW/assets/wizard-engine.js")" || die "assets/wizard-engine.js를 읽지 못했습니다."
-LB="$(grep -m1 -oE "ONECLICK_PAYLOAD_BUILD='[^']+'" <<<"$WIZ_JS" | cut -d"'" -f2 || true)"
+# 설치 빌드는 Wizard 화면용 WIZARD_BUILD와 별도로 관리합니다.
+# 새 Wizard 구조에서는 HTML에 빌드 상수가 없으므로 wizard-engine.js의
+# ONECLICK_PAYLOAD_BUILD를 사용합니다. 조회/추출 실패만으로 종료하지 않습니다.
+WIZ="$(GET "$RAW/assets/wizard-engine.js")" || {
+  ui_warn "원격 Wizard 스크립트를 읽지 못해 빌드 번호 비교를 생략합니다."
+  WIZ=""
+}
+LB="$(grep -oE "ONECLICK_PAYLOAD_BUILD='[^']+'" <<<"$WIZ" | head -n 1 | cut -d "'" -f 2 || true)"
 if [[ -z "$LB" ]]; then
-  ui_warn "GitHub Wizard에서 OneClick 설치 빌드를 확인하지 못했습니다."
-  if [[ "$IV" == "$LV" && -n "$IB" ]]; then
-    LB="$IB"
-  else
-    LB="unknown"
-  fi
+  LB="unknown"
+  ui_warn "원격 OneClick 빌드 번호를 확인하지 못했습니다. 버전 및 GitHub 파일 SHA 비교는 계속합니다."
 fi
 
 C=-1

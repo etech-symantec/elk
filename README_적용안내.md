@@ -1,30 +1,28 @@
-# ELK OneClick Stack Upgrade v2.9.81.5
+# ELK OneClick v2.9.91 업데이트 무출력 종료 수정
 
-## 교체 경로
-GitHub 저장소의 `_internal/core/elk-stack-upgrade.sh` 파일을 ZIP 안의 동일 경로 파일로 **전체 교체**하세요.
+GitHub 저장소 etech-symantec/elk에 다음 두 파일을 **전체 교체**합니다.
 
-서버에서 업데이트: `sudo elk-oneclick-update --apply`
+- `_internal/core/elk-oneclick-update.sh`
+- `assets/wizard-engine.js`
 
-### 지금 설치 9.5.4 / 실행 9.5.2 불일치 복구
-`sudo elk-stack-upgrade --reconcile`
+원인: 업데이트 스크립트가 config-wizard.html에서 WIZARD_BUILD를 grep으로 조회했으나, 최신 HTML에는 해당 상수가 없고 `set -Eeuo pipefail` 때문에 fallback 이전에 종료됨.
 
-- 설치된 Elasticsearch 버전과 실제 JVM의 버전 표시를 비교합니다.
-- 다르면 Elasticsearch 서비스의 정상적인 `systemctl restart --no-block`을 요청하며, 최대 180초 동안 실제 프로세스 버전이 맞는지 확인합니다.
-- 사용자의 `RESTART` 입력이 필요합니다. 무인 실행은 `--reconcile --yes`를 사용합니다.
-- 이 작업은 패키지를 재설치하지 않고 Elasticsearch 서비스만 재시작합니다.
-- Elasticsearch 재시작으로 검색/색인에 일시적 영향이 있으므로 유지보수 시간에 실행하세요.
+수정: assets/wizard-engine.js의 ONECLICK_PAYLOAD_BUILD를 조회하며, 네트워크/패턴 추출 실패는 경고 후 unknown으로 처리하고 GitHub blob SHA 비교를 계속함. Wizard에 포함된 Base64 업데이터도 똑같이 갱신함.
 
-### 다음 버전 업그레이드
-`sudo elk-stack-upgrade --plan 9.5.5`
-`sudo elk-stack-upgrade --upgrade 9.5.5`
+기존 CLI 옵션 및 delta-only 비교 로직은 그대로 유지됩니다.
 
-- Elasticsearch를 패키지 교체 후 실제 JVM 버전과 비교하고, 실행 버전 불일치 시 재시작합니다.
-- Kibana Keystore 자동 접근 권한 복구 및 Logstash 제한시간 종료 보호 유지.
-- 터미널에서는 컬러 출력, 비TTY에서는 ANSI 색상 제거.
+## 이미 설치된 서버에서 복구
 
-### 검증
-`sudo systemctl status elasticsearch --no-pager`
-`curl -k -sS -o /dev/null -w '%{http_code}\n' https://127.0.0.1:9200/` (보안 활성화 환경에서는 401도 정상 연결 응답)
-`sudo elk-stack-upgrade --check`
+GitHub 커밋 후:
 
-주의: 실제 실행 버전은 `/proc` 내 Elasticsearch Java 실행 인자의 버전별 jar 이름을 기반으로 확인합니다. JVM 실행 인자 형식이 변경된 배포판에서는 버전 탐지가 실패할 수 있으며 그 경우 자동 완료 처리하지 않습니다.
+```bash
+sudo curl -fL --retry 3 https://raw.githubusercontent.com/etech-symantec/elk/main/_internal/core/elk-oneclick-update.sh -o /tmp/elk-oneclick-update.sh
+bash -n /tmp/elk-oneclick-update.sh
+sudo cp -a /usr/local/sbin/elk-oneclick-update /usr/local/sbin/elk-oneclick-update.bak
+sudo install -m 755 /tmp/elk-oneclick-update.sh /usr/local/sbin/elk-oneclick-update
+sudo elk-oneclick-update --check
+```
+
+--check는 변경된 파일이 있으면 exit 10을 돌려줄 수 있으므로, 마지막에 `echo $?`도 확인하세요. 업그레이드 적용에는 `sudo elk-oneclick-update --apply`를 실행합니다.
+
+테스트: `bash -n`, `node --check`, Base64 내장 업데이터 바이트 일치, mock curl API check 실행. 실제 운영 서버 배포/원격 GitHub 호출은 미실행.
