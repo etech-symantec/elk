@@ -1,4 +1,4 @@
-# v2.9.87
+# v2.9.88
 
 - Version checker 동기화: Wizard(PKG_VER/ONECLICK_PAYLOAD_VERSION), 설치기·패치·리포트 버전, Windows 원격 배포 도구, 배포 문서 제목을 맞췄습니다.
 - Windows PowerShell 배포는 실제 SH payload에서 버전을 읽고 최신 생성 파일을 찾습니다.
