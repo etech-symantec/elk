@@ -16,7 +16,7 @@ Logstash gracefully stops before APT; SIGKILL requires --allow-force-stop AND a 
 --yes never authorizes SIGKILL. Unattended sessions cannot force-stop Logstash.
 HELP
 }
-TOOL_VERSION='v2.9.81.6-approved-force-stop'
+TOOL_VERSION='v2.9.81.7-service-start-recovery'
 # ANSI colors only for interactive output; redirected/CI logs remain readable.
 if [[ -t 1 && -z "${NO_COLOR:-}" && "${TERM:-dumb}" != dumb ]]; then
   C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_BLUE=$'\033[1;34m'
@@ -562,11 +562,27 @@ for pkg in "${installed[@]}"; do
     fi
   fi
   if ! systemctl is-active --quiet "$pkg"; then
-    if [[ "${original_service_state[$pkg]}" == active ]]; then
-      warn "$pkg 서비스 비정상: 업그레이드 전에는 active였습니다."
+    state_before_start="$(systemctl show "$pkg.service" -p ActiveState --value 2>/dev/null || echo unknown)"
+    # Do not interfere with an outstanding Logstash graceful shutdown or another transitional state.
+    if [[ "$state_before_start" == deactivating || "$state_before_start" == activating ]]; then
+      warn "$pkg 서비스가 $state_before_start 상태이므로 start를 실행하지 않습니다 (충돌 방지)."
       verification_failed=true
     else
-      log "$pkg 서비스 상태는 업그레이드 전에도 ${original_service_state[$pkg]} (원래 상태 보존)"
+      warn "$pkg 서비스가 active가 아닙니다 (현재=$state_before_start). systemctl start를 1회 시도합니다."
+      # Nonblocking prevents an indefinite wait when systemd is unhealthy.
+      if systemctl start --no-block "$pkg.service"; then
+        if wait_for_service "$pkg" 120; then
+          ok "$pkg 서비스 시작 성공 (active)"
+        else
+          warn "$pkg 서비스 시작 후 120초 내 active 확인 실패."
+          journalctl -u "$pkg.service" -n 30 --no-pager -l >&2 || true
+          verification_failed=true
+        fi
+      else
+        warn "$pkg systemctl start 요청 실패."
+        journalctl -u "$pkg.service" -n 30 --no-pager -l >&2 || true
+        verification_failed=true
+      fi
     fi
   fi
 done
