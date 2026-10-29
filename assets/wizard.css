@@ -1027,3 +1027,12 @@ input::-webkit-input-placeholder,textarea::-webkit-input-placeholder{color:#b3bf
 #adoptEnvironmentChooser.adopt-environment-anchored button[data-env]{padding:7px 10px!important;min-height:32px!important}
 #adoptEnvironmentChooser.adopt-environment-anchored button[data-env] small{display:none!important}
 @media(max-width:720px){.adopt-environment-target-header{padding-right:12px!important;padding-bottom:52px!important}#adoptEnvironmentChooser.adopt-environment-anchored{transform:translateY(-15%)!important;right:12px!important}}
+
+/* Final fix: no floating or absolute positioning for Adopt environment chooser */
+.adopt-environment-flex-header{display:flex!important;align-items:center!important;gap:12px!important;flex-wrap:wrap!important;min-width:0!important;padding-right:14px!important;padding-bottom:10px!important;box-sizing:border-box!important}
+.adopt-environment-flex-header>#adoptEnvironmentChooser{position:static!important;inset:auto!important;transform:none!important;float:none!important;margin-left:auto!important;max-width:100%!important;flex:0 0 auto!important;z-index:auto!important}
+.adopt-environment-flex-header>#adoptEnvironmentChooser .adopt-environment-options{display:flex!important;flex-wrap:wrap!important;gap:6px!important}
+.adopt-environment-flex-header>#adoptEnvironmentChooser button[data-env]{display:inline-flex!important;flex-direction:row!important;align-items:center!important;padding:7px 10px!important;min-height:32px!important}
+.adopt-environment-flex-header>#adoptEnvironmentChooser .adopt-environment-heading,.adopt-environment-flex-header>#adoptEnvironmentChooser #adoptEnvironmentHint,.adopt-environment-flex-header>#adoptEnvironmentChooser button[data-env] small{display:none!important}
+.adopt-environment-target-header{padding-right:14px!important;padding-bottom:10px!important}
+@media(max-width:800px){.adopt-environment-flex-header>#adoptEnvironmentChooser{margin:5px 0 0!important;width:100%!important}.adopt-environment-flex-header>#adoptEnvironmentChooser .adopt-environment-options{justify-content:flex-start!important}}
