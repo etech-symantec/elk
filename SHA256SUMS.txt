@@ -42,7 +42,7 @@ f0e7677da27fd4a7c40b1929b7ffb95836262871a948ba20800c9f28a7bb9aab  ./assets/menu-
 59bd5fc71e810ab59a56db495b96bfacdc51f8f9ab3d06160f8b3c6ba05076b1  ./assets/wizard-engine.js
 2ea7eba54174a740ca4011819ba73154a27a2e6e986bd95c67b8d66464c45539  ./assets/wizard.css
 a57f33319a9175d3a366d4195c2276ab8e1adc7659c3d2c67a73dbee87d77c1a  ./bootstrap-update.sh
-674778d81046acfb2929ada9a3cd0b3649a4ea40ba23bca70e3ca9141285070b  ./config-wizard.html
+70b46f522301b92c4850d45175d14c0e5f4a6a51eb62ab597ab0b6158fe02c8a  ./config-wizard.html
 28ae82d80821bda286ea29db3250f0e7058d9095af7a9b90b5ef2d8ce050459d  ./guide/guide-adopt-easy.html
 89aea20a40a20ed993244eb80365aa75cb17484e3feaf6ed911c4cb0c9f60d96  ./guide/guide-adopt.html
 896b01f30ae4d7e03890a6c14bbea594f2b4a307bf3f17e6884396d674a040b8  ./guide/guide-install-easy.html
