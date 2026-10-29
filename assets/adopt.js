@@ -8,9 +8,21 @@ const ADOPT_LATEST_FILES=[
 let ADOPT_LATEST_SNAPSHOT=null;
 const ADOPT_DESCRIPTIONS=['기존 ELK 관리 등록·웹 복구','패치 및 설정 관리','상태 진단 및 HTML 리포트','5602 포트 리포트 웹 서버','GitHub 업데이트 도구','ProxySG 로그 후처리','ProxySG 필터 규칙','ProxySG 공통 함수','인증서/TLS 공통 함수','컬러 출력 공통 함수','ELK 스택 업그레이드'];
 function adoptLimit(){const n=Number(document.getElementById('adoptMaxChars')?.value||2500);return Number.isFinite(n)?Math.max(500,Math.min(10000,Math.floor(n))):2500;}
+async function adoptCopyCommand(cmd){
+ try{
+  if(navigator.clipboard && window.isSecureContext){await navigator.clipboard.writeText(cmd);return true;}
+ }catch(e){}
+ const ta=document.createElement('textarea');ta.value=cmd;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';document.body.appendChild(ta);
+ try{ta.focus();ta.select();ta.setSelectionRange(0,ta.value.length);return document.execCommand('copy')===true;}catch(e){return false;}finally{ta.remove();}
+}
 function adoptCopyButton(label,cmd){
- const b=document.createElement('button');b.className='ubtn';b.type='button';b.textContent=label;b.title=cmd.length+'자';
- b.onclick=async()=>{const ok=await copyText(cmd);if(ok){b.style.background='#bbf7d0';b.style.color='#14532d';b.style.borderColor='#16a34a';clearTimeout(b.copyTimer);b.copyTimer=setTimeout(()=>{b.style.background='';b.style.color='';b.style.borderColor=''},60000)}else adoptStatus('복사 실패',true)};
+ const b=document.createElement('button');b.className='ubtn adopt-copy-btn';b.type='button';b.textContent=label;b.title='클릭하여 명령어 복사 · '+cmd.length+'자';b.dataset.originalLabel=label;
+ b.onclick=async()=>{
+  if(b.disabled)return;b.disabled=true;
+  const ok=await adoptCopyCommand(cmd);b.disabled=false;
+  if(ok){b.classList.add('adopt-copied');b.textContent='✓ 복사 완료 · '+label;clearTimeout(b.copyTimer);b.copyTimer=setTimeout(()=>{b.classList.remove('adopt-copied');b.textContent=label},60000);}
+  else{b.textContent='복사 실패 · 다시 시도';adoptStatus('클립보드 복사 실패: HTTPS 또는 브라우저 권한 확인',true);setTimeout(()=>{if(!b.classList.contains('adopt-copied'))b.textContent=label},4000);}
+ };
  return b;
 }
 function adoptRenderSnapshot(){
