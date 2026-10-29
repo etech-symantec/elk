@@ -66,7 +66,21 @@
    chooser.innerHTML='<div class="adopt-environment-heading"><strong>서버 인터넷 환경 선택</strong><span>서버의 인터넷 연결 여부를 선택하면 필요한 절차만 표시됩니다.</span></div><div class="adopt-environment-options"><button type="button" data-env="online"><strong>🌐 인터넷 환경</strong><small>서버에서 GitHub에 접속 가능 · 직접 다운로드 후 등록</small></button><button type="button" data-env="offline"><strong>🔒 인터넷 차단 환경</strong><small>인터넷 가능한 PC에서 명령 생성 · 서버에 복사해 등록</small></button></div>';
    chooser.addEventListener('click',event=>{const b=event.target.closest('button[data-env]');if(!b)return;selectedEnvironment=b.dataset.env;updateEnvironment();});
   }
-  if(first&&chooser.parentElement!==first.parentElement)first.parentElement.insertBefore(chooser,first);
+  // Move the two environment buttons to the right of the existing Adopt title bar.
+  const anchor=[...root.querySelectorAll('*')].find(e=>e.children.length===0 && (e.textContent||'').includes('기존 ELK를 그대로 유지하고 관리 도구만 추가'));
+  let header=anchor;
+  while(header && header!==root){
+   const t=(header.innerText||'').trim();
+   if(t.length<270 && header.querySelectorAll('button').length<=1 && header.clientWidth>250)break;
+   header=header.parentElement;
+  }
+  if(header && header!==root){
+   if(chooser.parentElement!==header)header.appendChild(chooser);
+   chooser.classList.add('adopt-environment-inline');
+  }else if(first&&chooser.parentElement!==first.parentElement){
+   first.parentElement.insertBefore(chooser,first);
+   chooser.classList.remove('adopt-environment-inline');
+  }
   function updateEnvironment(){
    chooser.querySelectorAll('button[data-env]').forEach(b=>{const chosen=selectedEnvironment===b.dataset.env;b.classList.toggle('selected',chosen);b.setAttribute('aria-pressed',String(chosen));});
    if(onlineFlow)onlineFlow.hidden=selectedEnvironment!=='online';
