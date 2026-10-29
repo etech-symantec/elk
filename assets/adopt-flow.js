@@ -79,8 +79,27 @@
   updateEnvironment();
  }
 
+
+ /* The old four-item strip repeats internal adoption phases and confuses users.
+    Keep the actionable environment chooser and three guided steps instead. */
+ function hideLegacyAdoptSummary(){
+  const root=document.getElementById('main');if(!root)return;
+  const labels=['읽기 전용 검사','기존 설정 백업','관리 환경 생성','필요한 기능만 패치'];
+  const nodes=[...root.querySelectorAll('div,section,ol,ul')];
+  for(const el of nodes){
+   if(el.id==='adoptOnlineFlow'||el.id==='adoptEnvironmentChooser'||el.closest('#adoptOnlineFlow,#adoptEnvironmentChooser'))continue;
+   if(el.dataset.adoptLegacyHidden==='1')continue;
+   const t=(el.innerText||'').trim();
+   if(t.length<30||t.length>420||!labels.every(s=>t.includes(s)))continue;
+   const childMatches=[...el.children].filter(ch=>labels.some(s=>(ch.innerText||'').includes(s)));
+   if(childMatches.length<3||el.querySelector('button,input,select,textarea'))continue;
+   el.dataset.adoptLegacyHidden='1';
+   el.hidden=true;el.style.display='none';
+   break;
+  }
+ }
  let pending=false;
- const observer=new MutationObserver(()=>{if(pending)return;pending=true;queueMicrotask(()=>{pending=false;enhance();setupEnvironmentSelector()});});
+ const observer=new MutationObserver(()=>{if(pending)return;pending=true;queueMicrotask(()=>{pending=false;enhance();setupEnvironmentSelector();hideLegacyAdoptSummary()});});
  observer.observe(document.documentElement,{childList:true,subtree:true});
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{enhance();setupEnvironmentSelector()});else{enhance();setupEnvironmentSelector();}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{enhance();setupEnvironmentSelector();hideLegacyAdoptSummary()});else{enhance();setupEnvironmentSelector();hideLegacyAdoptSummary();}
 })();
