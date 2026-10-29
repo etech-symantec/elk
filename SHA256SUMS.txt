@@ -39,7 +39,7 @@ aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report
 5de15e5cd023edf22e713f83e1b2eeed7f1f4dc5b9812414507aba7d9a368fd4  ./assets/adopt.js
 f0e7677da27fd4a7c40b1929b7ffb95836262871a948ba20800c9f28a7bb9aab  ./assets/menu-tour.js
 59bd5fc71e810ab59a56db495b96bfacdc51f8f9ab3d06160f8b3c6ba05076b1  ./assets/wizard-engine.js
-a52a776331a67c596079fbc435843d5f4d38525f7017c5c1b9347f8e83674008  ./assets/wizard.css
+f6b92686249f788a447cc3e250150e0f8b14d908b64fe68f3b2fbdd9016b56d1  ./assets/wizard.css
 a57f33319a9175d3a366d4195c2276ab8e1adc7659c3d2c67a73dbee87d77c1a  ./bootstrap-update.sh
 674778d81046acfb2929ada9a3cd0b3649a4ea40ba23bca70e3ca9141285070b  ./config-wizard.html
 28ae82d80821bda286ea29db3250f0e7058d9095af7a9b90b5ef2d8ce050459d  ./guide/guide-adopt-easy.html
