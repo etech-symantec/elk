@@ -34,9 +34,9 @@ function adoptRenderSnapshot(){
   const chunk=Math.floor((limit-overhead)/4)*4;if(chunk<4)throw Error('명령 제한 글자 수가 너무 작습니다');
   const pieces=f.b64.match(new RegExp('.{1,'+chunk+'}','g'))||[];
   const d=document.createElement('details');d.className='adoptlatestfile';
-  const summary=document.createElement('summary');summary.textContent=String(i+1).padStart(2,'0')+' · '+f.name+' — '+ADOPT_DESCRIPTIONS[i]+' ('+pieces.length+'조각)';
+  const summary=document.createElement('summary');summary.innerHTML='<span class="adopt-file-meta"><strong>'+String(i+1).padStart(2,'0')+' · '+adoptHtml(f.name)+'</strong><span>'+adoptHtml(ADOPT_DESCRIPTIONS[i])+'</span></span><small class="adopt-piece-count">'+pieces.length+'조각</small>';
   d.appendChild(summary);
-  const row=document.createElement('div');row.className='adoptlatestbtns';row.style.cssText='display:flex;flex-wrap:wrap;gap:5px;margin:8px 0';
+  const row=document.createElement('div');row.className='adoptlatestbtns';row.classList.add('adopt-preview-actions');
   row.appendChild(adoptCopyButton('① 준비',"sudo install -d -m 700 /root/elk-adopt && sudo sh -c ': > "+tmp+"'"));
   pieces.forEach((x,j)=>row.appendChild(adoptCopyButton('② '+(j+1)+'/'+pieces.length,"printf '%s' '"+x+"' | sudo tee -a "+tmp+" >/dev/null")));
   const decode="base64 -d '"+tmp+"'"+(f.gz?' | gzip -dc':'')+" > '"+dst+"'";
