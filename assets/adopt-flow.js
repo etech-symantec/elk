@@ -68,16 +68,24 @@
   }
   // Move the two environment buttons to the right of the existing Adopt title bar.
   const anchor=[...root.querySelectorAll('*')].find(e=>e.children.length===0 && (e.textContent||'').includes('기존 ELK를 그대로 유지하고 관리 도구만 추가'));
-  let header=anchor;
-  while(header && header!==root){
-   const t=(header.innerText||'').trim();
-   if(t.length<270 && header.querySelectorAll('button').length<=1 && header.clientWidth>250)break;
-   header=header.parentElement;
+  let header=null;
+  if(anchor){
+   // Look for the entire accordion heading, not a narrow title/span child.
+   for(let e=anchor.parentElement;e&&e!==root;e=e.parentElement){
+    const txt=(e.textContent||'').trim();
+    const hasSubtitle=txt.includes('elasticsearch.yml') && txt.includes('kibana.yml');
+    const containsBody=e.contains(offline)||e.contains(onlineFlow);
+    if(hasSubtitle && !containsBody && txt.length<500 && e.getBoundingClientRect().width>300){
+     header=e; // outermost eligible heading wins
+    }
+    if(containsBody)break;
+   }
   }
-  if(header && header!==root){
+  if(header){
    if(chooser.parentElement!==header)header.appendChild(chooser);
+   header.classList.add('adopt-header-with-environment');
    chooser.classList.add('adopt-environment-inline');
-  }else if(first&&chooser.parentElement!==first.parentElement){
+  }else if(first && first.parentElement && chooser.parentElement!==first.parentElement){
    first.parentElement.insertBefore(chooser,first);
    chooser.classList.remove('adopt-environment-inline');
   }

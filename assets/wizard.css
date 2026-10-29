@@ -1007,3 +1007,13 @@ input::-webkit-input-placeholder,textarea::-webkit-input-placeholder{color:#b3bf
 #adoptEnvironmentChooser.adopt-environment-inline button[data-env] strong{font-size:11.5px!important;white-space:nowrap!important}
 #adoptEnvironmentChooser.adopt-environment-inline button[data-env] small{display:none!important}
 @media(max-width:680px){#adoptEnvironmentChooser.adopt-environment-inline{margin:8px 0 0!important;width:100%!important}#adoptEnvironmentChooser.adopt-environment-inline .adopt-environment-options{width:100%!important}#adoptEnvironmentChooser.adopt-environment-inline button[data-env]{flex:1!important}}
+
+/* Fix: position environment selector on the exact full Adopt heading bar */
+.adopt-header-with-environment{position:relative!important;padding-right:318px!important;min-height:54px!important}
+.adopt-header-with-environment>#adoptEnvironmentChooser.adopt-environment-inline{position:absolute!important;right:14px!important;top:50%!important;transform:translateY(-50%)!important;margin:0!important;width:auto!important;z-index:2!important}
+.adopt-header-with-environment>#adoptEnvironmentChooser.adopt-environment-inline .adopt-environment-options{display:flex!important;grid-template-columns:none!important}
+@media(max-width:730px){
+ .adopt-header-with-environment{padding-right:12px!important;padding-bottom:52px!important}
+ .adopt-header-with-environment>#adoptEnvironmentChooser.adopt-environment-inline{top:auto!important;bottom:8px!important;right:12px!important;left:12px!important;transform:none!important}
+ .adopt-header-with-environment>#adoptEnvironmentChooser.adopt-environment-inline .adopt-environment-options{justify-content:flex-end!important}
+}
