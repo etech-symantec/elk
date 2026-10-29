@@ -66,28 +66,31 @@
    chooser.innerHTML='<div class="adopt-environment-heading"><strong>서버 인터넷 환경 선택</strong><span>서버의 인터넷 연결 여부를 선택하면 필요한 절차만 표시됩니다.</span></div><div class="adopt-environment-options"><button type="button" data-env="online"><strong>🌐 인터넷 환경</strong><small>서버에서 GitHub에 접속 가능 · 직접 다운로드 후 등록</small></button><button type="button" data-env="offline"><strong>🔒 인터넷 차단 환경</strong><small>인터넷 가능한 PC에서 명령 생성 · 서버에 복사해 등록</small></button></div>';
    chooser.addEventListener('click',event=>{const b=event.target.closest('button[data-env]');if(!b)return;selectedEnvironment=b.dataset.env;updateEnvironment();});
   }
-  // Move the two environment buttons to the right of the existing Adopt title bar.
-  const anchor=[...root.querySelectorAll('*')].find(e=>e.children.length===0 && (e.textContent||'').includes('기존 ELK를 그대로 유지하고 관리 도구만 추가'));
+  // Locate the title itself; never require subtitles to be in the same element.
+  const titleText='기존 ELK를 그대로 유지하고 관리 도구만 추가';
+  const anchor=[...root.querySelectorAll('*')].find(e=>e.children.length===0 && (e.textContent||'').includes(titleText));
   let header=null;
   if(anchor){
-   // Look for the entire accordion heading, not a narrow title/span child.
-   for(let e=anchor.parentElement;e&&e!==root;e=e.parentElement){
-    const txt=(e.textContent||'').trim();
-    const hasSubtitle=txt.includes('elasticsearch.yml') && txt.includes('kibana.yml');
-    const containsBody=e.contains(offline)||e.contains(onlineFlow);
-    if(hasSubtitle && !containsBody && txt.length<500 && e.getBoundingClientRect().width>300){
-     header=e; // outermost eligible heading wins
+   for(let el=anchor;el&&el!==root;el=el.parentElement){
+    const rect=el.getBoundingClientRect();
+    if(rect.width>=280&&rect.height>=35&&rect.height<=125&&!el.contains(offline)&&!el.contains(onlineFlow)){
+     header=el;break;
     }
-    if(containsBody)break;
    }
   }
-  if(header){
-   if(chooser.parentElement!==header)header.appendChild(chooser);
-   header.classList.add('adopt-header-with-environment');
-   chooser.classList.add('adopt-environment-inline');
-  }else if(first && first.parentElement && chooser.parentElement!==first.parentElement){
-   first.parentElement.insertBefore(chooser,first);
-   chooser.classList.remove('adopt-environment-inline');
+  if(header&&header.parentElement){
+   // Position as an accordion-header sibling, not as a nested interactive button.
+   const parent=header.parentElement,hr=header.getBoundingClientRect(),pr=parent.getBoundingClientRect();
+   if(chooser.parentElement!==parent)parent.appendChild(chooser);
+   chooser.classList.add('adopt-environment-inline','adopt-environment-anchored');
+   parent.classList.add('adopt-environment-anchor-parent');
+   chooser.style.top=(hr.top-pr.top+hr.height/2)+'px';
+   chooser.style.right=Math.max(10,pr.right-hr.right+12)+'px';
+   header.classList.add('adopt-environment-target-header');
+  }else if(first&&first.parentElement){
+   if(chooser.parentElement!==first.parentElement)first.parentElement.insertBefore(chooser,first);
+   chooser.classList.remove('adopt-environment-inline','adopt-environment-anchored');
+   chooser.style.top='';chooser.style.right='';
   }
   function updateEnvironment(){
    chooser.querySelectorAll('button[data-env]').forEach(b=>{const chosen=selectedEnvironment===b.dataset.env;b.classList.toggle('selected',chosen);b.setAttribute('aria-pressed',String(chosen));});

@@ -1017,3 +1017,13 @@ input::-webkit-input-placeholder,textarea::-webkit-input-placeholder{color:#b3bf
  .adopt-header-with-environment>#adoptEnvironmentChooser.adopt-environment-inline{top:auto!important;bottom:8px!important;right:12px!important;left:12px!important;transform:none!important}
  .adopt-header-with-environment>#adoptEnvironmentChooser.adopt-environment-inline .adopt-environment-options{justify-content:flex-end!important}
 }
+
+/* Environment switch pinned to the actual visible Adopt accordion heading */
+.adopt-environment-anchor-parent{position:relative!important}
+.adopt-environment-target-header{padding-right:310px!important;box-sizing:border-box!important}
+#adoptEnvironmentChooser.adopt-environment-anchored{position:absolute!important;left:auto!important;bottom:auto!important;transform:translateY(-50%)!important;width:auto!important;margin:0!important;padding:0!important;border:0!important;background:transparent!important;z-index:5!important}
+#adoptEnvironmentChooser.adopt-environment-anchored .adopt-environment-heading,#adoptEnvironmentChooser.adopt-environment-anchored #adoptEnvironmentHint{display:none!important}
+#adoptEnvironmentChooser.adopt-environment-anchored .adopt-environment-options{display:flex!important;gap:6px!important}
+#adoptEnvironmentChooser.adopt-environment-anchored button[data-env]{padding:7px 10px!important;min-height:32px!important}
+#adoptEnvironmentChooser.adopt-environment-anchored button[data-env] small{display:none!important}
+@media(max-width:720px){.adopt-environment-target-header{padding-right:12px!important;padding-bottom:52px!important}#adoptEnvironmentChooser.adopt-environment-anchored{transform:translateY(-15%)!important;right:12px!important}}
