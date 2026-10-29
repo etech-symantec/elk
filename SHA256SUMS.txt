@@ -36,10 +36,10 @@ d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./_internal/to
 9630807d54d55035dd731c0ad382f81b90114ada0c289264681c14bd751c7338  ./_internal/tools/run-remote-upgrade.ps1
 aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report-update.sh
 98bf0f25c3f1556f0af40d8aabc286e66fa485715f1901e5d1b26ce4299aabaf  ./assets/adopt-style-fix.css
-06a429ad43171aba8021ba656a76fc9836e5a451b418132fc7acd417cc847e24  ./assets/adopt.js
+5de15e5cd023edf22e713f83e1b2eeed7f1f4dc5b9812414507aba7d9a368fd4  ./assets/adopt.js
 f0e7677da27fd4a7c40b1929b7ffb95836262871a948ba20800c9f28a7bb9aab  ./assets/menu-tour.js
 59bd5fc71e810ab59a56db495b96bfacdc51f8f9ab3d06160f8b3c6ba05076b1  ./assets/wizard-engine.js
-0ec299f85581e6912cbd1526e1e72cb0e41548ebc8c6f2ffc67ef165c18b6e4e  ./assets/wizard.css
+a52a776331a67c596079fbc435843d5f4d38525f7017c5c1b9347f8e83674008  ./assets/wizard.css
 a57f33319a9175d3a366d4195c2276ab8e1adc7659c3d2c67a73dbee87d77c1a  ./bootstrap-update.sh
 674778d81046acfb2929ada9a3cd0b3649a4ea40ba23bca70e3ca9141285070b  ./config-wizard.html
 28ae82d80821bda286ea29db3250f0e7058d9095af7a9b90b5ef2d8ce050459d  ./guide/guide-adopt-easy.html
