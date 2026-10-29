@@ -47,8 +47,40 @@
   const note=document.createElement('p');note.className='adopt-flow-note';note.textContent='이미 OneClick이 등록된 서버라면 신규 등록을 반복하지 말고 아래 OFFLINE REGISTRATION의 ‘기존 서버 · 웹 복구’ 절차를 사용하세요. 인터넷이 차단된 서버는 아래 오프라인 방식으로 진행합니다.';
   flow.appendChild(note);top.prepend(flow);
  }
+
+ /* Choose one environment; never show both registration procedures simultaneously. */
+ let selectedEnvironment=null;
+ function getOnlineCards(root){
+  const buttons=names.map(n=>buttonFor(n,root));
+  return buttons.map((b,i)=>b?smallestCard(b,['0. 등록 도구','1. 호환성 검사','2. 전체 관리 도구','3. 관리 대상'][i]):null).filter(Boolean);
+ }
+ function setupEnvironmentSelector(){
+  const root=document.getElementById('main'),offline=document.getElementById('adoptOfflineCopy');
+  if(!root||!offline||!offline.isConnected)return;
+  const onlineFlow=document.getElementById('adoptOnlineFlow');
+  const cards=getOnlineCards(root);
+  const first=onlineFlow||cards[0]||offline;
+  let chooser=document.getElementById('adoptEnvironmentChooser');
+  if(!chooser){
+   chooser=document.createElement('div');chooser.id='adoptEnvironmentChooser';
+   chooser.innerHTML='<div class="adopt-environment-heading"><strong>서버 인터넷 환경 선택</strong><span>서버의 인터넷 연결 여부를 선택하면 필요한 절차만 표시됩니다.</span></div><div class="adopt-environment-options"><button type="button" data-env="online"><strong>🌐 인터넷 환경</strong><small>서버에서 GitHub에 접속 가능 · 직접 다운로드 후 등록</small></button><button type="button" data-env="offline"><strong>🔒 인터넷 차단 환경</strong><small>인터넷 가능한 PC에서 명령 생성 · 서버에 복사해 등록</small></button></div>';
+   chooser.addEventListener('click',event=>{const b=event.target.closest('button[data-env]');if(!b)return;selectedEnvironment=b.dataset.env;updateEnvironment();});
+  }
+  if(first&&chooser.parentElement!==first.parentElement)first.parentElement.insertBefore(chooser,first);
+  function updateEnvironment(){
+   chooser.querySelectorAll('button[data-env]').forEach(b=>{const chosen=selectedEnvironment===b.dataset.env;b.classList.toggle('selected',chosen);b.setAttribute('aria-pressed',String(chosen));});
+   if(onlineFlow)onlineFlow.hidden=selectedEnvironment!=='online';
+   cards.forEach(card=>{if(!onlineFlow||!onlineFlow.contains(card))card.hidden=selectedEnvironment!=='online';});
+   offline.hidden=selectedEnvironment!=='offline';
+   let hint=document.getElementById('adoptEnvironmentHint');
+   if(!hint){hint=document.createElement('p');hint.id='adoptEnvironmentHint';hint.textContent='위 두 환경 중 하나를 선택해 등록 절차를 시작하세요.';chooser.appendChild(hint);}
+   hint.hidden=selectedEnvironment!==null;
+  }
+  updateEnvironment();
+ }
+
  let pending=false;
- const observer=new MutationObserver(()=>{if(pending)return;pending=true;queueMicrotask(()=>{pending=false;enhance()});});
+ const observer=new MutationObserver(()=>{if(pending)return;pending=true;queueMicrotask(()=>{pending=false;enhance();setupEnvironmentSelector()});});
  observer.observe(document.documentElement,{childList:true,subtree:true});
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',enhance);else enhance();
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{enhance();setupEnvironmentSelector()});else{enhance();setupEnvironmentSelector();}
 })();
