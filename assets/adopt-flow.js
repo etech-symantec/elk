@@ -64,30 +64,32 @@
   if(!chooser){
    chooser=document.createElement('div');chooser.id='adoptEnvironmentChooser';
    chooser.innerHTML='<div class="adopt-environment-heading"><strong>서버 인터넷 환경 선택</strong><span>서버의 인터넷 연결 여부를 선택하면 필요한 절차만 표시됩니다.</span></div><div class="adopt-environment-options"><button type="button" data-env="online"><strong>🌐 인터넷 환경</strong><small>서버에서 GitHub에 접속 가능 · 직접 다운로드 후 등록</small></button><button type="button" data-env="offline"><strong>🔒 인터넷 차단 환경</strong><small>인터넷 가능한 PC에서 명령 생성 · 서버에 복사해 등록</small></button></div>';
-   chooser.addEventListener('click',event=>{const b=event.target.closest('button[data-env]');if(!b)return;selectedEnvironment=b.dataset.env;updateEnvironment();});
+   chooser.addEventListener('pointerdown',event=>event.stopPropagation());
+   chooser.addEventListener('click',event=>{event.stopPropagation();const b=event.target.closest('button[data-env]');if(!b)return;selectedEnvironment=b.dataset.env;updateEnvironment();});
   }
-  // Anchor on the inner Adopt heading row; keep the chooser in normal flex flow.
-  const titleText='기존 ELK를 그대로 유지하고 관리 도구만 추가';
-  const anchor=[...root.querySelectorAll('*')].find(e=>e.children.length===0 && (e.textContent||'').includes(titleText));
+  // Find the smallest complete title row and keep the buttons in normal flow.
+  // Never use child widths, absolute positions or a guessed parent container.
+  const title='기존 ELK를 그대로 유지하고 관리 도구만 추가';
+  const leaf=[...root.querySelectorAll('*')].find(el=>el.childElementCount===0 && el.textContent.trim()===title);
   let header=null;
-  if(anchor){
-   for(let el=anchor.parentElement;el&&el!==root;el=el.parentElement){
-    const box=el.getBoundingClientRect();
-    if(box.width>=250 && box.height>=40 && box.height<=115 && !el.contains(offline) && !el.contains(onlineFlow)){
-     header=el;break;
-    }
-   }
+  if(leaf){
+   const ancestors=[];for(let e=leaf.parentElement;e&&e!==root;e=e.parentElement)ancestors.push(e);
+   header=ancestors.find(el=>{
+    if(el.contains(offline)|| (onlineFlow&&el.contains(onlineFlow)))return false;
+    const text=(el.textContent||'').trim();
+    return text.includes('elasticsearch.yml')&&text.includes('kibana.yml')&&text.length<420&&el.querySelectorAll('button').length===0;
+   })||null;
   }
   if(header){
+   // Reuse the existing heading; never replace its innerHTML or nest in a button.
    if(chooser.parentElement!==header)header.appendChild(chooser);
-   header.classList.add('adopt-environment-flex-header');
-   chooser.classList.add('adopt-environment-inline');
-   chooser.classList.remove('adopt-environment-anchored');
-   chooser.removeAttribute('style');
+   header.classList.add('adopt-chooser-heading');
+   chooser.className='adopt-environment-inline';
+   chooser.style.cssText='';
   }else if(first&&first.parentElement){
    if(chooser.parentElement!==first.parentElement)first.parentElement.insertBefore(chooser,first);
-   chooser.classList.remove('adopt-environment-inline','adopt-environment-anchored');
-   chooser.removeAttribute('style');
+   chooser.className='';
+   chooser.style.cssText='';
   }
   function updateEnvironment(){
    chooser.querySelectorAll('button[data-env]').forEach(b=>{const chosen=selectedEnvironment===b.dataset.env;b.classList.toggle('selected',chosen);b.setAttribute('aria-pressed',String(chosen));});
