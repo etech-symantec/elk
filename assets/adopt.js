@@ -6,6 +6,39 @@ const ADOPT_LATEST_FILES=[
  'proxysg-lib.sh','elk-tls-lib.sh','elk-color.sh','elk-stack-upgrade.sh'
 ];
 let ADOPT_LATEST_SNAPSHOT=null;
+const ADOPT_DESCRIPTIONS=['기존 ELK 관리 등록·웹 복구','패치 및 설정 관리','상태 진단 및 HTML 리포트','5602 포트 리포트 웹 서버','GitHub 업데이트 도구','ProxySG 로그 후처리','ProxySG 필터 규칙','ProxySG 공통 함수','인증서/TLS 공통 함수','컬러 출력 공통 함수','ELK 스택 업그레이드'];
+function adoptLimit(){const n=Number(document.getElementById('adoptMaxChars')?.value||2500);return Number.isFinite(n)?Math.max(500,Math.min(10000,Math.floor(n))):2500;}
+function adoptCopyButton(label,cmd){
+ const b=document.createElement('button');b.className='ubtn';b.type='button';b.textContent=label;b.title=cmd.length+'자';
+ b.onclick=async()=>{const ok=await copyText(cmd);if(ok){b.style.background='#bbf7d0';b.style.color='#14532d';b.style.borderColor='#16a34a';clearTimeout(b.copyTimer);b.copyTimer=setTimeout(()=>{b.style.background='';b.style.color='';b.style.borderColor=''},60000)}else adoptStatus('복사 실패',true)};
+ return b;
+}
+function adoptRenderSnapshot(){
+ const area=document.getElementById('adoptLatestFiles'),s=ADOPT_LATEST_SNAPSHOT;if(!area||!s)return;
+ const limit=adoptLimit();area.innerHTML='<div class="adopt-offline-steps">① 준비 → ② 본문 순서대로 → ③ 복원·검증 <small>복사 후 60초간 녹색 표시</small></div>';
+ s.files.forEach((f,i)=>{
+  const dst='/root/elk-adopt/'+f.name,tmp='/root/elk-adopt/.'+f.name+'.b64';
+  const overhead=("printf '%s' '' | sudo tee -a "+tmp+" >/dev/null").length;
+  const chunk=Math.floor((limit-overhead)/4)*4;if(chunk<4)throw Error('명령 제한 글자 수가 너무 작습니다');
+  const pieces=f.b64.match(new RegExp('.{1,'+chunk+'}','g'))||[];
+  const d=document.createElement('details');d.className='adoptlatestfile';
+  const summary=document.createElement('summary');summary.textContent=String(i+1).padStart(2,'0')+' · '+f.name+' — '+ADOPT_DESCRIPTIONS[i]+' ('+pieces.length+'조각)';
+  d.appendChild(summary);
+  const row=document.createElement('div');row.className='adoptlatestbtns';row.style.cssText='display:flex;flex-wrap:wrap;gap:5px;margin:8px 0';
+  row.appendChild(adoptCopyButton('① 준비',"sudo install -d -m 700 /root/elk-adopt && sudo sh -c ': > "+tmp+"'"));
+  pieces.forEach((x,j)=>row.appendChild(adoptCopyButton('② '+(j+1)+'/'+pieces.length,"printf '%s' '"+x+"' | sudo tee -a "+tmp+" >/dev/null")));
+  const decode="base64 -d '"+tmp+"'"+(f.gz?' | gzip -dc':'')+" > '"+dst+"'";
+  const finish="sudo sh -c '"+decode+"' && echo '"+f.hash+"  "+dst+"' | sudo sha256sum -c - && sudo chmod "+(/\.(sh|py)$/.test(f.name)?'755':'644')+" '"+dst+"'"+(/\.sh$/.test(f.name)?" && sudo bash -n '"+dst+"'":"")+" && sudo rm -f '"+tmp+"'";
+  row.appendChild(adoptCopyButton('③ 복원·검증',finish));d.appendChild(row);
+  const hash=document.createElement('small');hash.textContent='SHA256 '+f.hash;d.appendChild(hash);area.appendChild(d);
+ });
+ const final=document.createElement('div');final.className='adoptlatestfinal';
+ final.appendChild(adoptCopyButton('전체 검사','sudo bash -n /root/elk-adopt/elk-oneclick-adopt.sh && sudo bash /root/elk-adopt/elk-oneclick-adopt.sh --inspect'));
+ final.appendChild(adoptCopyButton('기존 서버 · 웹 복구','sudo bash /root/elk-adopt/elk-oneclick-adopt.sh --repair-report-web --source-dir /root/elk-adopt'));
+ final.appendChild(adoptCopyButton('신규 관리 등록','sudo bash /root/elk-adopt/elk-oneclick-adopt.sh --apply --source-dir /root/elk-adopt --enable-report-web'));
+ area.appendChild(final);adoptStatus('GitHub '+s.sha.slice(0,12)+' · '+s.files.length+'개 · 최대 '+limit+'자');
+}
+
 function adoptHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function adoptStatus(message,error=false){const e=document.getElementById('adoptLatestStatus');if(e){e.textContent=message;e.style.background=error?'#fee2e2':'#e0f2fe';e.style.color=error?'#991b1b':'#075985';}}
 function adoptBytesToB64(arr){let s='';for(let i=0;i<arr.length;i+=16384)s+=String.fromCharCode(...arr.subarray(i,i+16384));return btoa(s);}
@@ -35,26 +68,9 @@ async function adoptLatestFetch(){
    files.push({name,hash,bytes:data.byteLength,gz,b64});
   }
   ADOPT_LATEST_SNAPSHOT={sha,files,loadedAt:new Date().toLocaleString('ko-KR')};
-  area.innerHTML='<div class="adopt-offline-steps"><strong>파일별 복사 순서</strong><span class="adopt-offline-step">① 준비</span><span class="adopt-offline-arrow">→</span><span class="adopt-offline-step">② 본문 조각 순서대로</span><span class="adopt-offline-arrow">→</span><span class="adopt-offline-step">③ 완료</span><span class="adopt-offline-steps-note">복원 후 SHA256 검사를 확인하세요.</span></div>'+files.map((f,i)=>{
-    const pieces=f.b64.match(/.{1,1700}/g)||[];
-    return '<details class="adoptlatestfile" style="border:1px solid #dbe4ef;border-radius:9px;padding:9px 10px;margin:6px 0;background:white"><summary style="cursor:pointer;font-size:13px;font-weight:650">'+String(i+1).padStart(2,'0')+' · '+adoptHtml(f.name)+' <small>('+Math.ceil(f.bytes/1024)+'KB · 복사 '+(pieces.length+2)+'회)</small></summary><div class="adoptlatestbtns" data-file="'+i+'" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:9px"></div><small style="color:#64748b">SHA256 '+f.hash+'</small></details>';
-  }).join('')+'<div class="adoptlatestfinal" style="margin:12px 0"><button class="ubtn primary" type="button" id="adoptCopyLatestInspect">전체 파일 검사 및 호환성 검사 명령 복사</button><button class="ubtn" type="button" id="adoptCopyLatestApply">관리 등록 명령 복사</button></div>';
-  area.querySelectorAll('[data-file]').forEach(el=>{
-   const ix=Number(el.dataset.file),f=files[ix],pieces=f.b64.match(/.{1,1700}/g)||[];
-   function mk(label,text){const b=document.createElement('button');b.className='ubtn';b.type='button';b.textContent=label;b.onclick=async()=>{let ok=await copyText(text);b.textContent=ok?'복사됨 ✓':'복사 실패';setTimeout(()=>b.textContent=label,1500)};el.appendChild(b)}
-   const dst='/root/elk-adopt/'+f.name,tmp='/root/elk-adopt/.'+f.name+'.b64';
-   mk('① 준비',"sudo mkdir -p /root/elk-adopt && sudo sh -c ': > "+tmp+"'");
-   pieces.forEach((x,j)=>mk('② 본문 '+(j+1)+'/'+pieces.length,"printf '%s' '"+x+"' | sudo tee -a "+tmp+" >/dev/null"));
-   const decode="base64 -d '"+tmp+"'"+(f.gz?' | gzip -dc':'')+" > '"+dst+"'";
-   const finish="sudo sh -c '"+decode+"' && echo '"+f.hash+"  "+dst+"' | sha256sum -c - && "+(/\.(sh|py)$/.test(f.name)?"sudo chmod 755 '"+dst+"' && ":'')+(/\.sh$/.test(f.name)?"sudo bash -n '"+dst+"' && ":'')+"sudo rm -f '"+tmp+"'";
-   mk('③ 복원·검증',finish);
-  });
-  const inspect=area.querySelector('#adoptCopyLatestInspect');
-  inspect.onclick=async()=>{let cmd='sudo bash -n /root/elk-adopt/elk-oneclick-adopt.sh && sudo bash /root/elk-adopt/elk-oneclick-adopt.sh --inspect';await copyText(cmd);inspect.textContent='복사됨 ✓'};
-  const apply=area.querySelector('#adoptCopyLatestApply');
-  apply.onclick=async()=>{let cmd='sudo bash /root/elk-adopt/elk-oneclick-adopt.sh --apply';await copyText(cmd);apply.textContent='복사됨 ✓'};
+  adoptRenderSnapshot();
   adoptStatus('최신 GitHub 커밋 '+sha.slice(0,12)+' · '+files.length+'개 파일 확인 · 조회 시각 '+ADOPT_LATEST_SNAPSHOT.loadedAt+' (이 커밋으로 고정)');
  }catch(e){adoptStatus('최신 파일을 검증할 수 없습니다: '+(e&&e.message||e)+'. 오래된 내장본 대신 명령어 생성이 중단되었습니다.',true);}
  finally{btn.disabled=false;}
 }
-function wireAdoptLatestCommands(){const b=document.getElementById('adoptFetchLatest');if(b)b.onclick=adoptLatestFetch;}
+function wireAdoptLatestCommands(){const b=document.getElementById('adoptFetchLatest');if(!b)return;b.onclick=adoptLatestFetch;const label=document.createElement('label');label.textContent='명령어 최대 글자 수 ';const inp=document.createElement('input');inp.id='adoptMaxChars';inp.type='number';inp.min='500';inp.max='10000';inp.step='100';inp.value='2500';inp.style.width='90px';inp.onchange=()=>{if(ADOPT_LATEST_SNAPSHOT)adoptRenderSnapshot()};label.appendChild(inp);b.insertAdjacentElement('beforebegin',label);}

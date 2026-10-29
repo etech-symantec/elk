@@ -15,20 +15,21 @@ while (($#)); do
   case "$1" in
     --source-dir) SOURCE_DIR="${2:?path required}"; shift 2;;
     --enable-report-web) REPORT_WEB=1; shift;;
+    --repair-report-web) REPORT_WEB=1; shift;;
     --elastic-user) ELASTIC_USER_ARG="${2:?user required}"; shift 2;;
     --force) FORCE=1; shift;;
     -h|--help) cat <<'EOF'
 Usage:
   sudo bash elk-oneclick-adopt.sh --inspect
   sudo bash elk-oneclick-adopt.sh --apply --source-dir /path/to/_internal/core
-Options: --enable-report-web --elastic-user USER --force
+Options: --enable-report-web --repair-report-web --elastic-user USER --force
 EOF
       exit 0;;
     *) echo "[ERROR] unknown argument: $1" >&2; exit 2;;
   esac
 done
 case "$MODE" in
-  --inspect|inspect|--apply|apply) ;;
+  --inspect|inspect|--apply|apply|--repair-report-web) ;;
   -h|--help)
     cat <<'EOF'
 Usage:
@@ -89,7 +90,42 @@ fi
 [[ ${EUID:-$(id -u)} -eq 0 ]] || die "root 권한이 필요합니다."
 [[ -d "$SOURCE_DIR" ]] || die "source dir not found: $SOURCE_DIR"
 for f in elk-patch.sh elk-report.sh elk-report-web.py elk-oneclick-update.sh; do [[ -f "$SOURCE_DIR/$f" ]] || die "필수 파일 없음: $SOURCE_DIR/$f"; done
-[[ ! -f "$ENVF" || $FORCE -eq 1 ]] || die "$ENVF 가 이미 있습니다. 기존 OneClick 서버라면 adopt가 필요 없습니다. 강제 재등록은 --force."
+
+if [[ "$MODE" == --repair-report-web || ( -f "$ENVF" && $REPORT_WEB -eq 1 && $FORCE -eq 0 ) ]]; then
+  [[ -f "$ENVF" ]] || die "기존 환경 파일이 없습니다. 신규 등록: --apply --enable-report-web"
+  [[ -f "$SOURCE_DIR/elk-report-web.py" && -f "$SOURCE_DIR/elk-report.sh" ]] || die "Report Web 원본 파일 없음"
+  install -d -m 755 /usr/local/lib/elk-auto /usr/local/sbin /var/lib/elk-report
+  install -m 755 "$SOURCE_DIR/elk-report-web.py" /usr/local/lib/elk-auto/elk-report-web.py
+  install -m 755 "$SOURCE_DIR/elk-report.sh" /usr/local/sbin/elk-report
+  [[ ! -f /etc/systemd/system/elk-report-web.service ]] || cp -a /etc/systemd/system/elk-report-web.service "/etc/systemd/system/elk-report-web.service.bak.$(date +%Y%m%d%H%M%S)"
+  cat >/etc/systemd/system/elk-report-web.service <<'EOF_WEB_REPAIR'
+[Unit]
+Description=ELK OneClick Report Web
+After=network-online.target elasticsearch.service
+Wants=network-online.target
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/python3 /usr/local/lib/elk-auto/elk-report-web.py --host 0.0.0.0 --port 5602 --report /usr/local/sbin/elk-report --html /var/lib/elk-report/report.html --env /etc/elk-auto/elk.env
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/elk-report /var/log /run /tmp
+[Install]
+WantedBy=multi-user.target
+EOF_WEB_REPAIR
+  systemctl daemon-reload
+  systemctl enable --now elk-report-web.service
+  systemctl restart elk-report-web.service
+  systemctl is-active --quiet elk-report-web.service || die "웹 서비스 시작 실패: journalctl -u elk-report-web -n 60"
+  say "[OK] 기존 ELK 설정을 유지하고 Report Web 0.0.0.0:5602 서비스를 등록했습니다."
+  warn "외부 접속은 방화벽에서 관리자 IP로 제한하세요."
+  exit 0
+fi
+[[ ! -f "$ENVF" || $FORCE -eq 1 ]] || die "$ENVF 가 이미 있습니다. Report Web만 복구하려면 --repair-report-web 사용."
 
 TS="$(date +%Y%m%d-%H%M%S)"; BK="$BACKUP_ROOT/$TS"; install -d -m 700 "$BK"
 for f in "$ES_CFG" "$KB_CFG" "$LS_CFG" "$LS_PIPES"; do [[ -n "$f" && -f "$f" ]] && { cp -a --parents "$f" "$BK/" 2>/dev/null || cp -a "$f" "$BK/$(basename "$f")"; }; done
@@ -136,7 +172,7 @@ ONECLICK_GITHUB_OWNER="etech-symantec"
 ONECLICK_GITHUB_REPO="elk"
 ONECLICK_GITHUB_BRANCH="main"
 ELK_REPORT_WEB_ENABLED="$([[ $REPORT_WEB -eq 1 ]]&&echo true||echo false)"
-ELK_REPORT_WEB_HOST="127.0.0.1"
+ELK_REPORT_WEB_HOST="0.0.0.0"
 ELK_REPORT_WEB_PORT="5602"
 ELK_REPORT_HTML_DIR="/var/lib/elk-report"
 ELK_REPORT_HTML_FILE="/var/lib/elk-report/report.html"
@@ -161,7 +197,7 @@ After=network.target elasticsearch.service
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/bin/python3 /usr/local/lib/elk-auto/elk-report-web.py --host 127.0.0.1 --port 5602 --report /usr/local/sbin/elk-report --html /var/lib/elk-report/report.html --env /etc/elk-auto/elk.env
+ExecStart=/usr/bin/python3 /usr/local/lib/elk-auto/elk-report-web.py --host 0.0.0.0 --port 5602 --report /usr/local/sbin/elk-report --html /var/lib/elk-report/report.html --env /etc/elk-auto/elk.env
 Restart=on-failure
 NoNewPrivileges=true
 PrivateTmp=true
