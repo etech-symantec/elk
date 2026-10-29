@@ -6,7 +6,7 @@ f9be6d00c5e90ef564d516d170272c896aedb48748bafad7446150264dd7378e  ./_internal/co
 06f3c4433acd71d47fd746e275357a4613e32c88977d9215b7b32c2ae6199243  ./_internal/core/check-elk.sh
 2c6c78afbdbca385786ee16d6356d721ae57abb71e56ea81e217f33d55650ade  ./_internal/core/elk-color.sh
 9bf5a67e7daae742b6e27b788bbccf51cc59735a88bf7bf688f3ce68062f2af5  ./_internal/core/elk-health-monitor.sh
-31f64220edb3bf48af7a674d90ab16f9b5910108d7c0657d9fd307340ab1ee73  ./_internal/core/elk-oneclick-adopt.sh
+98b489342bbf2996182036d098a059e7b8bdb907d116cfad52ec9ea6492005ad  ./_internal/core/elk-oneclick-adopt.sh
 422834dc97cfb6a9bdca551930e102bb1706d9aad9c67a7ab8bddacaff70af6e  ./_internal/core/elk-oneclick-update.sh
 24cce110aea0e41cd724dbd05e62f380417a514894875edab9ce19b9745cf74d  ./_internal/core/elk-ops.sh
 1366ff1dd3f4aaad1e6f5568963cf3d901ea04961aff96c5c2e353811f6a2ad4  ./_internal/core/elk-patch.sh
@@ -34,7 +34,7 @@ a3a2f775905dd44e8cf46efc8b1371e67de91f7e6a9495c2133ae2bf19a84ab3  ./_internal/to
 d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./_internal/tools/run-remote-deploy.ps1
 9630807d54d55035dd731c0ad382f81b90114ada0c289264681c14bd751c7338  ./_internal/tools/run-remote-upgrade.ps1
 aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report-update.sh
-a3233343980cb333d915550c2fa68b9f53eb5e22c2cc922e11b6424fee64dc27  ./assets/adopt.js
+b38988eafc90a25fd183d441425aea303c7b823e0e7641ef7fc9a3b8ed7d1538  ./assets/adopt.js
 f0e7677da27fd4a7c40b1929b7ffb95836262871a948ba20800c9f28a7bb9aab  ./assets/menu-tour.js
 0880d3e8720b5b4c926867c97738425c21cffe13bedca50b389084fd1d25ef12  ./assets/wizard-engine.js
 8b0a3adf7a74597ab11e1e535d6fe0a4d21595a76290492c6d4769c78a1cfa72  ./assets/wizard.css
