@@ -21,6 +21,7 @@ fc1184e75c0b87064b84c125929dc276f2d14ad2d9264bf20bf2962fa033583a  ./_internal/co
 bc3243b4b963e493fb0ab2e212be5fa47ac4e4f6af0f95e5ef6874a5cc71e055  ./_internal/core/proxysg-log-process.sh
 8539255e6b5edd43bdf66c4c462c142c175719443761d75a36540c1ae83d1a64  ./_internal/docs/CHANGELOG.md
 0eba7fb05486e9d0853f44fa7ae85b8faa0bcdc346c083497cbbc2b19025ab24  ./_internal/docs/INSTALL_STEP_MAPPING.md
+e9b3e5fb4d6ba54e3e99ce9b912dfec0b8c62faf762c84fcbf2ee580b889079f  ./_internal/docs/OFFLINE_REGISTRATION_2500_COPYFIX.md
 40484ac6010e046590aebc42a28ada5a0fcfef4afba86c6d0e3a8801593955af  ./_internal/docs/README.md
 59cb39cbfd738e40a6713a90b33af8ca65bc005facf23de66c1aa79dc828212e  ./_internal/docs/VERSION
 4f5a37540816e9c8c3ea7561e3b2a106e55091e222e0dfcd6794383a6bca4538  ./_internal/examples/custom-filter.example.conf
