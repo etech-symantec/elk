@@ -1,0 +1,20 @@
+/* Offline Registration UI — scoped restoration, no impact on other Wizard panels */
+#adoptOfflineCopy .adopt-limit-label {display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#334e80;white-space:nowrap}
+#adoptOfflineCopy #adoptMaxChars {height:32px;box-sizing:border-box;width:100px!important;padding:5px 9px;border:1px solid #a5b4fc;border-radius:8px;background:#fff;color:#172554;font:700 12px inherit;box-shadow:0 1px 3px #1e40af11}
+#adoptOfflineCopy #adoptLatestFiles {margin-top:10px;display:grid;gap:8px}
+#adoptOfflineCopy .adoptlatestfile {box-sizing:border-box;background:#fff!important;border:1px solid #ccd9ee!important;border-radius:10px;padding:0!important;margin:0!important;overflow:hidden;box-shadow:0 2px 6px rgba(15,23,42,.035)}
+#adoptOfflineCopy .adoptlatestfile summary {display:flex;align-items:center;gap:8px;padding:10px 13px;cursor:pointer;color:#172554!important;font-size:12px;font-weight:750;line-height:1.55;list-style:none;background:#fff;overflow-wrap:anywhere}
+#adoptOfflineCopy .adoptlatestfile summary::-webkit-details-marker{display:none}
+#adoptOfflineCopy .adoptlatestfile summary::before{content:'▸';flex:none;color:#4f46e5;font-size:13px;transition:transform .16s}
+#adoptOfflineCopy .adoptlatestfile[open] summary::before{transform:rotate(90deg)}
+#adoptOfflineCopy .adoptlatestfile[open] summary{background:#f5f7ff;border-bottom:1px solid #e0e7ff}
+#adoptOfflineCopy .adoptlatestfile .adoptlatestbtns {display:grid!important;grid-template-columns:repeat(auto-fill,minmax(125px,1fr));gap:6px!important;margin:0!important;padding:11px 12px 9px}
+#adoptOfflineCopy .adoptlatestfile .adoptlatestbtns .ubtn {min-width:0;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border:1px solid #b7c8ed!important;border-radius:7px;padding:7px 9px;font-size:11.5px!important;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1e40af!important;background:#fff!important;box-shadow:none!important;transition:background-color .16s,border-color .16s}
+#adoptOfflineCopy .adoptlatestfile .adoptlatestbtns .ubtn:hover{background:#eff6ff!important;border-color:#2563eb!important}
+#adoptOfflineCopy .adoptlatestfile .adoptlatestbtns .ubtn[style*="187"],#adoptOfflineCopy .adoptlatestfile .adoptlatestbtns .ubtn[style*="bbf7d0"]{background:#bbf7d0!important;color:#14532d!important;border-color:#16a34a!important}
+#adoptOfflineCopy .adoptlatestfile>small{display:block;padding:0 12px 9px;color:#64748b!important;font-size:10px;overflow-wrap:anywhere}
+#adoptOfflineCopy .adoptlatestfinal {display:flex!important;flex-wrap:wrap;gap:7px!important;margin:4px 0 0!important}
+#adoptOfflineCopy .adoptlatestfinal .ubtn{width:auto!important;flex:1 1 180px;min-height:35px;padding:8px 12px;border-radius:8px;font-size:12px!important}
+#adoptOfflineCopy .adopt-offline-steps {display:flex;align-items:center;gap:8px;padding:10px 12px;margin:0 0 3px;border-radius:9px;background:#e9f0ff;border:1px solid #c7d2fe;color:#1e3a8a;white-space:normal;font-size:12px}
+#adoptOfflineCopy .adopt-offline-steps small{margin-left:auto;color:#64748b!important}
+@media(max-width:700px){#adoptOfflineCopy .adoptlatestfile .adoptlatestbtns{grid-template-columns:repeat(2,minmax(0,1fr))}#adoptOfflineCopy .adoptlatestfinal .ubtn{flex:1 1 100%}}
