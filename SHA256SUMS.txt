@@ -39,7 +39,7 @@ aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report
 b38988eafc90a25fd183d441425aea303c7b823e0e7641ef7fc9a3b8ed7d1538  ./assets/adopt.js
 f0e7677da27fd4a7c40b1929b7ffb95836262871a948ba20800c9f28a7bb9aab  ./assets/menu-tour.js
 59bd5fc71e810ab59a56db495b96bfacdc51f8f9ab3d06160f8b3c6ba05076b1  ./assets/wizard-engine.js
-8b0a3adf7a74597ab11e1e535d6fe0a4d21595a76290492c6d4769c78a1cfa72  ./assets/wizard.css
+b2708bcda839fbd2e7d4f9a63ff8daa251aa20acbedf558ea92f74f6c5bda4c1  ./assets/wizard.css
 a57f33319a9175d3a366d4195c2276ab8e1adc7659c3d2c67a73dbee87d77c1a  ./bootstrap-update.sh
 674778d81046acfb2929ada9a3cd0b3649a4ea40ba23bca70e3ca9141285070b  ./config-wizard.html
 28ae82d80821bda286ea29db3250f0e7058d9095af7a9b90b5ef2d8ce050459d  ./guide/guide-adopt-easy.html
@@ -49,7 +49,7 @@ a57f33319a9175d3a366d4195c2276ab8e1adc7659c3d2c67a73dbee87d77c1a  ./bootstrap-up
 f0b3c35768cb75cd987c933c9719d729ee5cb63a82db7b0e6c91d6b1657c13c9  ./guide/guide-upgrade-easy.html
 12290890dc3041f93b1f52a21a83b25c3c367543caccba65719493cbd24d3348  ./guide/guide-upgrade.html
 40b1b506128e4305a1bad5d789c783902f790f7e7344622645c6ad1e120a95a6  ./inspect.html
-2a37507e62a8c90aa0121a1f9cb1d8881de730d79501a02d6ebc57e09e0fc4a6  ./patch.html
+a163d7a3675111706b95e8610fa03b1d2e96a9ed6a101703459ea7fbaa119883  ./patch.html
 89018ec01b9b4fb61ab8788e9153acb55f4d2c215e933d21d96efa658d91e5c2  ./run-remote-deploy.cmd
 d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./run-remote-deploy.ps1
 54d20573e25f432767369f89fdc1fd8cf94c00674e5ddb0738a99adb394c12ed  ./run-remote-upgrade.cmd
