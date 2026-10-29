@@ -956,3 +956,8 @@ input::-webkit-input-placeholder,textarea::-webkit-input-placeholder{color:#b3bf
 #adoptLatestFiles .adopt-offline-steps{display:flex!important;align-items:center!important;gap:8px!important;flex-wrap:wrap!important;background:#eef2ff!important;border:1px solid #dbe4fa!important;border-radius:9px!important;padding:10px 12px!important;color:#475569!important;font-size:12px!important}
 #adoptMaxChars{height:32px!important;width:100px!important;padding:5px 9px!important;border:1px solid #cbd5e1!important;border-radius:8px!important;background:#fff!important;color:#1e293b!important;font-size:12px!important;font-weight:700!important}
 @media(max-width:620px){#adoptLatestFiles .adoptlatestfinal{grid-template-columns:1fr!important}#adoptLatestFiles .adoptlatestbtns{gap:6px!important}}
+
+/* Offline registration action explanations */
+#adoptLatestFiles .adoptlatestfinal>.adopt-final-action{min-width:0;display:flex;flex-direction:column;gap:5px}
+#adoptLatestFiles .adoptlatestfinal>.adopt-final-action>.adopt-copy-btn{width:100%!important;min-height:36px!important;white-space:normal!important}
+#adoptLatestFiles .adoptlatestfinal>.adopt-final-action>small{color:#64748b;font-size:10.5px;line-height:1.45;padding:0 2px}

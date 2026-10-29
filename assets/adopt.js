@@ -45,9 +45,12 @@ function adoptRenderSnapshot(){
   const hash=document.createElement('small');hash.textContent='SHA256 '+f.hash;d.appendChild(hash);area.appendChild(d);
  });
  const final=document.createElement('div');final.className='adoptlatestfinal';
- final.appendChild(adoptCopyButton('전체 검사','sudo bash -n /root/elk-adopt/elk-oneclick-adopt.sh && sudo bash /root/elk-adopt/elk-oneclick-adopt.sh --inspect'));
- final.appendChild(adoptCopyButton('기존 서버 · 웹 복구','sudo bash /root/elk-adopt/elk-oneclick-adopt.sh --repair-report-web --source-dir /root/elk-adopt'));
- final.appendChild(adoptCopyButton('신규 관리 등록','sudo bash /root/elk-adopt/elk-oneclick-adopt.sh --apply --source-dir /root/elk-adopt --enable-report-web'));
+ const actions=[
+  ['등록 스크립트·환경 검사','스크립트 문법과 ELK 상태를 읽기 전용으로 확인','sudo bash -n /root/elk-adopt/elk-oneclick-adopt.sh && sudo bash /root/elk-adopt/elk-oneclick-adopt.sh --inspect'],
+  ['기존 서버 · 웹 복구','기존 설정은 유지하고 5602 웹 서비스만 복구','sudo bash /root/elk-adopt/elk-oneclick-adopt.sh --repair-report-web --source-dir /root/elk-adopt'],
+  ['OneClick 미등록 서버 등록','기존 ELK를 OneClick 관리 대상으로 최초 등록','sudo bash /root/elk-adopt/elk-oneclick-adopt.sh --apply --source-dir /root/elk-adopt --enable-report-web']
+ ];
+ actions.forEach(([title,description,command])=>{const item=document.createElement('div');item.className='adopt-final-action';item.appendChild(adoptCopyButton(title,command));const desc=document.createElement('small');desc.textContent=description;item.appendChild(desc);final.appendChild(item)});
  area.appendChild(final);adoptStatus('GitHub '+s.sha.slice(0,12)+' · '+s.files.length+'개 · 최대 '+limit+'자');
 }
 
