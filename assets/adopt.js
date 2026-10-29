@@ -20,7 +20,7 @@ function adoptCopyButton(label,cmd){
  b.onclick=async()=>{
   if(b.disabled)return;b.disabled=true;
   const ok=await adoptCopyCommand(cmd);b.disabled=false;
-  if(ok){b.classList.add('adopt-copied');b.textContent='✓ 복사 완료 · '+label;clearTimeout(b.copyTimer);b.copyTimer=setTimeout(()=>{b.classList.remove('adopt-copied');b.textContent=label},60000);}
+  if(ok){b.classList.add('adopt-copied');b.textContent='✓ 복사 완료';clearTimeout(b.labelTimer);clearTimeout(b.copyTimer);b.labelTimer=setTimeout(()=>{b.textContent=label},1500);b.copyTimer=setTimeout(()=>{b.classList.remove('adopt-copied');b.textContent=label},60000);}
   else{b.textContent='복사 실패 · 다시 시도';adoptStatus('클립보드 복사 실패: HTTPS 또는 브라우저 권한 확인',true);setTimeout(()=>{if(!b.classList.contains('adopt-copied'))b.textContent=label},4000);}
  };
  return b;
