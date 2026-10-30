@@ -554,6 +554,7 @@ if want disk; then
         if [[ "$n" == "-" ]]; then out+="$lab 폴더 없음 · "; else out+="$lab $(num_h "$n")개 $(bytes_h "$s") · "; fi
       done
       row info "로그 $nm" "${out% · }"
+      sub "실제 참조 경로 · 수신: ${src:-미설정} | 처리: ${prc:-미설정} | 백업: ${bak:-미설정}"
     done
   }
   group "Indices" "(Elasticsearch 인덱스 용량)"
@@ -567,6 +568,7 @@ if want disk; then
       docs="$(jq '[.[]|(."docs.count"//"0")|tonumber]|add' <<<"$js")"; size="$(jq '[.[]|(."store.size"//"0")|tonumber]|add' <<<"$js")"
       first="$(jq -r 'map(.index)|sort|first' <<<"$js")"; last="$(jq -r 'map(.index)|sort|last' <<<"$js")"
       row info "인덱스 $nm" "${cnt}개 · 문서 $(num_h "$docs") · 용량 $(bytes_h "$size")  ($first ~ $last)"
+      sub "조회 인덱스 패턴: ${pfx}-* (Elasticsearch 논리 인덱스, 실제 데이터 경로: ${ES_PATH_DATA})"
     done
     al="$(es "/_cat/allocation?bytes=b&format=json" || true)"
     if jq -e 'type=="array"' >/dev/null 2>&1 <<<"$al"; then
