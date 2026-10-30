@@ -1,68 +1,62 @@
-/* Keep dependent Cloud API switches consistent with disabled Cloud ingestion. */
+/* Cloud API controls: synchronize Wizard state and lock switches when Cloud is off. */
 (()=>{
  'use strict';
  const root=document.getElementById('main');if(!root)return;
- const keys=['PROXYSG_CLOUD_API_ENABLED','PROXYSG_CLOUD_API_INSECURE'];
- const switches=new Map();
- let busy=false,queued=false;
- function field(key){
-   const candidates=[...root.querySelectorAll('*')].filter(el=>el.children.length===0&&(el.textContent||'').trim()===key);
-   for(const leaf of candidates){
-     for(let node=leaf.parentElement;node&&node!==root;node=node.parentElement){
-       const buttons=[...node.querySelectorAll('button')].filter(b=>['사용','사용 안 함'].includes(b.textContent.trim()));
-       if(buttons.length===2&&buttons.some(b=>b.textContent.trim()==='사용')&&buttons.some(b=>b.textContent.trim()==='사용 안 함'))return {node,buttons};
+ const dependent=['PROXYSG_CLOUD_API_ENABLED','PROXYSG_CLOUD_API_INSECURE'];
+ let updating=false,pending=false;
+ function card(key){
+   // Variable names may be nested in labels: do not require a leaf's exact text.
+   const nodes=[...root.querySelectorAll('small,span,label,div')].filter(el=>{
+     const t=(el.textContent||'').trim();
+     return t===key && ![...el.children].some(c=>(c.textContent||'').trim()===key);
+   });
+   for(const leaf of nodes){
+     for(let el=leaf.parentElement;el&&el!==root;el=el.parentElement){
+       const text=(el.textContent||'');
+       const buttons=[...el.querySelectorAll('button')].filter(b=>/^(사용|사용 안 함)\s*(기본)?$/.test(b.textContent.trim()));
+       if(buttons.length===2 && text.length<1400 && !dependent.some(k=>k!==key&&text.includes(k)))return {el,buttons};
        if(buttons.length>2)break;
      }
    }
    return null;
  }
- function isOn(group){
-   const on=group?.buttons.find(b=>b.textContent.trim()==='사용');
-   const off=group?.buttons.find(b=>b.textContent.trim()==='사용 안 함');
-   if(!on||!off)return false;
-   const selected=b=>b.getAttribute('aria-pressed')==='true'||b.classList.contains('on')||b.classList.contains('active')||b.classList.contains('selected');
-   return selected(on)&&!selected(off);
+ function choice(group,word){
+   return group?.buttons.find(b=>b.textContent.trim().startsWith(word)&&
+       (word!=='사용'||!b.textContent.trim().startsWith('사용 안 함')));
  }
- function disabledByParent(group){
-   if(!group)return false;
-   let el=group.node;
-   for(let j=0;j<3&&el&&el!==root;j++,el=el.parentElement){
-     if(el.matches('[disabled],[aria-disabled="true"],.disabled,.is-disabled'))return true;
-   }
+ function active(group){
+   const on=choice(group,'사용'),off=choice(group,'사용 안 함');
+   if(!on||!off)return false;
+   const chosen=b=>b.classList.contains('active')||b.classList.contains('selected')||b.classList.contains('on')||b.getAttribute('aria-pressed')==='true';
+   if(chosen(off))return false;
+   if(chosen(on))return true;
+   // Fail-safe: if no selection can be inferred, don't activate Cloud API.
    return false;
  }
- function run(){
-   if(busy)return;
-   busy=true;
+ function sync(){
+   if(updating)return;updating=true;
    observer.disconnect();
    try{
-     const cloud=field('PROXYSG_CLOUD_ENABLED');
-     const cloudOff=cloud? !isOn(cloud):null;
-     if(cloudOff===null)return;
-     for(const key of keys){
-       const group=field(key);if(!group)continue;
-       const off=group.buttons.find(b=>b.textContent.trim()==='사용 안 함');
-       const shouldLock=cloudOff||disabledByParent(group);
-       if(shouldLock){
-         // Trigger the Wizard's own handler so exported elk.env reflects false.
-         if(!switches.has(group.node)&&off){switches.set(group.node,true);if(!off.disabled)off.click();}
-       }else switches.delete(group.node);
-       for(const button of group.buttons){
-         button.disabled=!!shouldLock;
-         button.setAttribute('aria-disabled',String(!!shouldLock));
-         button.style.cursor=shouldLock?'not-allowed':'';
-       }
+     const cloud=card('PROXYSG_CLOUD_ENABLED');
+     if(!cloud)return;
+     const locked=!active(cloud);
+     for(const key of dependent){
+       const g=card(key);if(!g)continue;
+       const off=choice(g,'사용 안 함');
+       // Click the genuine Wizard toggle, not merely its visual representation.
+       if(locked&&off&&!off.disabled)off.click();
+       g.el.classList.toggle('cloud-dependent-locked',locked);
+       g.buttons.forEach(b=>{b.disabled=locked;b.setAttribute('aria-disabled',String(locked));});
      }
-   }catch(e){console.error('[Cloud toggles]',e)}
-   finally{busy=false;observer.observe(root,{childList:true,subtree:true});}
+   }catch(e){console.error('[Cloud switch guard]',e)}
+   finally{observer.observe(root,{childList:true,subtree:true});updating=false}
  }
- function schedule(){if(queued)return;queued=true;setTimeout(()=>{queued=false;run()},0)}
+ function schedule(){if(pending)return;pending=true;setTimeout(()=>{pending=false;sync()},35)}
  const observer=new MutationObserver(schedule);
  root.addEventListener('click',e=>{
-   const b=e.target.closest('button');
-   if(!b)return;
-   const cloud=field('PROXYSG_CLOUD_ENABLED');
-   if(cloud?.node.contains(b))schedule();
+   const b=e.target.closest('button');if(!b)return;
+   const source=card('PROXYSG_CLOUD_ENABLED');
+   if(source?.el.contains(b))schedule();
  },true);
- run();
+ sync();
 })();
