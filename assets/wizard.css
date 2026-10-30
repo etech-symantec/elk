@@ -185,6 +185,9 @@
 .field.cloudoff{opacity:.62;background:#f1f5f9;border-style:dashed;border-color:#94a3b8}
 .field.cloudoff.adminfield{background:#f1f5f9;border-color:#94a3b8;box-shadow:none}
 .field.cloudoff input,.field.cloudoff textarea{background:#e2e8f0;color:#64748b;cursor:not-allowed}
+.field.cloudoff .seg,.field.cloudoff .segbtn,.field.cloudoff button{pointer-events:none;cursor:not-allowed}
+.field.cloudoff .segbtn,.field.cloudoff .segbtn:hover{background:#e2e8f0;color:#64748b}
+.field.cloudoff .segbtn.sel.on,.field.cloudoff .segbtn.sel.off{background:#94a3b8;color:#fff}
 .offbadge{display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:9px;font-weight:900;background:#64748b;color:#fff;margin-left:6px}
 .ltpanel{margin:12px 0 6px}
 .lthead2{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}

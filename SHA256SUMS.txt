@@ -16,7 +16,7 @@ d3236c3007e7fae32ab3e1de0af160253fe42a961664bf6a028e55be4dfbde2c  ./_internal/co
 fc1184e75c0b87064b84c125929dc276f2d14ad2d9264bf20bf2962fa033583a  ./_internal/core/proxysg-lib.sh
 479f26e3682486c6af8ae86d71ebd3b99b2352023c87f0b78582336a8a76aee4  ./_internal/core/proxysg-log-filter.conf
 bc3243b4b963e493fb0ab2e212be5fa47ac4e4f6af0f95e5ef6874a5cc71e055  ./_internal/core/proxysg-log-process.sh
-2d3fe88207716472ad846b0713e846185261fb89d1f01c26b1f67b874c10257c  ./_internal/docs/CHANGELOG.md
+e4846ef5a99c4bfe4a1fd2d09010ea4224eea9d5650c9701808eff0a9e2c65d2  ./_internal/docs/CHANGELOG.md
 0eba7fb05486e9d0853f44fa7ae85b8faa0bcdc346c083497cbbc2b19025ab24  ./_internal/docs/INSTALL_STEP_MAPPING.md
 1d2980ae3adb68b0b332afad7591ae655397a02c265a9ce5b7631836da7ad798  ./_internal/docs/README.md
 7678efb55d68ce8a987d36adb679f7b7ee6e0974e4e5680f394a37e536888551  ./_internal/docs/VERSION
@@ -33,12 +33,11 @@ d3d79622c15c2a344553ec8c82ffd29064ef2126aef7aeb099fabf064e6f647e  ./_internal/to
 aa2fa939829d0569d1b7dc38eda68d3e64cd7ca0f82c375aafb7803fa7dad1be  ./apply-report-update.sh
 18338de6e115489a9e872f89b99696a41a6592d6250e6cc4e23c3afa2a05ad27  ./assets/adopt-flow.js
 78af02a632dc8703dd5437f1c900dad6526bbfd05e333b1d694a4a33dba59e55  ./assets/adopt.js
-d36ae07c63db62b7e501f0d8557c947713b0e18e0f2ebc6bd483a5af7a2f23aa  ./assets/cloud-toggle-guard.js
 f0e7677da27fd4a7c40b1929b7ffb95836262871a948ba20800c9f28a7bb9aab  ./assets/menu-tour.js
-b7104e1e21d915d7cac2c342a869db52874ad9891cea828fc5495de81e699749  ./assets/wizard-engine.js
-53e74fd004e04a72de4f92db259ec1d0f9cbe9fec7575773623cb580de7ced14  ./assets/wizard.css
+d16c2ae725e5920cce16c19fa56b42ab390149f6628c6e2d5832445ce1c9d5db  ./assets/wizard-engine.js
+271af696abd445083862c520a778dc1c749df1bcf63851a75dfd5010220a4b99  ./assets/wizard.css
 a57f33319a9175d3a366d4195c2276ab8e1adc7659c3d2c67a73dbee87d77c1a  ./bootstrap-update.sh
-b020c08c9f48608e4cc40056d233383aaeff0481eb733dcaa0ecb886323788e6  ./config-wizard.html
+e46c742823aa96aae4ed1ac8222f3d9d474f0cbcd93054f0b270c5f4577e1b2a  ./config-wizard.html
 28ae82d80821bda286ea29db3250f0e7058d9095af7a9b90b5ef2d8ce050459d  ./guide/guide-adopt-easy.html
 89aea20a40a20ed993244eb80365aa75cb17484e3feaf6ed911c4cb0c9f60d96  ./guide/guide-adopt.html
 896b01f30ae4d7e03890a6c14bbea594f2b4a307bf3f17e6884396d674a040b8  ./guide/guide-install-easy.html

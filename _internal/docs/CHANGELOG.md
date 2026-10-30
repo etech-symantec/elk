@@ -2,6 +2,7 @@
 
 - Version checker 동기화: Wizard(PKG_VER/ONECLICK_PAYLOAD_VERSION), 설치기·패치·리포트 버전, Windows 원격 배포 도구, 배포 문서 제목을 맞췄습니다.
 - Windows PowerShell 배포는 실제 SH payload에서 버전을 읽고 최신 생성 파일을 찾습니다.
+- **Cloud 로그 '사용 안 함' 연동**: Cloud 로그 처리를 끄면 Cloud API 자동 다운로드·TLS 검증 생략이 함께 '사용 안 함'(false)으로 저장되고, 다시 켜면 끄기 전 값으로 복원됩니다. 비활성 상태의 Cloud 항목에서 사용/사용 안 함 버튼이 눌리던 문제를 수정했습니다(버튼도 disabled 처리). 별도 보정 스크립트(cloud-toggle-guard.js)는 엔진에 통합되어 제거했습니다.
 
 # v2.9.5
 

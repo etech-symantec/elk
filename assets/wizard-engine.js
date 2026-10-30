@@ -489,6 +489,15 @@ function syncSeg(key,on){document.querySelectorAll(`[data-seg-for="${key}"]`).fo
 // ---- ProxySG Cloud 로그(선택) 보조 --------------------------------------------------------------
 function isCloudKey(k){return /^PROXYSG_CLOUD_/.test(k)&&k!=='PROXYSG_CLOUD_ENABLED'}
 const cloudOn=()=>bool(values.PROXYSG_CLOUD_ENABLED);
+// Cloud 로그 처리를 '사용 안 함'으로 두면 Cloud API 자동 다운로드·TLS 검증 생략 같은 사용/사용 안 함 설정도 모두 false로 맞춥니다.
+// 다시 '사용'으로 바꾸면 끄기 직전 값을 되돌립니다. (설치기 install-elk.sh 도 같은 규칙으로 한 번 더 강제합니다.)
+const CLOUD_DEP_BOOL=['PROXYSG_CLOUD_API_ENABLED','PROXYSG_CLOUD_API_INSECURE'],CLOUD_SAVED={};
+function enforceCloudOff(){
+  const changed=[];
+  if(cloudOn()){for(const k of CLOUD_DEP_BOOL)if(k in CLOUD_SAVED){values[k]=CLOUD_SAVED[k];delete CLOUD_SAVED[k];changed.push(k)}return changed}
+  for(const k of CLOUD_DEP_BOOL)if(bool(values[k])){CLOUD_SAVED[k]=values[k];values[k]='false';changed.push(k)}
+  return changed;
+}
 var TC='<span class="ftag tcloud">Cloud</span>';
 function logTypesPanel(){
   const v=values,flow=bool(v.PROXYSG_FLOW_ENABLED),cl=cloudOn();
@@ -603,7 +612,7 @@ function patchStatText(){
   const n=patchKeys().length+procPatchCount(),ch=BASELINE?PATCH_KEYS.filter(k=>String(values[k]==null?'':values[k])!==BASELINE[k]).length:0;
   return (BASELINE?`기준값과 달라진 항목 <b>${ch}개</b>가 자동으로 선택됩니다. `:'기준값이 없습니다. 값을 고치거나 직접 체크한 항목이 패치에 포함됩니다. ')+`현재 선택: <b>${n}개</b>`
 }
-function patchEnvText(keys){return keys.map(k=>`${k}=${shQ(patchOneLine(values[k]))}`).join('\n')+'\n'}
+function patchEnvText(keys){enforceCloudOff();return keys.map(k=>`${k}=${shQ(patchOneLine(values[k]))}`).join('\n')+'\n'}
 // 선택된 패치 값으로 기능을 활성화할 때 필요한 관련 설정을 검사한다.
 // 기존 서버에 이미 값이 있으면 별도 체크를 요구하지 않는다. 패치 명령에는 선택된 키만 포함한다.
 const PATCH_DEP_RULES=[
@@ -1608,6 +1617,7 @@ function syncDeployFormValues(){
 function generateEnv(){
   syncCurrentFormValues();
   syncDeployFormValues();
+  enforceCloudOff();
   const all=new Map(DATA.vars.map(v=>[v.key,String(values[v.key]??'')]));
   const emitted=new Set();
   const result=DATA.template.split(/\r?\n/).map(line=>{
@@ -1722,7 +1732,7 @@ function field(k,opt={}){
   else control=`<input data-k="${k}" type="text" value="${esc(val)}" placeholder="${esc(v.placeholder||'')}">`;
   const sharedLocked=mode==='simple'&&quickSharedPasswordEnabled&&QUICK_SHARED_PASSWORD_TARGETS.includes(k);
   if(sharedLocked){control=`<input data-k="${k}" type="text" readonly disabled value="${esc(String(quickSharedPasswordValue))}" aria-label="공통 비밀번호 적용으로 편집 잠김">`;}
-  const off=isCloudKey(k)&&!cloudOn();if(off)control=control.replace(/<(input|textarea)\b/g,'<$1 disabled');
+  const off=isCloudKey(k)&&!cloudOn();if(off)control=control.replace(/<(input|textarea|button)\b/g,'<$1 disabled aria-disabled="true"');
   let meta=adminMeta(k),badge=opt.admin&&!off?`<span class="reqbadge ${meta.conditional?'condbadge':meta.auto?'autobadge':''}">${meta.conditional?'조건부 필수':meta.auto?'직접 입력 또는 자동 생성':'관리자 확인'}</span>`:'';
   let open=expandedCards.has(k),err=FE[k]||'',invalid=!!err,showErr=err&&!(rule&&v.secret);
   return `<div class="field ${sharedLocked?'shared-target-locked':''} ${opt.admin?'adminfield':''} ${off?'cloudoff':''} ${open?'expanded':''} ${invalid?'invalidfield':''}" data-card="${k}" tabindex="0" aria-expanded="${open?'true':'false'}"><div class="lh"><label>${esc(v.label)}${badge}${off?'<span class="offbadge">비활성</span>':''}</label><div class="cardright"><span class="key">${k}</span><span class="expandhint">설명 <span class="chev">⌄</span></span></div></div><div class="help">${esc(v.help)}</div><div class="control">${control}</div>${defLine(k)}${off?'<div class="fieldnote offnote">Cloud 로그 처리가 꺼져 있어 적용되지 않습니다. 빠른 설정 7단계의 "처리할 로그 종류"에서 Cloud를 <b>사용</b>으로 바꾸면 입력할 수 있습니다.</div>':''}${k==='KIBANA_SERVER_HOST'&&bool(values.INSTALL_NGINX)&&String(values.KIBANA_SERVER_HOST)==='0.0.0.0'?'<div class="fieldnote">Nginx HTTPS가 켜져 있어 설치기가 이 값(0.0.0.0)을 자동으로 <b>127.0.0.1</b>로 제한합니다. 직접 바꿀 필요는 없습니다.</div>':''}<div class="fielderr" ${showErr?'':'hidden'}>⚠ ${esc(err)}</div></div>`
@@ -1986,7 +1996,7 @@ function stageRequired(keys,cols3){
 }
 
 function stepInfo(id){if(id===1)return `<div class="info">설치기가 GPG Key 등록 → 9.x APT 저장소 추가 → apt update 과정을 자동으로 수행합니다.</div>`;if(id===2)return `<div class="info">Elastic 9.x 최초 실행 시 Security/TLS가 자동 구성됩니다. elastic 비밀번호는 비워두면 자동 생성하며, 직접 입력할 경우 최소 6자 이상만 허용합니다. Wizard와 서버의 --validate 단계가 모두 사전 검사합니다.</div><div class="info warn"><b>action.destructive_requires_name=false</b>는 편하지만 wildcard 삭제가 허용됩니다. 빠른 설정은 편의상 false로 시작하며 일반 설치 기본값은 true입니다.</div>`;if(id===3)return `<div class="info">Enrollment Token + Verification Code를 수동으로 입력하는 대신 자동 설치에서는 Kibana Service Account Token을 생성하여 keystore에 저장합니다. 브라우저 로그인 계정은 별도로 생성할 수 있습니다.</div><div class="info ok"><b>ProxySG 기본 Dashboard:</b> MAIN/SSL 기본 로그 포맷을 기준으로 20개 위젯 중 필요한 항목을 선택할 수 있습니다. 설치 완료 시 선택한 위젯과 Dashboard를 Kibana Saved Object로 자동 생성합니다.</div>${bool(values.KIBANA_LOGIN_ENABLED)?'':`<div class="info warn"><b>로그인 없이 접속 허용:</b> Kibana 익명 인증(kibana_anonymous, viewer)으로 읽기 전용 접속됩니다. 이 계정은 모든 인덱스를 조회할 수 있으니 방화벽 허용 대역을 내부망으로 제한하세요. 로그인 화면에서 다른 계정으로 로그인할 수도 있습니다.</div>`}`;if(id===4)return `<div class="info"><b>Nginx HTTPS 기본값: ${esc(defLabel('INSTALL_NGINX'))}</b> — ${INITIAL_VALUES.INSTALL_NGINX==='true'?'기본으로 HTTPS(443)로 접속합니다.':'기본은 Kibana에 http://서버IP:5601로 직접 접속하는 구성입니다.'}<br>'사용'으로 바꾸면 설치기가 Kibana Listen 주소를 자동으로 127.0.0.1로 제한하고(5601은 외부에 노출되지 않음) HTTPS 443으로 Reverse Proxy하며, 80번 접속은 443으로 자동 이동합니다. Self-Signed 인증서는 브라우저에서 최초 신뢰 경고가 표시될 수 있습니다.</div>`;if(id===5)return `<div class="info ok">기본값: MAIN=/home/main_process/*.log.gz, SSL=/home/ssl_process/*.log.gz, mode=read, 완료 후 process 파일 delete, discover_interval=5, max_open_files=1000.</div>`;if(id===6)return `<div class="info">기본값: vsftpd, anonymous=NO, local/write=YES, local_umask=022, connect_from_port_20=YES, ssl_enable=NO.</div>`;if(id===7)return `<div class="info ok">처리 순서: 수신 폴더(/home/main·ssl, 사용 시 cloud) → 스크립트가 backup/process에 복사 및 검증 → source 삭제 → Logstash가 process의 .log.gz를 읽고 완료 후 삭제. 기본 스케줄은 매일 03:00입니다.</div>${cloudOn()?'<div class="info warn"><b>Cloud 외부 통신 필수:</b> <code>portal.threatpulse.com</code> TCP/443 아웃바운드를 방화벽에서 허용해야 하며, Cloud API ID와 Password는 필수 입력입니다.</div>':''}`;if(id===8)return `<div class="info">기본 이름: proxy-main-*, proxy-ssl-*, proxy-retention-policy, proxy-index-template. 기본 보존기간(자동 삭제)은 <b>90일</b>입니다.</div>`;return''}
-function setValueAndSync(k,val,source){values[k]=val;if(mode==='patch'&&PATCH_KEYS.includes(k)){PATCH_TOUCHED.add(k);PATCH_MANUAL.delete(k);setTimeout(()=>refreshPatchUi(k),0)}if(/_LOG_FORMAT$/.test(k))updateFmtPreview(k);document.querySelectorAll(`[data-k="${k}"]`).forEach(el=>{if(el===source)return;if(el.type==='checkbox')el.checked=bool(val);else el.value=val});syncSeg(k,bool(val));if(typeof refreshPipelinePreview==='function')refreshPipelinePreview();renderStatus();refreshInvalid()}
+function setValueAndSync(k,val,source){values[k]=val;if(k==='PROXYSG_CLOUD_ENABLED'){for(const dk of enforceCloudOff()){if(mode==='patch'&&PATCH_KEYS.includes(dk)){PATCH_TOUCHED.add(dk);PATCH_MANUAL.delete(dk)}document.querySelectorAll(`[data-k="${dk}"]`).forEach(el=>{if(el.type==='checkbox')el.checked=bool(values[dk])});syncSeg(dk,bool(values[dk]))}}if(mode==='patch'&&PATCH_KEYS.includes(k)){PATCH_TOUCHED.add(k);PATCH_MANUAL.delete(k);setTimeout(()=>refreshPatchUi(k),0)}if(/_LOG_FORMAT$/.test(k))updateFmtPreview(k);document.querySelectorAll(`[data-k="${k}"]`).forEach(el=>{if(el===source)return;if(el.type==='checkbox')el.checked=bool(val);else el.value=val});syncSeg(k,bool(val));if(typeof refreshPipelinePreview==='function')refreshPipelinePreview();renderStatus();refreshInvalid()}
 function toggleCard(k){
   if(expandedCards.has(k))expandedCards.delete(k);else expandedCards.add(k);
   document.querySelectorAll(`[data-card="${k}"]`).forEach(card=>{let open=expandedCards.has(k);card.classList.toggle('expanded',open);card.setAttribute('aria-expanded',open?'true':'false')})
@@ -2001,7 +2011,7 @@ function wire(){
   const drivers=['PROXYSG_CLOUD_ENABLED','KIBANA_CREATE_INITIAL_USER','KIBANA_LOGIN_ENABLED','INSTALL_LOGSTASH','INSTALL_FTP_SERVER','PROXYSG_FLOW_ENABLED','FILE_INGEST_MANAGER_ENABLED','INSTALL_NGINX','NGINX_TLS_MODE','SNAPSHOT_REPO_ENABLED','UFW_MANAGE','UFW_ADD_RULES_IF_ACTIVE','ELK_REPORT_WEB_ENABLED','PROXYSG_BACKUP_FORMAT'];
   document.querySelectorAll('[data-k]').forEach(el=>el.oninput=el.onchange=()=>{let val=el.type==='checkbox'?String(el.checked):el.value;setValueAndSync(el.dataset.k,val,el);if(drivers.includes(el.dataset.k)){if(mode==='patch'){refreshPatchUi(el.dataset.k)}else{renderMain()}}});
   document.querySelectorAll('[data-loc]').forEach(b=>b.onclick=e=>{e.stopPropagation();const [m,n]=b.dataset.loc.split(':');mode=m;step=+n;query='';const si=document.getElementById('search');if(si)si.value='';document.getElementById('simpleBtn').classList.toggle('on',m==='simple');document.getElementById('advancedBtn').classList.toggle('on',m==='advanced');render();window.scrollTo({top:0,behavior:'smooth'})});
-  document.querySelectorAll('[data-seg-for]').forEach(b=>b.onclick=e=>{e.stopPropagation();const box=b.parentElement.querySelector('input[type=checkbox]');const want=b.dataset.segV==='true';if(box&&box.checked!==want){box.checked=want;box.dispatchEvent(new Event('change',{bubbles:true}))}syncSeg(b.dataset.segFor,want)});
+  document.querySelectorAll('[data-seg-for]').forEach(b=>b.onclick=e=>{e.stopPropagation();if(b.disabled||b.getAttribute('aria-disabled')==='true'||b.closest('.field.cloudoff')){e.preventDefault();return}const box=b.parentElement.querySelector('input[type=checkbox]');const want=b.dataset.segV==='true';if(box&&box.checked!==want){box.checked=want;box.dispatchEvent(new Event('change',{bubbles:true}))}syncSeg(b.dataset.segFor,want)});
   document.querySelectorAll('[data-gen]').forEach(b=>b.onclick=e=>{e.stopPropagation();values[b.dataset.gen]=rand();renderMain()});
   document.querySelectorAll('[data-deploy-k]').forEach(el=>el.oninput=el.onchange=()=>{deployValues[el.dataset.deployK]=el.type==='checkbox'?el.checked:el.value;if(el.dataset.deployK==='sudoSame')renderMain();else{renderStatus();refreshInvalid()}});
   document.querySelectorAll('[data-deploy-card]').forEach(card=>{card.onclick=e=>{if(e.target.closest('input,select,textarea,button,a'))return;toggleDeployCard(card.dataset.deployCard)};card.onkeydown=e=>{if((e.key==='Enter'||e.key===' ')&&!e.target.closest('input,select,textarea,button,a,label,.widgetpicker')){e.preventDefault();toggleDeployCard(card.dataset.deployCard)}}});
@@ -2097,6 +2107,7 @@ function wireCommonPassword(){
   });
 }
 function renderMain(){
+  enforceCloudOff();
   refreshErrors();
   const main=document.getElementById('main');
   if(mode==='patch'){main.innerHTML=patchPage();wire();wirePatch();renderPatchDependencies();renderPatchDependencyInline();return}
