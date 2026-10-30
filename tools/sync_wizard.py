@@ -23,6 +23,7 @@ EMBEDDED = {
     'elk-health-monitor.sh':      '_internal/core/elk-health-monitor.sh',
     'elk-ops.sh':                 '_internal/core/elk-ops.sh',
     'elk-patch.sh':               '_internal/core/elk-patch.sh',
+    'elk-oneclick-update.sh':     '_internal/core/elk-oneclick-update.sh',
     'elk-color.sh':               '_internal/core/elk-color.sh',
     'elk-report.sh':              '_internal/core/elk-report.sh',
     'elk-report-web.py':          '_internal/core/elk-report-web.py',
