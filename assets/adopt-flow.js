@@ -50,7 +50,7 @@
  }
 
  /* Choose one environment; never show both registration procedures simultaneously. */
- let selectedEnvironment=null;
+ let selectedEnvironment='online';
  function getOnlineCards(root){
   const buttons=names.map(n=>buttonFor(n,root));
   return buttons.map((b,i)=>b?smallestCard(b,['0. 등록 도구','1. 호환성 검사','2. 전체 관리 도구','3. 관리 대상'][i]):null).filter(Boolean);
@@ -129,7 +129,7 @@
   try{enhance();setupEnvironmentSelector();hideLegacyAdoptSummary();}
   catch(err){console.error('[ELK Adopt UI]',err);}
   finally{
-   if(observer && !document.getElementById('adoptEnvironmentChooser'))
+   if(observer && (!document.getElementById('adoptEnvironmentChooser') || !document.getElementById('adoptOnlineFlow')))
     observer.observe(document.getElementById('main')||document.body,{childList:true,subtree:true});
   }
  }
@@ -142,6 +142,6 @@
   if(event.target.closest('#side,#patchBtn,#adoptEnvironmentChooser,.mode'))scheduleRefresh();
  },true);
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{
-  refreshAdopt();if(!document.getElementById('adoptEnvironmentChooser'))observer.observe(document.getElementById('main')||document.body,{childList:true,subtree:true});
- });else{refreshAdopt();if(!document.getElementById('adoptEnvironmentChooser'))observer.observe(document.getElementById('main')||document.body,{childList:true,subtree:true});}
+  refreshAdopt();if(!document.getElementById('adoptEnvironmentChooser') || !document.getElementById('adoptOnlineFlow'))observer.observe(document.getElementById('main')||document.body,{childList:true,subtree:true});
+ });else{refreshAdopt();if(!document.getElementById('adoptEnvironmentChooser') || !document.getElementById('adoptOnlineFlow'))observer.observe(document.getElementById('main')||document.body,{childList:true,subtree:true});}
 })();
