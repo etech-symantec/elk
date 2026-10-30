@@ -122,8 +122,27 @@
    break;
   }
  }
- let pending=false;
- const observer=new MutationObserver(()=>{if(pending)return;pending=true;queueMicrotask(()=>{pending=false;enhance();setupEnvironmentSelector();hideLegacyAdoptSummary()});});
- observer.observe(document.documentElement,{childList:true,subtree:true});
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{enhance();setupEnvironmentSelector();hideLegacyAdoptSummary()});else{enhance();setupEnvironmentSelector();hideLegacyAdoptSummary();}
+ // Avoid a MutationObserver feedback loop: setupEnvironmentSelector changes the DOM.
+ // Observe only until the Patch view is rendered; user navigation triggers subsequent passes.
+ let observer=null,scheduled=false;
+ function refreshAdopt(){
+  if(observer)observer.disconnect();
+  try{enhance();setupEnvironmentSelector();hideLegacyAdoptSummary();}
+  catch(err){console.error('[ELK Adopt UI]',err);}
+  finally{
+   if(observer && !document.getElementById('adoptEnvironmentChooser'))
+    observer.observe(document.getElementById('main')||document.body,{childList:true,subtree:true});
+  }
+ }
+ function scheduleRefresh(){
+  if(scheduled)return;scheduled=true;
+  setTimeout(()=>{scheduled=false;refreshAdopt()},30);
+ }
+ observer=new MutationObserver(scheduleRefresh);
+ document.addEventListener('click',event=>{
+  if(event.target.closest('#side,#patchBtn,#adoptEnvironmentChooser,.mode'))scheduleRefresh();
+ },true);
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{
+  refreshAdopt();if(!document.getElementById('adoptEnvironmentChooser'))observer.observe(document.getElementById('main')||document.body,{childList:true,subtree:true});
+ });else{refreshAdopt();if(!document.getElementById('adoptEnvironmentChooser'))observer.observe(document.getElementById('main')||document.body,{childList:true,subtree:true});}
 })();
