@@ -69,11 +69,21 @@ jobs:
             python3 tools/check_version.py
             bash tools/check_patch_lib.sh
 
-            git add -- _internal/docs/VERSION README.md config-wizard.html patch.html inspect.html \
-              assets/wizard-engine.js SHA256SUMS.txt version.json \
-              _internal/core/install-elk.sh _internal/core/elk-patch.sh \
-              _internal/core/elk-report.sh _internal/docs/README.md \
+            # Stage generated files only if they actually exist; optional pages can be absent.
+            generated=(
+              _internal/docs/VERSION README.md config-wizard.html patch.html inspect.html
+              assets/wizard-engine.js SHA256SUMS.txt version.json
+              _internal/core/install-elk.sh _internal/core/elk-patch.sh
+              _internal/core/elk-report.sh _internal/docs/README.md
               _internal/docs/CHANGELOG.md
+            )
+            existing=()
+            for file in "${generated[@]}"; do
+              if [[ -f "$file" ]]; then existing+=("$file"); fi
+            done
+            if (( ${#existing[@]} )); then
+              git add -- "${existing[@]}"
+            fi
             if git diff --cached --quiet; then
               echo 'Already up to date.'
               exit 0
