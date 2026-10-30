@@ -17,7 +17,12 @@ current = file.read_text(encoding='utf-8').strip()
 if not re.fullmatch(r'\d+\.\d+\.\d+', current):
     raise SystemExit('ERROR: invalid _internal/docs/VERSION')
 parts = tuple(map(int, current.split('.')))
-next_version = (parts[0], parts[1], parts[2]+1)
+# Patch 110 completes a release series; continue at the next minor version.
+# 2.9.110 -> 2.10.1, then 2.10.2 ... 2.10.110 -> 2.11.1.
+if parts[2] >= 110:
+    next_version = (parts[0], parts[1] + 1, 1)
+else:
+    next_version = (parts[0], parts[1], parts[2] + 1)
 if a.min_version:
     if not re.fullmatch(r'\d+\.\d+\.\d+', a.min_version):
         raise SystemExit('ERROR: invalid --min-version')
