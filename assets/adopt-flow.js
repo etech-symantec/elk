@@ -68,7 +68,7 @@
    chooser.addEventListener('pointerdown',event=>event.stopPropagation());
    chooser.addEventListener('click',event=>{event.stopPropagation();const b=event.target.closest('button[data-env]');if(!b)return;selectedEnvironment=b.dataset.env;updateEnvironment();});
   }
-  // Place the switch in the full-width title strip, never in the narrow text column.
+  // Resolve the title row structurally, never by viewport width (hidden panels have width 0).
   const title='기존 ELK를 그대로 유지하고 관리 도구만 추가';
   const leaf=[...root.querySelectorAll('*')].find(el=>el.children.length===0&&(el.textContent||'').trim()===title);
   let header=null;
@@ -76,9 +76,8 @@
     for(let e=leaf.parentElement;e&&e!==root;e=e.parentElement){
       if(e.contains(offline)||(onlineFlow&&e.contains(onlineFlow)))break;
       const text=(e.textContent||'').trim();
-      if(text.includes(title)&&text.includes('elasticsearch.yml')&&text.length<500){
-        const rect=e.getBoundingClientRect();
-        if(rect.width>=400&&rect.height>=35&&rect.height<160)header=e;
+      if(text.includes(title)&&text.includes('elasticsearch.yml')&&text.includes('kibana.yml')&&text.length<750){
+        header=e;break;
       }
     }
   }
@@ -86,9 +85,10 @@
     if(chooser.parentElement!==header)header.appendChild(chooser);
     header.classList.add('adopt-chooser-heading');
     chooser.className='adopt-environment-inline';
-  }else if(first?.parentElement){
-    if(chooser.parentElement!==first.parentElement)first.parentElement.insertBefore(chooser,first);
-    chooser.className='';
+    chooser.hidden=false;
+  }else{
+    // Never show a detached chooser in the content area; retry once its heading is rendered.
+    chooser.hidden=true;
   }
   function updateEnvironment(){
    chooser.querySelectorAll('button[data-env]').forEach(b=>{const chosen=selectedEnvironment===b.dataset.env;b.classList.toggle('selected',chosen);b.setAttribute('aria-pressed',String(chosen));});
@@ -129,7 +129,7 @@
   try{enhance();setupEnvironmentSelector();hideLegacyAdoptSummary();}
   catch(err){console.error('[ELK Adopt UI]',err);}
   finally{
-   if(observer && (!document.getElementById('adoptEnvironmentChooser') || !document.getElementById('adoptOnlineFlow')))
+   if(observer && (!document.getElementById('adoptEnvironmentChooser') || !document.getElementById('adoptOnlineFlow') || !document.querySelector('.adopt-chooser-heading>#adoptEnvironmentChooser')))
     observer.observe(document.getElementById('main')||document.body,{childList:true,subtree:true});
   }
  }
@@ -142,6 +142,6 @@
   if(event.target.closest('#side,#patchBtn,#adoptEnvironmentChooser,.mode'))scheduleRefresh();
  },true);
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{
-  refreshAdopt();if(!document.getElementById('adoptEnvironmentChooser') || !document.getElementById('adoptOnlineFlow'))observer.observe(document.getElementById('main')||document.body,{childList:true,subtree:true});
- });else{refreshAdopt();if(!document.getElementById('adoptEnvironmentChooser') || !document.getElementById('adoptOnlineFlow'))observer.observe(document.getElementById('main')||document.body,{childList:true,subtree:true});}
+  refreshAdopt();if(!document.getElementById('adoptEnvironmentChooser') || !document.getElementById('adoptOnlineFlow') || !document.querySelector('.adopt-chooser-heading>#adoptEnvironmentChooser'))observer.observe(document.getElementById('main')||document.body,{childList:true,subtree:true});
+ });else{refreshAdopt();if(!document.getElementById('adoptEnvironmentChooser') || !document.getElementById('adoptOnlineFlow') || !document.querySelector('.adopt-chooser-heading>#adoptEnvironmentChooser'))observer.observe(document.getElementById('main')||document.body,{childList:true,subtree:true});}
 })();
