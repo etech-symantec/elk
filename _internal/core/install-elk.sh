@@ -249,12 +249,18 @@ unset _old_name _new_name
 
 : "${PROXYSG_FLOW_ENABLED:=false}"
 : "${PROXYSG_CLOUD_ENABLED:=false}"
-: "${PROXYSG_CLOUD_API_ENABLED:=true}"
+: "${PROXYSG_CLOUD_API_ENABLED:=false}"
 : "${PROXYSG_CLOUD_API_USERNAME:=}"
 : "${PROXYSG_CLOUD_API_PASSWORD:=}"
 : "${PROXYSG_CLOUD_API_URL:=https://portal.threatpulse.com:443/reportpod/logs/sync}"
 : "${PROXYSG_CLOUD_API_LOOKBACK_DAYS:=1}"
-: "${PROXYSG_CLOUD_API_INSECURE:=true}"
+: "${PROXYSG_CLOUD_API_INSECURE:=false}"
+# Cloud 로그를 사용하지 않으면 API 수집도 반드시 비활성화합니다.
+# elk.env에 과거 Cloud API 사용=true 값이 남아 있어도 미사용 선택을 우선합니다.
+if [[ "${PROXYSG_CLOUD_ENABLED,,}" != "true" && "${PROXYSG_CLOUD_ENABLED,,}" != "yes" && "${PROXYSG_CLOUD_ENABLED}" != "1" ]]; then
+  PROXYSG_CLOUD_API_ENABLED=false
+  PROXYSG_CLOUD_API_INSECURE=false
+fi
 : "${PROXYSG_MAIN_SOURCE_DIR:=/home/main}"
 : "${PROXYSG_SSL_SOURCE_DIR:=/home/ssl}"
 : "${PROXYSG_CLOUD_SOURCE_DIR:=/home/cloud}"
