@@ -23,14 +23,14 @@ def should_bump():
     for rev in revs:
         author = git('show', '-s', '--format=%ae', rev).lower()
         subject = git('show', '-s', '--format=%s', rev)
-        if author.endswith('[bot]@users.noreply.github.com') or author == '41898282+github-actions[bot]@users.noreply.github.com':
-            continue
+        # GitHub App / AI commits may be bot-authored but still modify release sources.
+        # Only release synchronization commits are excluded to avoid bump loops.
         if subject.startswith('chore(release):') or subject.startswith('chore: sync OneClick version'):
             continue
         if git('diff-tree', '--no-commit-id', '--name-only', '-r', '--root', rev):
-            print(f'Pending human source change: {rev[:12]} {subject}')
+            print(f'Pending release source change: {rev[:12]} {subject}')
             return True
-    print('No new human-authored source changes after last synchronized release.')
+    print('No new source changes after last synchronized release.')
     return False
 
 if __name__ == '__main__':
