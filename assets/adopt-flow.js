@@ -46,6 +46,7 @@
   flow.appendChild(three);
   const note=document.createElement('p');note.className='adopt-flow-note';note.textContent='이미 OneClick이 등록된 서버라면 신규 등록을 반복하지 말고 아래 OFFLINE REGISTRATION의 ‘기존 서버 · 웹 복구’ 절차를 사용하세요. 인터넷이 차단된 서버는 아래 오프라인 방식으로 진행합니다.';
   flow.appendChild(note);top.prepend(flow);
+  flow.style.gridColumn='1 / -1';
  }
 
  /* Choose one environment; never show both registration procedures simultaneously. */
@@ -67,29 +68,27 @@
    chooser.addEventListener('pointerdown',event=>event.stopPropagation());
    chooser.addEventListener('click',event=>{event.stopPropagation();const b=event.target.closest('button[data-env]');if(!b)return;selectedEnvironment=b.dataset.env;updateEnvironment();});
   }
-  // Find the smallest complete title row and keep the buttons in normal flow.
-  // Never use child widths, absolute positions or a guessed parent container.
+  // Place the switch in the full-width title strip, never in the narrow text column.
   const title='기존 ELK를 그대로 유지하고 관리 도구만 추가';
-  const leaf=[...root.querySelectorAll('*')].find(el=>el.childElementCount===0 && el.textContent.trim()===title);
+  const leaf=[...root.querySelectorAll('*')].find(el=>el.children.length===0&&(el.textContent||'').trim()===title);
   let header=null;
   if(leaf){
-   const ancestors=[];for(let e=leaf.parentElement;e&&e!==root;e=e.parentElement)ancestors.push(e);
-   header=ancestors.find(el=>{
-    if(el.contains(offline)|| (onlineFlow&&el.contains(onlineFlow)))return false;
-    const text=(el.textContent||'').trim();
-    return text.includes('elasticsearch.yml')&&text.includes('kibana.yml')&&text.length<420&&el.querySelectorAll('button').length===0;
-   })||null;
+    for(let e=leaf.parentElement;e&&e!==root;e=e.parentElement){
+      if(e.contains(offline)||(onlineFlow&&e.contains(onlineFlow)))break;
+      const text=(e.textContent||'').trim();
+      if(text.includes(title)&&text.includes('elasticsearch.yml')&&text.length<500){
+        const rect=e.getBoundingClientRect();
+        if(rect.width>=400&&rect.height>=35&&rect.height<160)header=e;
+      }
+    }
   }
   if(header){
-   // Reuse the existing heading; never replace its innerHTML or nest in a button.
-   if(chooser.parentElement!==header)header.appendChild(chooser);
-   header.classList.add('adopt-chooser-heading');
-   chooser.className='adopt-environment-inline';
-   chooser.style.cssText='';
-  }else if(first&&first.parentElement){
-   if(chooser.parentElement!==first.parentElement)first.parentElement.insertBefore(chooser,first);
-   chooser.className='';
-   chooser.style.cssText='';
+    if(chooser.parentElement!==header)header.appendChild(chooser);
+    header.classList.add('adopt-chooser-heading');
+    chooser.className='adopt-environment-inline';
+  }else if(first?.parentElement){
+    if(chooser.parentElement!==first.parentElement)first.parentElement.insertBefore(chooser,first);
+    chooser.className='';
   }
   function updateEnvironment(){
    chooser.querySelectorAll('button[data-env]').forEach(b=>{const chosen=selectedEnvironment===b.dataset.env;b.classList.toggle('selected',chosen);b.setAttribute('aria-pressed',String(chosen));});

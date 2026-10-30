@@ -1008,3 +1008,15 @@ input::-webkit-input-placeholder,textarea::-webkit-input-placeholder{color:#b3bf
 .adopt-chooser-heading>#adoptEnvironmentChooser button[data-env] strong{font-size:11.5px!important}
 .adopt-chooser-heading>#adoptEnvironmentChooser button[data-env] small{display:none!important}
 @media(max-width:760px){.adopt-chooser-heading>#adoptEnvironmentChooser{margin:6px 0 0!important;width:100%!important}.adopt-chooser-heading>#adoptEnvironmentChooser .adopt-environment-options{justify-content:flex-end!important}}
+
+/* ELK Adopt layout uniformity: span entire parent grid, do not squeeze cards */
+#adoptOnlineFlow{grid-column:1 / -1!important;min-width:0!important;width:100%!important;box-sizing:border-box!important;max-width:100%!important}
+#adoptOnlineFlow .adopt-flow-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+#adoptOnlineFlow .adopt-flow-step,#adoptOnlineFlow .adopt-flow-commands,#adoptOnlineFlow .adopt-flow-commands>div{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+#adoptOnlineFlow .adopt-flow-stephead{min-height:0!important;flex-wrap:wrap!important}
+#adoptOnlineFlow .adopt-flow-stephead div{min-width:100px!important;flex:1 1 130px!important}
+#adoptOnlineFlow .adopt-flow-commands pre,#adoptOnlineFlow .adopt-flow-commands code{white-space:pre-wrap!important;overflow-wrap:anywhere!important;word-break:break-word!important}
+#adoptOfflineCopy{grid-column:1 / -1!important;min-width:0!important;width:100%!important;box-sizing:border-box!important}
+@media(max-width:1100px){#adoptOnlineFlow .adopt-flow-grid{grid-template-columns:1fr!important}}
+.adopt-chooser-heading{width:100%!important;min-width:0!important}
+.adopt-chooser-heading>#adoptEnvironmentChooser{margin-left:auto!important;flex-shrink:0!important}
