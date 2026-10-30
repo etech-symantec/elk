@@ -1204,6 +1204,13 @@ install_pkg() {
       log "$pkg upstream ${ELASTIC_VERSION} -> APT version ${resolved} 로 설치"
     fi
 
+    # Never downgrade an existing Elastic Stack component during OneClick
+    # reconciliation. Upgrade/downgrade requires an explicit stack operation.
+    if [[ -n "$installed" ]] && dpkg --compare-versions "$installed" gt "$resolved"; then
+      log "[WARN] $pkg 다운그레이드 방지: 설치=$installed / elk.env 요청=$resolved. 현재 설치 버전을 유지합니다."
+      return 0
+    fi
+
     # IMPORTANT: apt-get receives the exact Debian package version returned by
     # apt-cache madison, not the upstream-only version.
     apt_install_progress "$pkg ${ELASTIC_VERSION}" "${pkg}=${resolved}"
