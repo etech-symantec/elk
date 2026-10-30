@@ -16,7 +16,7 @@ set -uo pipefail
 export LC_ALL=C.UTF-8 2>/dev/null || export LC_ALL=en_US.UTF-8 2>/dev/null || true
 
 REPORT_VERSION="1"
-ELK_AUTO_VERSION="2.10.2"
+ELK_AUTO_VERSION="2.10.3"
 # Config Wizard / One-Click Installer와 동일한 빌드 번호
 ELK_AUTO_BUILD="${ELK_AUTO_BUILD:-version-auto-sync}"
 REPORT_BUILD="$ELK_AUTO_BUILD"
