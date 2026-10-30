@@ -451,13 +451,43 @@ if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
   cp -a "$ENVF" "$PATCH_ENV"
   chmod 600 "$PATCH_ENV"
 
+  # Validate before touching any running service; failed config must not cause an outage.
+  ui_heading "[사전 검사] 설치 환경 검증 (서비스 중지 없음)"
+  bash "$T/install-elk.sh" "$PATCH_ENV" --validate || die "사전 검증 실패: Logstash는 중지하지 않았습니다."
+
   LOGSTASH_WAS_ACTIVE=0
+  LOGSTASH_STOP_REQUESTED=0
   FULL_OK=0
+  logstash_state(){
+    timeout 5 systemctl show logstash --property=ActiveState --value 2>/dev/null || echo unknown
+  }
+  logstash_diagnostics(){
+    local stamp dest
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    dest="/tmp/elk-oneclick-logstash-stop-${stamp}.log"
+    {
+      date -Is
+      timeout 8 systemctl status logstash --no-pager -l || true
+      timeout 8 systemctl list-jobs --no-pager || true
+      timeout 8 journalctl -u logstash -n 45 --no-pager || true
+    } > "$dest" 2>&1
+    ui_warn "Logstash 종료 진단 저장: $dest"
+  }
   # Register recovery before requesting a stop, including interrupted/failed stops.
   restore_logstash(){
     if (( LOGSTASH_WAS_ACTIVE )); then
-      ui_info "Logstash 복구 요청 (비차단 시작)"
-      timeout 15 systemctl start --no-block logstash 2>&1 || ui_warn "Logstash 시작 요청 실패. 수동 확인: systemctl status logstash"
+      local state
+      state="$(logstash_state)"
+      if [[ "$state" == deactivating ]]; then
+        ui_warn "Logstash가 아직 종료 대기 중입니다. 무리하게 시작 작업을 큐에 넣지 않습니다."
+        logstash_diagnostics
+        ui_warn "서비스 상태를 확인한 뒤 수동 복구하세요: systemctl status logstash"
+      elif [[ "$state" == active || "$state" == activating ]]; then
+        ui_info "Logstash 서비스 상태: $state (추가 시작 요청 생략)"
+      else
+        ui_info "Logstash 복구 요청 (비차단 시작)"
+        timeout 15 systemctl start --no-block logstash 2>&1 || ui_warn "Logstash 시작 요청 실패. 수동 확인: systemctl status logstash"
+      fi
     fi
   }
   full_cleanup(){
@@ -474,6 +504,7 @@ if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
   if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet logstash 2>/dev/null; then
     LOGSTASH_WAS_ACTIVE=1
     ui_info "Logstash 종료 요청: --no-block (최대 60초 관찰, 5초 간격 상태 표시)"
+    LOGSTASH_STOP_REQUESTED=1
     if ! timeout 15 systemctl stop --no-block logstash; then
       die "Logstash 종료 요청에 실패했습니다. systemctl status logstash로 확인하세요."
     fi
@@ -491,12 +522,14 @@ if [[ "$MODE" == "--full" || "$MODE" == "full" ]]; then
     done
     if (( ! _stop_ok )); then
       _state="$(systemctl show logstash --property=ActiveState --value 2>/dev/null || echo unknown)"
-      [[ "$_state" == inactive || "$_state" == failed ]] || die "Logstash가 60초 이내에 종료되지 않았습니다. 강제 종료하지 않고 업데이트를 중단합니다. journalctl -u logstash -n 100으로 원인을 확인하세요."
+      if [[ "$_state" != inactive && "$_state" != failed ]]; then
+        logstash_diagnostics
+        die "Logstash가 60초 이내에 종료되지 않았습니다 (상태: $_state). 강제 종료하지 않고 업데이트를 중단합니다."
+      fi
     fi
   fi
 
-  ui_heading "[1/3] 최신 설치기 검증"
-  bash "$T/install-elk.sh" "$PATCH_ENV" --validate
+  ui_ok "[1/3] 최신 설치기 사전 검증 완료"
 
   ui_heading "[2/3] 전체 구성 재적용"
   bash "$T/install-elk.sh" "$PATCH_ENV"
