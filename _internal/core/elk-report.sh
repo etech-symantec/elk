@@ -215,6 +215,66 @@ if tf "$PROXYSG_FLOW_ENABLED"; then
 else
   TYPES+=("로그||||${INDEX_PREFIX}")      # ProxySG 흐름을 쓰지 않는 서버: 폴더 없이 일반 인덱스만
 fi
+# Existing-server discovery: read-only fallback. Never rewrite elk.env.
+# Search bounded locations only when the configured log directories are empty/missing.
+log_dir_has_files(){
+  [[ -d "${1:-}" ]] && [[ -n "$(find "$1" -maxdepth 3 -type f -print -quit 2>/dev/null)" ]]
+}
+discover_log_dir(){
+  local kind="$1" configured="$2" base candidate path name score best="" bestscore=-1 n=0
+  if log_dir_has_files "$configured"; then printf '%s' "$configured"; return 0; fi
+  for base in /home /srv /data /mnt /opt /var/log; do
+    [[ -d "$base" ]] || continue
+    while IFS= read -r -d '' candidate; do
+      [[ -d "$candidate" ]] || continue
+      path="${candidate,,}"; name="${candidate##*/}"; name="${name,,}"
+      [[ "$path" == *"$kind"* ]] || continue
+      local sample="" score=0
+      sample="$(find "$candidate" -maxdepth 2 -type f -printf '%f\n' 2>/dev/null | head -30 || true)"
+      [[ -n "$sample" ]] || continue
+      [[ "$name" == *"$kind"* ]] && score=$((score+5))
+      [[ "$path" == *backup* ]] && score=$((score-3))
+      [[ "$path" == *process* ]] && score=$((score-2))
+      [[ "$sample" == *"$kind"* || "$sample" == *"${kind^^}"* ]] && score=$((score+3))
+      [[ "$sample" == *.gz* ]] && score=$((score+1))
+      (( score > bestscore )) && { best="$candidate"; bestscore=$score; }
+      n=$((n+1)); (( n>=160 )) && break
+    done < <(timeout 12 find "$base" -maxdepth 4 -type d -iname "*$kind*" -print0 2>/dev/null || true)
+    (( n>=160 )) && break
+  done
+  printf '%s' "$best"
+}
+discover_index_prefix(){
+  local kind="$1" configured="$2" found="" names=""
+  (( HAVE_JQ )) || { printf '%s' "$configured"; return; }
+  es_up || { printf '%s' "$configured"; return; }
+  names="$(es '/_cat/indices?format=json&h=index' || true)"
+  jq -e 'type=="array"' >/dev/null 2>&1 <<<"$names" || { printf '%s' "$configured"; return; }
+  if jq -e --arg p "$configured" 'any(.[]; (.index // "") | startswith($p+"-"))' >/dev/null 2>&1 <<<"$names"; then
+    printf '%s' "$configured"; return
+  fi
+  # Prefer a keyword-bounded existing prefix; never guess from unrelated indices.
+  found="$(jq -r --arg k "$kind" '[.[]|.index//empty|select((ascii_downcase|contains($k)) and (startswith(".")|not))]|sort|first//empty' <<<"$names")"
+  if [[ -n "$found" ]]; then
+    # Trim dated rollover suffix while keeping hyphenated index families.
+    found="$(sed -E 's/-[0-9]{4}([.-][0-9]{2}){0,2}(-[0-9]{6})?$//;s/-[0-9]{6}$//' <<<"$found")"
+    printf '%s' "$found"
+  else printf '%s' "$configured"; fi
+}
+# Scan on existing servers only; ProxySG cloud stays hidden if explicitly disabled.
+if tf "$PROXYSG_FLOW_ENABLED"; then
+  _detected_types=()
+  for _type in "${TYPES[@]}"; do
+    IFS='|' read -r _name _src _bak _proc _idx <<<"$_type"
+    _kind="${_name,,}"
+    _src_new="$(discover_log_dir "$_kind" "$_src")"
+    [[ -n "$_src_new" ]] && _src="$_src_new"
+    _idx="$(discover_index_prefix "$_kind" "$_idx")"
+    _detected_types+=("$_name|$_src|$_bak|$_proc|$_idx")
+  done
+  TYPES=("${_detected_types[@]}")
+  unset _detected_types _type _name _src _bak _proc _idx _kind _src_new
+fi
 dir_stat() { # dir -> "count bytes newest_epoch oldest_epoch"
   local d="$1"
   [[ -n "$d" && -d "$d" ]] || { echo "- - - -"; return; }
