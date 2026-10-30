@@ -160,8 +160,8 @@ def build(text):
     # Wizard's bundled field defaults must agree with wizard-defaults.js.
     # Otherwise a disabled Cloud section can still export API_ENABLED=true.
     for key in ('PROXYSG_CLOUD_API_ENABLED', 'PROXYSG_CLOUD_API_INSECURE'):
-        pattern = rf'({key}\\s*:\\s*)true\\b'
-        text = re.sub(pattern, r'\\1false', text)
+        pattern = rf'({key}\s*:\s*)true\b'
+        text = re.sub(pattern, r'\1false', text)
     # 1) 단일 설치 파일에 내장되는 파일
     j, k = find_obj(text, 'const EMBEDDED_FILES=')
     current = json.loads(text[j:k])
