@@ -44,7 +44,7 @@
        const g=card(key);if(!g)continue;
        const off=choice(g,'사용 안 함');
        // Click the genuine Wizard toggle, not merely its visual representation.
-       if(locked&&off&&!off.disabled)off.click();
+       if(locked&&off&&!off.disabled&&active(g))off.click();
        g.el.classList.toggle('cloud-dependent-locked',locked);
        g.buttons.forEach(b=>{b.disabled=locked;b.setAttribute('aria-disabled',String(locked));});
      }
