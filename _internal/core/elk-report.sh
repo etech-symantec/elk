@@ -200,13 +200,10 @@ es_up() {
   (( ES_OK == 1 ))
 }
 # 로그 종류 목록: "표시이름|수신폴더|백업폴더|처리폴더|인덱스 접두어"
-# Cloud는 elk.env의 PROXYSG_CLOUD_ENABLED=true가 1차 기준입니다.
-# 이전 버전/부분 패치 서버에서 플래그가 누락되었더라도 실제 Cloud 폴더가 존재하면
-# 리포트에서는 Cloud를 자동 감지해 누락하지 않습니다.
+# Cloud 리포트 표시는 명시적으로 활성화한 설정만 기준으로 합니다.
+# 과거 Cloud 폴더가 남아 있어도 미설정 환경에는 표시하지 않습니다.
 CLOUD_REPORT_ENABLED=false
 if tf "$PROXYSG_CLOUD_ENABLED" || tf "$PROXYSG_CLOUD_API_ENABLED"; then
-  CLOUD_REPORT_ENABLED=true
-elif [[ -d "$PROXYSG_CLOUD_SOURCE_DIR" || -d "$PROXYSG_CLOUD_PROCESS_DIR" || -d "$PROXYSG_CLOUD_BACKUP_DIR" ]]; then
   CLOUD_REPORT_ENABLED=true
 fi
 
@@ -928,10 +925,10 @@ update_resource_history
 # --- Safe, read-only report viewer: log formats and selected configuration ---
 report_config_view(){
   python3 - "$ENV_FILE" "${LOGSTASH_PIPELINE_FILE:-/etc/logstash/conf.d/logstash.conf}" \
-    "${PROXYSG_MAIN_LOG_FORMAT:-}" "${PROXYSG_SSL_LOG_FORMAT:-}" "${PROXYSG_CLOUD_LOG_FORMAT:-}" <<'ELK_REPORT_CONFIG_PY'
+    "${PROXYSG_MAIN_LOG_FORMAT:-}" "${PROXYSG_SSL_LOG_FORMAT:-}" "${PROXYSG_CLOUD_LOG_FORMAT:-}" "$CLOUD_REPORT_ENABLED" <<'ELK_REPORT_CONFIG_PY'
 import sys, html, re, pathlib, stat
 
-envfile, pipeline, main, ssl, cloud = sys.argv[1:6]
+envfile, pipeline, main, ssl, cloud, cloud_enabled = sys.argv[1:7]
 
 def esc(value): return html.escape(str(value), quote=True)
 
@@ -983,7 +980,9 @@ def read_config(path):
     except (OSError,ValueError) as e:
         return '파일을 읽을 수 없습니다. (없음 또는 접근 권한 제한)'
 
-fmt=[('MAIN (HTTP)',main),('SSL (HTTPS)',ssl),('Cloud',cloud)]
+fmt=[('MAIN (HTTP)',main),('SSL (HTTPS)',ssl)]
+if cloud_enabled.lower() == 'true':
+    fmt.append(('Cloud',cloud))
 print('<section class="configsection"><div class="configtitle"><h2>로그 포맷 및 서버 설정 파일</h2><p>현재 적용된 로그 필드와 주요 구성 파일을 확인합니다. 내용은 리포트 생성 시점의 스냅샷이며 암호/키는 숨깁니다.</p></div>')
 print('<div class="formatgrid">')
 for name,val in fmt:
