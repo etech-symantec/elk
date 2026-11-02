@@ -411,7 +411,12 @@ if ($SudoSame -eq 'true') { $SudoPassword = $SshPassword }
 if (-not $HostName) { throw 'DEPLOY_HOST is empty.' }
 if (-not $User) { throw 'DEPLOY_USER is empty.' }
 if (-not $Port) { $Port = '22' }
-if (-not $RemoteDir) { $RemoteDir = '/home/' + $User }
+# Keep the legacy default in sync with the SSH login account.
+# Preserve a manually configured custom remote directory.
+if ([string]::IsNullOrWhiteSpace($RemoteDir) -or $RemoteDir -eq '/home/etech' -and $User -ne 'etech') {
+  $RemoteDir = '/home/' + $User
+}
+
 if ($Resolver -ne 'v2') { throw ('Old One-Click SH detected. Import it into the current Config Wizard and save a new SH. Detected payload: {0}' -f $Payload) }
 
 $BaseName = [IO.Path]::GetFileName($Script)
