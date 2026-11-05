@@ -82,6 +82,8 @@ unset _old_name _new_name
 : "${ES_ACTION_DESTRUCTIVE_REQUIRES_NAME:=true}"
 : "${ES_PATH_DATA:=/var/lib/elasticsearch}"
 : "${ES_PATH_LOGS:=/var/log/elasticsearch}"
+: "${ELK_DATA_MOUNT:=}"                # e.g. /ELKDATA: mount must exist before modifying any data path
+: "${ELK_ALLOW_ES_ON_NFS:=false}"      # opt-in only; test Elasticsearch remote filesystem semantics first
 : "${ES_DISCOVERY_MODE:=single-node}"
 : "${ES_DISCOVERY_SEED_HOSTS:=}"
 : "${ES_CLUSTER_INITIAL_MASTER_NODES:=}"
@@ -975,7 +977,67 @@ for _d in ES_CA_DAYS ES_CERT_DAYS NGINX_TLS_DAYS; do [[ "${!_d}" =~ ^[0-9]+$ && 
   fi
 }
 
+
+# Preflight for split OS/data storage. Never create a directory on the OS
+# filesystem where a network mount was expected.
+elk_mount_check() {
+  local mp="$ELK_DATA_MOUNT" fs source path dir current_fs probe
+  [[ -n "$mp" ]] || return 0
+  validate_abs_path ELK_DATA_MOUNT "$mp"
+  [[ "$mp" != "/" ]] || die "ELK_DATA_MOUNT에 / 를 지정할 수 없습니다."
+  command -v findmnt >/dev/null 2>&1 || die "NFS/마운트 검증에는 findmnt가 필요합니다."
+  if ! findmnt --mountpoint "$mp" >/dev/null 2>&1; then
+    die "데이터 디스크가 마운트되지 않았습니다: $mp. OS 디스크 오기록 방지를 위해 중단합니다."
+  fi
+  fs="$(findmnt -n --mountpoint "$mp" -o FSTYPE | head -1)"
+  source="$(findmnt -n --mountpoint "$mp" -o SOURCE | head -1)"
+  log "데이터 마운트 확인: $mp ($fs / $source)"
+  case "$fs" in nfs|nfs4)
+    warn "NFS 파일시스템 감지: $mp. Logstash Persistent Queue는 NFS를 지원하지 않습니다."
+    ;;
+  esac
+  for path in "$ES_PATH_DATA" "$LOGSTASH_PATH_DATA" "$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_SSL_SOURCE_DIR" "$PROXYSG_MAIN_BACKUP_DIR" "$PROXYSG_SSL_BACKUP_DIR" "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_SSL_PROCESS_DIR"; do
+    [[ "$path" == "$mp" || "$path" == "$mp/"* ]] || continue
+    case "$path" in "$LOGSTASH_PATH_DATA")
+      case "$fs" in nfs|nfs4) die "LOGSTASH_PATH_DATA는 NFS에 배치할 수 없습니다: $path";; esac
+    ;; esac
+    if [[ "$path" == "$ES_PATH_DATA" ]]; then
+      case "$fs" in nfs|nfs4)
+        istrue "$ELK_ALLOW_ES_ON_NFS" || die "Elasticsearch 인덱스를 NFS에 배치하려면 성능/잠금/영속성 검증 후 ELK_ALLOW_ES_ON_NFS=true를 명시해야 합니다: $path"
+      ;; esac
+    fi
+  done
+  if [[ "$fs" == nfs || "$fs" == nfs4 ]]; then
+    # Check mount writeability with the current root credentials; service-user
+    # access is separately checked after creating each directory.
+    probe="$mp/.elk-oneclick-write-$"
+    if [[ "$RUN_MODE" != "--validate" && "$RUN_MODE" != "validate" ]]; then
+      (umask 077; : > "$probe") || die "NFS 마운트에 쓰기 권한이 없습니다: $mp"
+      rm -f -- "$probe"
+    fi
+  fi
+}
+
+# Validate an already existing non-local path even if no explicit mount root
+# was configured. A missing mount root must never be silently created.
+elk_nonlocal_path_guard() {
+  local path="$1" role="$2" fs
+  [[ -e "$path" ]] || return 0
+  fs="$(findmnt -n -T "$path" -o FSTYPE 2>/dev/null | head -1)"
+  case "$fs" in
+    nfs|nfs4)
+      if [[ "$role" == pq ]]; then die "Logstash path.data(PQ)는 NFS에서 지원되지 않습니다: $path"; fi
+      if [[ "$role" == es ]] && ! istrue "$ELK_ALLOW_ES_ON_NFS"; then
+        die "Elasticsearch 인덱스 NFS 사용은 검증 후 ELK_ALLOW_ES_ON_NFS=true로 명시적으로 허용해야 합니다: $path"
+      fi
+    ;;
+  esac
+}
+
 validate_env
+elk_mount_check
+elk_nonlocal_path_guard "$ES_PATH_DATA" es
+elk_nonlocal_path_guard "$LOGSTASH_PATH_DATA" pq
 case "$INDEX_MODE" in
   plain) INDEX_MATCH_PATTERN="$INDEX_PREFIX" ;;
   rollover) INDEX_MATCH_PATTERN="${ILM_ROLLOVER_ALIAS}-*" ;;
@@ -1367,6 +1429,14 @@ EOF_ES_SYSTEMD
   if istrue "$ES_BOOTSTRAP_MEMORY_LOCK"; then
     echo 'LimitMEMLOCK=infinity' >>/etc/systemd/system/elasticsearch.service.d/override.conf
   fi
+  # Ensure the data mount exists before Elasticsearch is ever started.
+  if [[ -n "$ELK_DATA_MOUNT" && ( "$ES_PATH_DATA" == "$ELK_DATA_MOUNT" || "$ES_PATH_DATA" == "$ELK_DATA_MOUNT/"* ) ]]; then
+    mkdir -p /etc/systemd/system/elasticsearch.service.d
+    cat >/etc/systemd/system/elasticsearch.service.d/elk-data-mount.conf <<EOF_ES_MOUNT
+[Unit]
+RequiresMountsFor=$ELK_DATA_MOUNT
+EOF_ES_MOUNT
+  fi
   systemctl daemon-reload
 
   # 최초 부팅 시 Elastic의 자동 보안 설정/TLS 인증서 생성을 이용
@@ -1457,6 +1527,9 @@ EOF_ES_SYSTEMD
     fi
   fi
 
+  # Recheck after the service stop: network storage must not disappear during TLS setup.
+  elk_mount_check
+
   # path.data 변경 시 최초 데이터(보안 인덱스 포함) 안전 복사
   if [[ "$ES_PATH_DATA" != "/var/lib/elasticsearch" ]]; then
     mkdir -p "$ES_PATH_DATA"
@@ -1469,7 +1542,7 @@ EOF_ES_SYSTEMD
       rsync -aHAX /var/lib/elasticsearch/ "$ES_PATH_DATA/"
       chown -R elasticsearch:elasticsearch "$ES_PATH_DATA"
     elif (( src_count > 0 && dst_count > 0 )); then
-      warn "기본 경로와 새 데이터 경로 모두 데이터가 있습니다. 데이터 보호를 위해 자동 병합하지 않습니다. 새 경로의 기존 데이터를 사용합니다."
+      die "기본 경로와 새 데이터 경로에 모두 데이터가 있습니다. 자동 전환하면 기존 인덱스가 누락될 수 있어 중단합니다. 수동으로 데이터 복사/검증 후 전환하세요."
     fi
   fi
   mkdir -p "$ES_PATH_LOGS"
