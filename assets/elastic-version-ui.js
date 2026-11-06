@@ -31,25 +31,17 @@ function markCard(){
   if(input&&(!input.placeholder||input.placeholder==='9.5.2'))input.placeholder=latest;
   // The value must be real, not a gray placeholder: it must be included in elk.env.
   if(input&&!String(input.value||'').trim()&&String(values[KEY]||'')===latest)input.value=latest;
-  const lh=card.querySelector('.lh');
-  if(!lh)return;
-  let badge=card.querySelector('.elk-latest-version-note');
-  if(!badge){
-    badge=document.createElement('span');
-    badge.className='elk-latest-version-note';
-    badge.style.cssText='font-size:10px;font-weight:650;padding:2px 7px;border-radius:999px;border:1px solid #cbd5e1;background:#f1f5f9;color:#475569;white-space:nowrap';
-    lh.appendChild(badge);
-  }
-  badge.textContent='최신 기본값 '+latest;
-  badge.title='Elastic 공식 릴리스 기준 최신 9.x 안정 버전의 기본값입니다. 이전 버전을 직접 입력할 수 있습니다.';
-  // Older Wizard engines may hold a precomputed "empty default" hint even
-  // after the metadata is updated. Only rewrite that literal label.
+  // Keep the heading clean: the version is shown below the input only.
+  card.querySelectorAll('.elk-latest-version-note').forEach(el=>el.remove());
+  // Update only this field's default hint (not other configuration cards).
   const walker=document.createTreeWalker(card,NodeFilter.SHOW_TEXT);
   let node;
   while((node=walker.nextNode())){
-    if(node.nodeValue&&node.nodeValue.includes('기본값: 비어 있음')){
-      node.nodeValue=node.nodeValue.replace(/기본값:\s*비어 있음/g,'기본값: '+latest);
-    }
+    if(!node.nodeValue||!node.nodeValue.includes('기본값:'))continue;
+    node.nodeValue=node.nodeValue.replace(
+      /기본값:\s*(?:비어 있음|9\.\d{1,3}\.\d{1,3})?/g,
+      '최신 버전: '+latest
+    );
   }
 }
 const before=renderMain;
