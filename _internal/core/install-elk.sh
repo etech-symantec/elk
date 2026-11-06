@@ -1575,8 +1575,16 @@ EOF_ES_MOUNT
     dst_count="$(find "$ES_PATH_DATA" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l || true)"
     if (( src_count > 0 && dst_count == 0 )); then
       log "기본 Elasticsearch 데이터를 새 경로로 복사: $ES_PATH_DATA"
-      rsync -aHAX /var/lib/elasticsearch/ "$ES_PATH_DATA/"
-      chown -R elasticsearch:elasticsearch "$ES_PATH_DATA"
+      if [[ "$_es_fs" == nfs || "$_es_fs" == nfs4 ]]; then
+        # NFS root_squash forbids root ownership and ACL preservation.
+        # Copy as the owning service account; keep its source metadata on disk.
+        runuser -u elasticsearch -- rsync -r --no-owner --no-group --no-perms --no-times           /var/lib/elasticsearch/ "$ES_PATH_DATA/"
+        _es_diff="$(runuser -u elasticsearch -- rsync -rcn --no-owner --no-group --no-perms --no-times           /var/lib/elasticsearch/ "$ES_PATH_DATA/" || true)"
+        [[ -z "$_es_diff" ]] || die "NFS Elasticsearch 데이터 복사 검증 실패: $_es_diff"
+      else
+        rsync -aHAX /var/lib/elasticsearch/ "$ES_PATH_DATA/"
+        chown -R elasticsearch:elasticsearch "$ES_PATH_DATA"
+      fi
     elif (( src_count > 0 && dst_count > 0 )); then
       die "기본 경로와 새 데이터 경로에 모두 데이터가 있습니다. 자동 전환하면 기존 인덱스가 누락될 수 있어 중단합니다. 수동으로 데이터 복사/검증 후 전환하세요."
     fi
@@ -1585,9 +1593,15 @@ EOF_ES_MOUNT
   chown -R elasticsearch:elasticsearch "$ES_PATH_LOGS"
 
   if istrue "$SNAPSHOT_REPO_ENABLED"; then
-    mkdir -p "$SNAPSHOT_REPO_PATH"
-    chown -R elasticsearch:elasticsearch "$SNAPSHOT_REPO_PATH"
-    chmod 750 "$SNAPSHOT_REPO_PATH"
+    _snapshot_fs="$(findmnt -n -T "$SNAPSHOT_REPO_PATH" -o FSTYPE 2>/dev/null | head -1 || true)"
+    if [[ "$_snapshot_fs" == nfs || "$_snapshot_fs" == nfs4 ]]; then
+      [[ -d "$SNAPSHOT_REPO_PATH" ]] || die "Snapshot NFS 디렉터리를 서버에서 먼저 생성하세요: $SNAPSHOT_REPO_PATH"
+      runuser -u elasticsearch -- test -w "$SNAPSHOT_REPO_PATH" || die "Snapshot NFS 권한 오류(elasticsearch): $SNAPSHOT_REPO_PATH"
+    else
+      mkdir -p "$SNAPSHOT_REPO_PATH"
+      chown -R elasticsearch:elasticsearch "$SNAPSHOT_REPO_PATH"
+      chmod 750 "$SNAPSHOT_REPO_PATH"
+    fi
   fi
 
   backup_file /etc/elasticsearch/elasticsearch.yml

@@ -278,12 +278,13 @@ process_dir() {
     if [[ -e "$process_file" ]]; then log "$label WARNING: process copy already exists: $filename"; continue; fi
     log "$label Processing: $filename [backup=$PROXYSG_BACKUP_FORMAT]"
     rm -f -- "$process_tmp" "$backup_tmp"
-    if ! cp -p -- "$source_file" "$process_tmp" 2>/dev/null; then
-      rm -f -- "$process_tmp"
-      if ! cp -- "$source_file" "$process_tmp"; then
-        log "$label ERROR: process copy failed: $filename"; rm -f -- "$process_tmp"; continue
+    # Use Logstash's real UID for NFS (root_squash), not a root-owned copy.
+    if [[ "$(findmnt -n -T "$process_dir" -o FSTYPE 2>/dev/null | head -1 || true)" =~ ^nfs4?$ ]]; then
+      if ! runuser -u logstash -- cp -- "$source_file" "$process_tmp"; then
+        log "$label ERROR: NFS process copy denied (logstash): $filename"; continue
       fi
-      log "$label INFO: NFS-safe copy used (owner/time not preserved): $filename"
+    elif ! cp -p -- "$source_file" "$process_tmp"; then
+      log "$label ERROR: process copy failed: $filename"; rm -f -- "$process_tmp"; continue
     fi
     if ! cmp -s -- "$source_file" "$process_tmp"; then
       log "$label ERROR: process verification failed: $filename"; rm -f -- "$process_tmp"; continue
@@ -301,9 +302,10 @@ process_dir() {
         log "$label ERROR: decompressed sha256 mismatch: $filename"; rm -f -- "$process_tmp" "$backup_tmp"; continue
       fi
     else
-      if ! cp -p -- "$source_file" "$backup_tmp" 2>/dev/null; then
-        rm -f -- "$backup_tmp"
-        cp -- "$source_file" "$backup_tmp" || true
+      if [[ "$(findmnt -n -T "$backup_dir" -o FSTYPE 2>/dev/null | head -1 || true)" =~ ^nfs4?$ ]]; then
+        runuser -u "$FTP_USER" -- cp -- "$source_file" "$backup_tmp" || true
+      else
+        cp -p -- "$source_file" "$backup_tmp" || true
       fi
       if [[ ! -s "$backup_tmp" ]] || ! cmp -s -- "$source_file" "$backup_tmp"; then
         log "$label ERROR: backup copy/verification failed: $filename"; rm -f -- "$process_tmp" "$backup_tmp"; continue
