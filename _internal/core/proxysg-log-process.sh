@@ -331,7 +331,14 @@ process_dir() {
     chown logstash:logstash "$process_file" 2>/dev/null || true
     chown "$FTP_USER:$FTP_GROUP" "$backup_file" 2>/dev/null || true
 
-    if rm -f -- "$source_file"; then
+    # On root_squashed NFS, deletion must use the directory owner's real UID.
+    if [[ "$(findmnt -n -T "$source_dir" -o FSTYPE 2>/dev/null | head -1 || true)" =~ ^nfs4?$ ]]; then
+      if runuser -u "$FTP_USER" -- rm -f -- "$source_file"; then
+        log "$label SUCCESS: $filename -> PROCESS gzip + BACKUP $PROXYSG_BACKUP_FORMAT; source removed"
+      else
+        log "$label WARNING: NFS source removal denied for $FTP_USER: $filename"
+      fi
+    elif rm -f -- "$source_file"; then
       log "$label SUCCESS: $filename -> PROCESS gzip + BACKUP $PROXYSG_BACKUP_FORMAT; source removed"
     else
       log "$label WARNING: source removal failed: $filename"
