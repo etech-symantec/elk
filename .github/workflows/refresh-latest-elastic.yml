@@ -1,0 +1,50 @@
+name: Refresh latest Elastic Stack version for Wizard
+
+on:
+  schedule:
+    - cron: '17 */3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: elastic-latest-wizard-default
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Check latest stable 9.x version on Elastic official website
+        run: python3 tools/update_latest_elastic.py
+
+      - name: Commit new default only when a newer release exists
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git diff --quiet -- wizard-defaults.js; then
+            echo "No newer Elastic release; no commit needed."
+            exit 0
+          fi
+          git add -- wizard-defaults.js
+          git commit -m "chore: refresh latest Elastic release in Wizard defaults [skip ci]"
+          for attempt in 1 2 3; do
+            git fetch --no-tags origin main
+            git rebase origin/main
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            sleep $((attempt * 2))
+          done
+          echo "Could not push refreshed version after retries" >&2
+          exit 1
