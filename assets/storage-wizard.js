@@ -53,8 +53,18 @@ function applyLayout(force){
  if(under(String(values.LOGSTASH_PATH_DATA||''),m)) values.LOGSTASH_PATH_DATA='/var/lib/logstash';
 }
 function disableLayout(){
+ // Also handle previously imported elk.env files (no lastAuto history).
+ // Never leave a network path active after removing the mount guard.
+ const m=path();
  for(const [k,v] of Object.entries(lastAuto)){
   if(String(values[k]??'')===v&&k in oldDefaults)values[k]=oldDefaults[k];
+ }
+ if(m&&m!=='/'){
+  for(const [k,local] of Object.entries(oldDefaults)){
+   if(k==='ELK_DATA_MOUNT'||k==='ELK_ALLOW_ES_ON_NFS')continue;
+   if(under(String(values[k]||''),m))values[k]=local;
+  }
+  if(under(String(values.PROXYSG_MIXED_SOURCE_DIR||''),m))values.PROXYSG_MIXED_SOURCE_DIR='';
  }
  values.ELK_DATA_MOUNT='';values.ELK_ALLOW_ES_ON_NFS='false';lastAuto={};
 }
