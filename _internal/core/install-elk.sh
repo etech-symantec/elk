@@ -83,6 +83,8 @@ unset _old_name _new_name
 : "${ES_PATH_DATA:=/var/lib/elasticsearch}"
 : "${ES_PATH_LOGS:=/var/log/elasticsearch}"
 : "${ELK_DATA_MOUNT:=}"                # e.g. /ELKDATA: mount must exist before modifying any data path
+: "${ELK_NETWORK_DRIVE_ENABLED:=false}"
+: "${ELK_NETWORK_DRIVE_SIZE_TB:=}"   # informational size, actual size comes from df/findmnt
 : "${ELK_ALLOW_ES_ON_NFS:=false}"      # opt-in only; test Elasticsearch remote filesystem semantics first
 : "${ES_DISCOVERY_MODE:=single-node}"
 : "${ES_DISCOVERY_SEED_HOSTS:=}"
@@ -263,6 +265,8 @@ if [[ "${PROXYSG_CLOUD_ENABLED,,}" != "true" && "${PROXYSG_CLOUD_ENABLED,,}" != 
   PROXYSG_CLOUD_API_ENABLED=false
   PROXYSG_CLOUD_API_INSECURE=false
 fi
+: "${PROXYSG_MIXED_SOURCE_DIR:=}"    # optional completed FTP .log.gz directory; route MAIN/SSL by filename
+: "${PROXYSG_MIXED_MIN_AGE_SECONDS:=120}"
 : "${PROXYSG_MAIN_SOURCE_DIR:=/home/main}"
 : "${PROXYSG_SSL_SOURCE_DIR:=/home/ssl}"
 : "${PROXYSG_CLOUD_SOURCE_DIR:=/home/cloud}"
@@ -982,6 +986,10 @@ for _d in ES_CA_DAYS ES_CERT_DAYS NGINX_TLS_DAYS; do [[ "${!_d}" =~ ^[0-9]+$ && 
 # filesystem where a network mount was expected.
 elk_mount_check() {
   local mp="$ELK_DATA_MOUNT" fs source path dir current_fs probe
+  if istrue "${ELK_NETWORK_DRIVE_ENABLED:-false}"; then
+    [[ -n "$mp" ]] || die "네트워크 드라이브 사용을 선택했지만 ELK_DATA_MOUNT가 비었습니다."
+    [[ -z "$ELK_NETWORK_DRIVE_SIZE_TB" || "$ELK_NETWORK_DRIVE_SIZE_TB" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "ELK_NETWORK_DRIVE_SIZE_TB는 TB 단위 숫자여야 합니다."
+  fi
   [[ -n "$mp" ]] || return 0
   validate_abs_path ELK_DATA_MOUNT "$mp"
   [[ "$mp" != "/" ]] || die "ELK_DATA_MOUNT에 / 를 지정할 수 없습니다."
@@ -1008,13 +1016,10 @@ elk_mount_check() {
     fi
   done
   if [[ "$fs" == nfs || "$fs" == nfs4 ]]; then
-    # Check mount writeability with the current root credentials; service-user
-    # access is separately checked after creating each directory.
-    probe="$mp/.elk-oneclick-write-$"
-    if [[ "$RUN_MODE" != "--validate" && "$RUN_MODE" != "validate" ]]; then
-      (umask 077; : > "$probe") || die "NFS 마운트에 쓰기 권한이 없습니다: $mp"
-      rm -f -- "$probe"
-    fi
+    # NFS root_squash often denies writes to the mount root, even when the
+    # service-specific child directories are correctly writable.
+    # Do not write a probe at $mp or loosen its permissions.
+    log "NFS mount root 쓰기 테스트 생략(root_squash 지원). 실제 하위 경로/계정 권한은 개별 단계에서 검증합니다."
   fi
 }
 
@@ -1407,10 +1412,34 @@ if istrue "$PROXYSG_FLOW_ENABLED"; then
   if istrue "$PROXYSG_CLOUD_ENABLED"; then
     _ps_src+=("$PROXYSG_CLOUD_SOURCE_DIR"); _ps_bak+=("$PROXYSG_CLOUD_BACKUP_DIR"); _ps_prc+=("$PROXYSG_CLOUD_PROCESS_DIR")
   fi
-  mkdir -p "${_ps_src[@]}" "${_ps_bak[@]}" "${_ps_prc[@]}"
-  chown -R "$FTP_USER:$FTP_GROUP" "${_ps_src[@]}" "${_ps_bak[@]}"
-  chown -R logstash:logstash "${_ps_prc[@]}"
-  chmod "$PROXYSG_DIR_MODE" "${_ps_src[@]}" "${_ps_bak[@]}" "${_ps_prc[@]}"
+  # NFS root_squash: never recursively chown/chmod a pre-provisioned share.
+  # Requiring real user permissions avoids damage to existing NFS ownership.
+  for _dir in "${_ps_src[@]}" "${_ps_bak[@]}" "${_ps_prc[@]}"; do
+    _fstype="$(findmnt -n -T "$_dir" -o FSTYPE 2>/dev/null | head -1 || true)"
+    if [[ "$_fstype" == nfs || "$_fstype" == nfs4 ]]; then
+      [[ -d "$_dir" ]] || die "NFS 경로를 서버에서 먼저 생성하고 UID/GID를 지정하세요: $_dir"
+    else
+      mkdir -p "$_dir"
+    fi
+  done
+  for _dir in "${_ps_src[@]}" "${_ps_bak[@]}"; do
+    _fstype="$(findmnt -n -T "$_dir" -o FSTYPE 2>/dev/null | head -1 || true)"
+    if [[ "$_fstype" == nfs || "$_fstype" == nfs4 ]]; then
+      runuser -u "$FTP_USER" -- test -w "$_dir" || die "NFS FTP 계정 쓰기 불가: $FTP_USER -> $_dir (NFS 서버 UID/GID/ACL 확인)"
+    else
+      chown -R "$FTP_USER:$FTP_GROUP" "$_dir"
+      chmod "$PROXYSG_DIR_MODE" "$_dir"
+    fi
+  done
+  for _dir in "${_ps_prc[@]}"; do
+    _fstype="$(findmnt -n -T "$_dir" -o FSTYPE 2>/dev/null | head -1 || true)"
+    if [[ "$_fstype" == nfs || "$_fstype" == nfs4 ]]; then
+      runuser -u logstash -- test -w "$_dir" || die "NFS Logstash 계정 쓰기 불가: $_dir (NFS 서버 UID/GID/ACL 확인)"
+    else
+      chown -R logstash:logstash "$_dir"
+      chmod "$PROXYSG_DIR_MODE" "$_dir"
+    fi
+  done
 fi
 
 # ----------------------------- Elasticsearch bootstrap -----------------------------
@@ -1435,6 +1464,7 @@ EOF_ES_SYSTEMD
     cat >/etc/systemd/system/elasticsearch.service.d/elk-data-mount.conf <<EOF_ES_MOUNT
 [Unit]
 RequiresMountsFor=$ELK_DATA_MOUNT
+AssertPathIsMountPoint=$ELK_DATA_MOUNT
 EOF_ES_MOUNT
   fi
   systemctl daemon-reload
@@ -1532,9 +1562,15 @@ EOF_ES_MOUNT
 
   # path.data 변경 시 최초 데이터(보안 인덱스 포함) 안전 복사
   if [[ "$ES_PATH_DATA" != "/var/lib/elasticsearch" ]]; then
-    mkdir -p "$ES_PATH_DATA"
-    chown elasticsearch:elasticsearch "$ES_PATH_DATA"
-    chmod 750 "$ES_PATH_DATA"
+    _es_fs="$(findmnt -n -T "$ES_PATH_DATA" -o FSTYPE 2>/dev/null | head -1 || true)"
+    if [[ "$_es_fs" == nfs || "$_es_fs" == nfs4 ]]; then
+      [[ -d "$ES_PATH_DATA" ]] || die "NFS Elasticsearch 데이터 경로를 서버에서 먼저 생성하세요: $ES_PATH_DATA"
+      runuser -u elasticsearch -- test -w "$ES_PATH_DATA" || die "Elasticsearch NFS 쓰기 권한 없음: $ES_PATH_DATA (UID/GID 확인)"
+    else
+      mkdir -p "$ES_PATH_DATA"
+      chown elasticsearch:elasticsearch "$ES_PATH_DATA"
+      chmod 750 "$ES_PATH_DATA"
+    fi
     src_count="$(find /var/lib/elasticsearch -mindepth 1 -maxdepth 1 2>/dev/null | wc -l || true)"
     dst_count="$(find "$ES_PATH_DATA" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l || true)"
     if (( src_count > 0 && dst_count == 0 )); then

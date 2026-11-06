@@ -7,6 +7,8 @@ ENV_FILE="${1:-/etc/elk-auto/elk.env}"
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 
+: "${PROXYSG_MIXED_SOURCE_DIR:=}"
+: "${PROXYSG_MIXED_MIN_AGE_SECONDS:=120}"
 : "${PROXYSG_MAIN_SOURCE_DIR:=/home/main}"
 : "${PROXYSG_SSL_SOURCE_DIR:=/home/ssl}"
 : "${PROXYSG_CLOUD_ENABLED:=false}"
@@ -34,6 +36,15 @@ source "$ENV_FILE"
 : "${PROXYSG_PROCESS_LOG:=/var/log/elk-proxysg-log-process.log}"
 : "${FTP_USER:=elkftp}"
 : "${FTP_GROUP:=elkftp}"
+
+# Fail closed when the configured network mount is missing. Never create a
+# shadow /ELKDATA tree on the OS disk during a storage outage.
+if [[ -n "${ELK_DATA_MOUNT:-}" ]]; then
+  if ! findmnt --mountpoint "$ELK_DATA_MOUNT" >/dev/null 2>&1; then
+    echo "[ERROR] NFS/data mount unavailable: $ELK_DATA_MOUNT (processing stopped)" >&2
+    exit 1
+  fi
+fi
 
 LOCK_FILE="/run/lock/elk-proxysg-log-process.lock"
 mkdir -p "$(dirname "$LOCK_FILE")" "$(dirname "$PROXYSG_PROCESS_LOG")"
@@ -267,8 +278,12 @@ process_dir() {
     if [[ -e "$process_file" ]]; then log "$label WARNING: process copy already exists: $filename"; continue; fi
     log "$label Processing: $filename [backup=$PROXYSG_BACKUP_FORMAT]"
     rm -f -- "$process_tmp" "$backup_tmp"
-    if ! cp -p -- "$source_file" "$process_tmp"; then
-      log "$label ERROR: process copy failed: $filename"; rm -f -- "$process_tmp"; continue
+    if ! cp -p -- "$source_file" "$process_tmp" 2>/dev/null; then
+      rm -f -- "$process_tmp"
+      if ! cp -- "$source_file" "$process_tmp"; then
+        log "$label ERROR: process copy failed: $filename"; rm -f -- "$process_tmp"; continue
+      fi
+      log "$label INFO: NFS-safe copy used (owner/time not preserved): $filename"
     fi
     if ! cmp -s -- "$source_file" "$process_tmp"; then
       log "$label ERROR: process verification failed: $filename"; rm -f -- "$process_tmp"; continue
@@ -286,7 +301,11 @@ process_dir() {
         log "$label ERROR: decompressed sha256 mismatch: $filename"; rm -f -- "$process_tmp" "$backup_tmp"; continue
       fi
     else
-      if ! cp -p -- "$source_file" "$backup_tmp" || ! cmp -s -- "$source_file" "$backup_tmp"; then
+      if ! cp -p -- "$source_file" "$backup_tmp" 2>/dev/null; then
+        rm -f -- "$backup_tmp"
+        cp -- "$source_file" "$backup_tmp" || true
+      fi
+      if [[ ! -s "$backup_tmp" ]] || ! cmp -s -- "$source_file" "$backup_tmp"; then
         log "$label ERROR: backup copy/verification failed: $filename"; rm -f -- "$process_tmp" "$backup_tmp"; continue
       fi
     fi
@@ -318,7 +337,45 @@ process_dir() {
   done < <(find "$source_dir" -maxdepth 1 -type f -name "$PROXYSG_FILE_GLOB" -print0 2>/dev/null)
 }
 
+# Existing mixed FTP upload directory, e.g. /ELKDATA/proxy_log.
+# Transfer only completed gzip archives; preserve unknown names and collisions.
+route_mixed_ftp() {
+  [[ -n "$PROXYSG_MIXED_SOURCE_DIR" ]] || return 0
+  [[ -d "$PROXYSG_MIXED_SOURCE_DIR" ]] || {
+    log "MIXED FTP ERROR: source directory missing: $PROXYSG_MIXED_SOURCE_DIR"
+    return 1
+  }
+  [[ "$PROXYSG_MIXED_MIN_AGE_SECONDS" =~ ^[0-9]+$ ]] && (( PROXYSG_MIXED_MIN_AGE_SECONDS >= 30 )) || {
+    log "MIXED FTP ERROR: min age must be >=30 seconds"
+    return 1
+  }
+  local src base lower target age now mtime
+  now="$(date +%s)"
+  while IFS= read -r -d '' src; do
+    base="$(basename "$src")"; lower="${base,,}"
+    case "$lower" in
+      *elk_main*.log.gz) target="$PROXYSG_MAIN_SOURCE_DIR/$base" ;;
+      *elk_ssl*.log.gz)  target="$PROXYSG_SSL_SOURCE_DIR/$base" ;;
+      *) log "MIXED FTP SKIP unknown type: $base"; continue ;;
+    esac
+    mtime="$(stat -c %Y -- "$src" 2>/dev/null || echo "$now")"
+    age=$((now - mtime))
+    (( age >= PROXYSG_MIXED_MIN_AGE_SECONDS )) || continue
+    [[ ! -e "$target" ]] || { log "MIXED FTP WARNING: destination exists, source preserved: $base"; continue; }
+    if ! runuser -u "$FTP_USER" -- gzip -t -- "$src" 2>/dev/null; then
+      log "MIXED FTP WARNING: gzip incomplete or unreadable, source preserved: $base"
+      continue
+    fi
+    if runuser -u "$FTP_USER" -- mv -n -- "$src" "$target" && [[ ! -e "$src" && -s "$target" ]]; then
+      log "MIXED FTP ROUTED: $base -> $target"
+    else
+      log "MIXED FTP ERROR: move failed; verify $FTP_USER access to both directories: $base"
+    fi
+  done < <(find "$PROXYSG_MIXED_SOURCE_DIR" -maxdepth 1 -type f -name '*.log.gz' -print0 2>/dev/null)
+}
+
 log "File processing started"
+route_mixed_ftp || log "MIXED FTP WARNING: routing skipped; existing source directories continue"
 process_dir MAIN "$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_MAIN_BACKUP_DIR"
 process_dir SSL  "$PROXYSG_SSL_SOURCE_DIR"  "$PROXYSG_SSL_PROCESS_DIR"  "$PROXYSG_SSL_BACKUP_DIR"
 if [[ "$CLOUD_ON" == true ]]; then
