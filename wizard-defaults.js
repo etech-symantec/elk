@@ -28,7 +28,7 @@ window.ELK_DEFAULTS = {
     INSTALL_KIBANA: true,                                     // Install Kibana  [true | false]
     INSTALL_LOGSTASH: true,                                   // Install Logstash  [true | false]
     ELASTIC_MAJOR: "9.x",                                     // Elastic 저장소 버전  [9.x]
-    ELASTIC_VERSION: "",                                      // 정확한 Elastic 버전
+    ELASTIC_VERSION: "9.5.6",                                 // 최신 9.x 안정 버전 (자동 갱신 대상)
     APT_REPOSITORY_URL: "https://artifacts.elastic.co/packages",  // Elastic APT 저장소
     APT_GPG_KEY_URL: "https://artifacts.elastic.co/GPG-KEY-elasticsearch",  // Elastic GPG Key URL
     APT_PROXY: "",                                            // Apt Proxy
