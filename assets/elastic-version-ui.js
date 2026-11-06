@@ -42,6 +42,15 @@ function markCard(){
   }
   badge.textContent='최신 기본값 '+latest;
   badge.title='Elastic 공식 릴리스 기준 최신 9.x 안정 버전의 기본값입니다. 이전 버전을 직접 입력할 수 있습니다.';
+  // Older Wizard engines may hold a precomputed "empty default" hint even
+  // after the metadata is updated. Only rewrite that literal label.
+  const walker=document.createTreeWalker(card,NodeFilter.SHOW_TEXT);
+  let node;
+  while((node=walker.nextNode())){
+    if(node.nodeValue&&node.nodeValue.includes('기본값: 비어 있음')){
+      node.nodeValue=node.nodeValue.replace(/기본값:\s*비어 있음/g,'기본값: '+latest);
+    }
+  }
 }
 const before=renderMain;
 renderMain=function(){
