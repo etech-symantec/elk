@@ -17,6 +17,29 @@ for(const [key,def,label,help] of extra){
 }
 const css=document.createElement('style');
 css.textContent='.elk-netbox{margin:16px 0 10px;padding:16px;border:1px solid var(--line,#566);border-radius:12px;background:rgba(120,145,155,.045);line-height:1.6}.elk-nettitle{font-size:15px;font-weight:800;margin-bottom:6px}.elk-netbox label{font-size:13px;font-weight:650}.elk-netbox input[type=checkbox]{width:17px;height:17px;vertical-align:middle;accent-color:#16a46d}.elk-netgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin:12px 0}.elk-netgrid label{display:grid;gap:5px}.elk-netgrid input{padding:10px 12px;min-width:0;width:100%;box-sizing:border-box;border:1px solid #85919d;border-radius:8px;background:var(--input-bg,#fff);color:var(--text,#222)}.elk-netwarn{font-size:12px;padding:10px;border-left:3px solid #ad7b20;background:rgba(181,127,31,.07);border-radius:5px;margin-top:12px}.elk-netdesc{font-size:12px;opacity:.86;margin-bottom:8px}.elk-netpaths{font-size:12px;overflow-wrap:anywhere;margin-top:10px}.elk-netpaths code{font-size:11px}';
+
+css.textContent+=`
+/* NFS-enabled fields: light purple emphasis only on values affected by NFS. */
+.elk-netbox{border:1.5px solid #c4b5fd;background:#faf7ff;box-shadow:0 3px 14px rgba(109,40,217,.055)}
+.elk-nettitle{display:flex;flex-wrap:wrap;align-items:center;gap:7px;color:#6d28d9}
+.elk-netbox input[type=checkbox]{accent-color:#7c3aed}
+.elk-netbox .elk-netgrid input:focus{outline:2px solid #a78bfa;outline-offset:1px;border-color:#7c3aed}
+.elk-netbox .elk-netgrid label,.elk-netbox > label,#elkNetDetails > label{color:#5b21b6}
+.elk-netwarn{border-left-color:#8b5cf6;background:#f2eaff;color:#581c87}
+.elk-netpaths{padding:9px 11px;border:1px solid #e9d5ff;background:#f5f0ff;border-radius:8px;color:#6b21a8}
+.elk-netpaths code{color:#6d28d9}
+.elk-nfs-title-wrap{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+.elk-nfs-tag{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;white-space:nowrap;min-height:21px;padding:2px 8px;border:1px solid #c4b5fd;border-radius:999px;background:#f3e8ff;color:#6d28d9;font-size:10px;font-weight:850;line-height:1.25;letter-spacing:-.1px}
+button.elk-nfs-tag{cursor:pointer;font-family:inherit}
+button.elk-nfs-tag:hover,button.elk-nfs-tag:focus-visible{background:#e9d5ff;border-color:#8b5cf6;outline-color:#8b5cf6}
+.elk-nfs-tag-static{cursor:default}
+.field.elk-nfs-changed{border-color:#d8b4fe;box-shadow:inset 3px 0 0 #a78bfa}
+.field.elk-nfs-changed:hover{border-color:#a78bfa;box-shadow:inset 3px 0 0 #8b5cf6,0 4px 12px rgba(124,58,237,.09)}
+.field.elk-nfs-changed .elk-nfs-title-wrap > label{color:#6d28d9}
+.field .elk-nfs-explain{margin-top:8px;padding:9px 11px;border:1px solid #e9d5ff;border-radius:8px;background:#faf5ff;color:#6b21a8;font-size:11.5px;line-height:1.6}
+.field .elk-nfs-explain[hidden]{display:none}
+@media(max-width:720px){.elk-nfs-title-wrap{gap:4px}.elk-nfs-tag{font-size:9px;padding:2px 6px}}
+`;
 document.head.appendChild(css);
 const oldDefaults={
  ES_PATH_DATA:'/var/lib/elasticsearch',ES_PATH_LOGS:'/var/log/elasticsearch',
@@ -68,13 +91,94 @@ function disableLayout(){
  }
  values.ELK_DATA_MOUNT='';values.ELK_ALLOW_ES_ON_NFS='false';lastAuto={};
 }
+// NFS-specific changes only. Standard local-disk fields retain their original design.
+const nfsPathFields=[
+ 'ES_PATH_DATA','PROXYSG_MAIN_SOURCE_DIR','PROXYSG_SSL_SOURCE_DIR',
+ 'PROXYSG_MAIN_BACKUP_DIR','PROXYSG_SSL_BACKUP_DIR',
+ 'PROXYSG_MAIN_PROCESS_DIR','PROXYSG_SSL_PROCESS_DIR','SNAPSHOT_REPO_PATH'
+];
+const nfsOtherFields=[
+ 'ELK_NETWORK_DRIVE_ENABLED','ELK_NETWORK_DRIVE_SIZE_TB',
+ 'ELK_DATA_MOUNT','ELK_ALLOW_ES_ON_NFS','OS_EXTEND_ROOT_LVM',
+ 'PROXYSG_MIXED_SOURCE_DIR','PROXYSG_MIXED_MIN_AGE_SECONDS'
+];
+function nfsChanged(k){
+ if(!enabled())return false;
+ const m=path();
+ if(nfsPathFields.includes(k)){
+  const val=String(values[k]||'');
+  return m!=='/'&&!!m&&under(val,m)&&val!==String(oldDefaults[k]||'');
+ }
+ if(k==='OS_EXTEND_ROOT_LVM')return String(values[k])==='false';
+ if(k==='ELK_NETWORK_DRIVE_ENABLED')return true;
+ if(k==='ELK_DATA_MOUNT')return !!m;
+ if(k==='ELK_ALLOW_ES_ON_NFS')return String(values[k])==='true';
+ if(k==='ELK_NETWORK_DRIVE_SIZE_TB')return String(values[k]||'').trim()!=='';
+ if(k==='PROXYSG_MIXED_SOURCE_DIR')return !!String(values[k]||'').trim();
+ if(k==='PROXYSG_MIXED_MIN_AGE_SECONDS')return !!String(values.PROXYSG_MIXED_SOURCE_DIR||'').trim()&&String(values[k])!=='120';
+ return false;
+}
+function nfsFieldExplanation(k){
+ if(k==='ES_PATH_DATA')return 'Elasticsearch 인덱스 저장 경로가 네트워크 드라이브로 변경되었습니다. 실제 NFS 마운트와 elasticsearch 계정의 UID/GID·잠금·fsync를 확인하세요.';
+ if(k==='SNAPSHOT_REPO_PATH')return 'Snapshot 저장소의 기본 경로가 네트워크 드라이브로 변경되었습니다. 저장소 등록과 쓰기 권한을 별도 확인해야 하며, 같은 NFS에 저장한 Snapshot은 독립 장애 대비 백업이 아닙니다.';
+ if(k==='OS_EXTEND_ROOT_LVM')return '네트워크 디스크 선택 시 OS 루트 LVM 자동 확장을 사용하지 않도록 변경했습니다. OS 디스크와 NFS 공간을 분리해서 관리합니다.';
+ if(k==='ELK_DATA_MOUNT'||k==='ELK_ALLOW_ES_ON_NFS')return 'NFS 마운트 사전 검사와 Elasticsearch의 네트워크 저장소 사용 설정이 적용됩니다. 마운트 누락 시 설치를 중단합니다.';
+ if(k==='PROXYSG_MIXED_SOURCE_DIR'||k==='PROXYSG_MIXED_MIN_AGE_SECONDS')return '기존 FTP 혼합 수신 폴더의 MAIN/SSL 파일을 자동 분류할 때 사용하는 NFS 관련 옵션입니다.';
+ if(k.startsWith('PROXYSG_'))return 'ProxySG 로그의 수신·처리·백업 위치가 네트워크 드라이브 아래로 변경되었습니다. FTP 및 Logstash 계정의 실제 NFS 접근 권한을 확인하세요.';
+ return '네트워크 드라이브 사용으로 기본 설정과 달라진 항목입니다.';
+}
+function markNfsFields(){
+ const affected=new Set([...nfsPathFields,...nfsOtherFields]);
+ document.querySelectorAll('.field[data-card]').forEach(card=>{
+  const k=card.getAttribute('data-card');
+  const relevant=affected.has(k)&&nfsChanged(k);
+  const button=card.querySelector('.elk-nfs-title-wrap > button.elk-nfs-tag');
+  if(!relevant){
+   if(button){
+    const wrap=button.parentElement,lab=wrap.querySelector('label');
+    if(lab)wrap.parentNode.insertBefore(lab,wrap);
+    wrap.remove();
+   }
+   card.querySelector('.elk-nfs-explain')?.remove();
+   card.classList.remove('elk-nfs-changed');
+   return;
+  }
+  card.classList.add('elk-nfs-changed');
+  if(button)return;
+  const lab=card.querySelector('.lh > label');
+  if(!lab)return;
+  const wrap=document.createElement('span');
+  wrap.className='elk-nfs-title-wrap';
+  lab.parentNode.insertBefore(wrap,lab);
+  wrap.appendChild(lab);
+  const tag=document.createElement('button');
+  tag.type='button';
+  tag.className='elk-nfs-tag';
+  tag.textContent='NFS 환경';
+  tag.title='NFS 환경에서 변경된 설정 — 클릭하여 변경 사유 보기';
+  tag.setAttribute('aria-label',k+' NFS 환경 변경 사유');
+  tag.setAttribute('aria-expanded','false');
+  wrap.appendChild(tag);
+  const info=document.createElement('div');
+  info.className='elk-nfs-explain';
+  info.textContent=nfsFieldExplanation(k);
+  info.hidden=true;
+  card.appendChild(info);
+  tag.addEventListener('click',evt=>{
+   evt.preventDefault();evt.stopPropagation();
+   info.hidden=!info.hidden;
+   tag.setAttribute('aria-expanded',String(!info.hidden));
+  });
+ });
+}
 function inject(){
  if(typeof mode==='undefined'||typeof step==='undefined'||!['simple','advanced'].includes(mode)||step!==1||(typeof query!=='undefined'&&query))return;
  const panel=document.getElementById('specpanel');
  if(!panel||document.getElementById('elkNetBox'))return;
  const on=enabled(),m=path()||'/ELKDATA',mixed=!!values.PROXYSG_MIXED_SOURCE_DIR;
+ // Purple styling is scoped to the enabled network-disk configuration.
  let box=document.createElement('section');box.id='elkNetBox';box.className='elk-netbox';
- box.innerHTML='<div class="elk-nettitle">네트워크 드라이브 / 데이터 디스크 분리</div>'+
+ box.innerHTML='<div class="elk-nettitle">네트워크 드라이브 / 데이터 디스크 분리'+(on?'<span class="elk-nfs-tag elk-nfs-tag-static">NFS 환경</span>':'')+'</div>'+
  '<div class="elk-netdesc">OS 디스크는 ELK 프로그램·Logstash PQ, 네트워크 드라이브는 Elasticsearch 인덱스·ProxySG 원본/처리/백업 로그에 사용합니다.</div>'+
  '<label><input type="checkbox" id="elkNetEnable" '+(on?'checked':'')+'> 네트워크 드라이브 사용</label>'+
  '<div id="elkNetDetails" '+(on?'':'hidden')+'>'+
@@ -110,7 +214,7 @@ function inject(){
  document.getElementById('elkNetAge').oninput=e=>values.PROXYSG_MIXED_MIN_AGE_SECONDS=e.target.value;
 }
 const prevRender=renderMain;
-renderMain=function(){prevRender.apply(this,arguments);inject()};
+renderMain=function(){prevRender.apply(this,arguments);inject();markNfsFields()};
 const prevImport=applyLegacyEnv;
 applyLegacyEnv=function(o){
  const n=prevImport(o);
