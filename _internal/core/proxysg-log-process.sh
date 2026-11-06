@@ -7,8 +7,6 @@ ENV_FILE="${1:-/etc/elk-auto/elk.env}"
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 
-: "${PROXYSG_MIXED_SOURCE_DIR:=}"
-: "${PROXYSG_MIXED_MIN_AGE_SECONDS:=120}"
 : "${PROXYSG_MAIN_SOURCE_DIR:=/home/main}"
 : "${PROXYSG_SSL_SOURCE_DIR:=/home/ssl}"
 : "${PROXYSG_CLOUD_ENABLED:=false}"
@@ -346,45 +344,7 @@ process_dir() {
   done < <(find "$source_dir" -maxdepth 1 -type f -name "$PROXYSG_FILE_GLOB" -print0 2>/dev/null)
 }
 
-# Existing mixed FTP upload directory, e.g. /ELKDATA/proxy_log.
-# Transfer only completed gzip archives; preserve unknown names and collisions.
-route_mixed_ftp() {
-  [[ -n "$PROXYSG_MIXED_SOURCE_DIR" ]] || return 0
-  [[ -d "$PROXYSG_MIXED_SOURCE_DIR" ]] || {
-    log "MIXED FTP ERROR: source directory missing: $PROXYSG_MIXED_SOURCE_DIR"
-    return 1
-  }
-  [[ "$PROXYSG_MIXED_MIN_AGE_SECONDS" =~ ^[0-9]+$ ]] && (( PROXYSG_MIXED_MIN_AGE_SECONDS >= 30 )) || {
-    log "MIXED FTP ERROR: min age must be >=30 seconds"
-    return 1
-  }
-  local src base lower target age now mtime
-  now="$(date +%s)"
-  while IFS= read -r -d '' src; do
-    base="$(basename "$src")"; lower="${base,,}"
-    case "$lower" in
-      *elk_main*.log.gz) target="$PROXYSG_MAIN_SOURCE_DIR/$base" ;;
-      *elk_ssl*.log.gz)  target="$PROXYSG_SSL_SOURCE_DIR/$base" ;;
-      *) log "MIXED FTP SKIP unknown type: $base"; continue ;;
-    esac
-    mtime="$(stat -c %Y -- "$src" 2>/dev/null || echo "$now")"
-    age=$((now - mtime))
-    (( age >= PROXYSG_MIXED_MIN_AGE_SECONDS )) || continue
-    [[ ! -e "$target" ]] || { log "MIXED FTP WARNING: destination exists, source preserved: $base"; continue; }
-    if ! runuser -u "$FTP_USER" -- gzip -t -- "$src" 2>/dev/null; then
-      log "MIXED FTP WARNING: gzip incomplete or unreadable, source preserved: $base"
-      continue
-    fi
-    if runuser -u "$FTP_USER" -- mv -n -- "$src" "$target" && [[ ! -e "$src" && -s "$target" ]]; then
-      log "MIXED FTP ROUTED: $base -> $target"
-    else
-      log "MIXED FTP ERROR: move failed; verify $FTP_USER access to both directories: $base"
-    fi
-  done < <(find "$PROXYSG_MIXED_SOURCE_DIR" -maxdepth 1 -type f -name '*.log.gz' -print0 2>/dev/null)
-}
-
 log "File processing started"
-route_mixed_ftp || log "MIXED FTP WARNING: routing skipped; existing source directories continue"
 process_dir MAIN "$PROXYSG_MAIN_SOURCE_DIR" "$PROXYSG_MAIN_PROCESS_DIR" "$PROXYSG_MAIN_BACKUP_DIR"
 process_dir SSL  "$PROXYSG_SSL_SOURCE_DIR"  "$PROXYSG_SSL_PROCESS_DIR"  "$PROXYSG_SSL_BACKUP_DIR"
 if [[ "$CLOUD_ON" == true ]]; then

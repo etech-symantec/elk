@@ -265,8 +265,6 @@ if [[ "${PROXYSG_CLOUD_ENABLED,,}" != "true" && "${PROXYSG_CLOUD_ENABLED,,}" != 
   PROXYSG_CLOUD_API_ENABLED=false
   PROXYSG_CLOUD_API_INSECURE=false
 fi
-: "${PROXYSG_MIXED_SOURCE_DIR:=}"    # optional completed FTP .log.gz directory; route MAIN/SSL by filename
-: "${PROXYSG_MIXED_MIN_AGE_SECONDS:=120}"
 : "${PROXYSG_MAIN_SOURCE_DIR:=/home/main}"
 : "${PROXYSG_SSL_SOURCE_DIR:=/home/ssl}"
 : "${PROXYSG_CLOUD_SOURCE_DIR:=/home/cloud}"
