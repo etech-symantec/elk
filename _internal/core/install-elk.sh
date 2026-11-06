@@ -993,7 +993,21 @@ elk_mount_check() {
   [[ "$mp" != "/" ]] || die "ELK_DATA_MOUNT에 / 를 지정할 수 없습니다."
   command -v findmnt >/dev/null 2>&1 || die "NFS/마운트 검증에는 findmnt가 필요합니다."
   if ! findmnt --mountpoint "$mp" >/dev/null 2>&1; then
-    die "데이터 디스크가 마운트되지 않았습니다: $mp. OS 디스크 오기록 방지를 위해 중단합니다."
+    local _actual_mounts _nearest _fs _source
+    _actual_mounts="$(findmnt -rn -t nfs,nfs4 -o TARGET,SOURCE 2>/dev/null | head -15 || true)"
+    _nearest="$(findmnt -n -T "$mp" -o TARGET 2>/dev/null | head -1 || true)"
+    _fs="$(findmnt -n -T "$mp" -o FSTYPE 2>/dev/null | head -1 || true)"
+    _source="$(findmnt -n -T "$mp" -o SOURCE 2>/dev/null | head -1 || true)"
+    die "[NFS 사전 검사 실패] 설정한 네트워크 드라이브 경로를 찾을 수 없습니다.
+  ELK_DATA_MOUNT=$mp
+  가장 가까운 기존 마운트: ${_nearest:-확인 불가} (${_fs:-알 수 없음} / ${_source:-알 수 없음})
+  실제 NFS 마운트 목록:
+${_actual_mounts:-  (NFS 마운트 없음)}
+  원인: /ELKDAT 와 /ELKDATA 오타, NFS 미마운트, 마운트 경로 불일치.
+  확인: findmnt --mountpoint \"$mp\"
+  확인: findmnt -t nfs,nfs4
+  조치: 실제 마운트 경로와 elk.env의 ELK_DATA_MOUNT를 일치시키세요.
+  OS 디스크 오기록 방지를 위해 설치 시작 전에 중단합니다."
   fi
   fs="$(findmnt -n --mountpoint "$mp" -o FSTYPE | head -1)"
   source="$(findmnt -n --mountpoint "$mp" -o SOURCE | head -1)"
@@ -1013,6 +1027,36 @@ elk_mount_check() {
       ;; esac
     fi
   done
+  # 네트워크 드라이브를 선택했다면 개별 데이터 경로도 동일한 마운트를 가리켜야 합니다.
+  # /ELKDAT 오타는 findmnt -T만으로는 놓칠 수 있으므로 경로 자체를 먼저 검사합니다.
+  if istrue "${ELK_NETWORK_DRIVE_ENABLED:-false}"; then
+    local _var _value _canonical _check_vars=()
+    if istrue "$INSTALL_ELASTICSEARCH"; then _check_vars+=(ES_PATH_DATA); fi
+    if istrue "$PROXYSG_FLOW_ENABLED"; then
+      _check_vars+=(PROXYSG_MAIN_SOURCE_DIR PROXYSG_SSL_SOURCE_DIR PROXYSG_MAIN_BACKUP_DIR PROXYSG_SSL_BACKUP_DIR PROXYSG_MAIN_PROCESS_DIR PROXYSG_SSL_PROCESS_DIR)
+    fi
+    if istrue "$SNAPSHOT_REPO_ENABLED"; then _check_vars+=(SNAPSHOT_REPO_PATH); fi
+    for _var in "${_check_vars[@]}"; do
+      _value="${!_var}"
+      validate_abs_path "$_var" "$_value"
+      _canonical="$(realpath -m -- "$_value" 2>/dev/null || printf "%s" "$_value")"
+      if [[ "$_canonical" != "$mp" && "$_canonical" != "$mp/"* ]]; then
+        die "[NFS 경로 불일치] $_var 에 입력한 경로가 설정된 NFS 마운트 밖에 있습니다.
+  설정 마운트: ELK_DATA_MOUNT=$mp
+  오류 항목: $_var=$_value
+  원인 후보: /ELKDAT 와 /ELKDATA 오타, 과거 로컬 경로 사용.
+  수정 예시: ES_PATH_DATA=$mp/elk/elasticsearch/data
+             PROXYSG_MAIN_SOURCE_DIR=$mp/elk/logs/main
+             PROXYSG_SSL_SOURCE_DIR=$mp/elk/logs/ssl
+  조치: elk.env에서 오류 항목을 실제 NFS 마운트 하위 경로로 수정하세요.
+  설치 서비스 시작 및 OS 디스크 오기록 방지를 위해 즉시 중단합니다."
+      fi
+    done
+    _canonical="$(realpath -m -- "$LOGSTASH_PATH_DATA" 2>/dev/null || printf "%s" "$LOGSTASH_PATH_DATA")"
+    if [[ "$_canonical" == "$mp" || "$_canonical" == "$mp/"* ]]; then
+      die "[NFS 경로 오류] LOGSTASH_PATH_DATA=$LOGSTASH_PATH_DATA 는 NFS에 저장할 수 없습니다. /var/lib/logstash와 같은 로컬 경로를 사용하세요."
+    fi
+  fi
   if [[ "$fs" == nfs || "$fs" == nfs4 ]]; then
     # NFS root_squash often denies writes to the mount root, even when the
     # service-specific child directories are correctly writable.
