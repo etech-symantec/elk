@@ -573,13 +573,18 @@ apt_update_safe() {
   local label="${1:-APT 패키지 목록 갱신}"
   log "$label (dpkg 잠금 대기 최대 ${APT_LOCK_TIMEOUT}초)"
   if ! DEBIAN_FRONTEND=noninteractive apt-get \
+      -o APT::Update::Error-Mode=any \
       -o DPkg::Lock::Timeout="${APT_LOCK_TIMEOUT}" \
       -o Acquire::Retries="${APT_RETRIES}" \
       -o Acquire::http::Timeout="${APT_CONNECT_TIMEOUT}" \
       -o Acquire::https::Timeout="${APT_CONNECT_TIMEOUT}" \
       update; then
-    echo "[ERROR] APT 패키지 목록 갱신 실패: $label" >&2
-    echo "  조치: sudo apt-get update, sudo systemctl status apt-daily-upgrade.service" >&2
+    echo "[ERROR] APT 패키지 목록 전체 갱신 실패: $label" >&2
+    echo "  일부 저장소만 실패해도 이전 패키지 목록으로 설치를 진행하지 않습니다." >&2
+    echo "  위 출력에서 Err:/W: Failed to fetch 항목(저장소 주소, DNS, 프록시, 404)을 확인하세요." >&2
+    echo "  확인: sudo apt-get -o APT::Update::Error-Mode=any update" >&2
+    echo "  확인: sudo systemctl status apt-daily-upgrade.service --no-pager" >&2
+    echo "  저장소 오류를 해결한 후 같은 OneClick 설치 파일로 다시 실행하세요." >&2
     return 100
   fi
 }
