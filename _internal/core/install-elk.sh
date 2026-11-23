@@ -73,6 +73,8 @@ unset _old_name _new_name
 : "${APT_PROGRESS_ENABLED:=true}"
 : "${APT_RETRIES:=10}"
 : "${APT_CONNECT_TIMEOUT:=30}"
+: "${APT_LOCK_TIMEOUT:=600}"            # seconds to wait for unattended-upgrades
+: "${APT_404_REFRESH_RETRIES:=2}"       # refresh stale package lists after 404
 
 : "${ES_CLUSTER_NAME:=elk-cluster}"
 : "${ES_NODE_NAME:=elk01}"
@@ -564,26 +566,91 @@ apt_status_parser() {
   istrue "$INSTALL_PROGRESS_ENABLED" && progress_tty "\n"
 }
 
+# Ubuntu unattended-upgrades may hold dpkg/apt locks while the installer starts.
+# DPkg::Lock::Timeout asks apt itself to wait; never remove lock files or kill
+# the update process. Refresh apt metadata when apt fetches an expired .deb URL.
+apt_update_safe() {
+  local label="${1:-APT 패키지 목록 갱신}"
+  log "$label (dpkg 잠금 대기 최대 ${APT_LOCK_TIMEOUT}초)"
+  if ! DEBIAN_FRONTEND=noninteractive apt-get \
+      -o DPkg::Lock::Timeout="${APT_LOCK_TIMEOUT}" \
+      -o Acquire::Retries="${APT_RETRIES}" \
+      -o Acquire::http::Timeout="${APT_CONNECT_TIMEOUT}" \
+      -o Acquire::https::Timeout="${APT_CONNECT_TIMEOUT}" \
+      update; then
+    echo "[ERROR] APT 패키지 목록 갱신 실패: $label" >&2
+    echo "  조치: sudo apt-get update, sudo systemctl status apt-daily-upgrade.service" >&2
+    return 100
+  fi
+}
+
 apt_install_progress() {
   local label="$1"; shift
   local -a pkgs=("$@")
-  if ! istrue "$APT_PROGRESS_ENABLED"; then
-    DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries="${APT_RETRIES}" -o Acquire::http::Timeout="${APT_CONNECT_TIMEOUT}" -o Acquire::https::Timeout="${APT_CONNECT_TIMEOUT}" install -y "${pkgs[@]}"
-    return $?
+  local attempt=0 max_404="$APT_404_REFRESH_RETRIES" rc=0 temp_log=""
+  if [[ ! "$APT_LOCK_TIMEOUT" =~ ^[0-9]+$ ]] || (( APT_LOCK_TIMEOUT < 1 )); then
+    die "APT_LOCK_TIMEOUT은 1초 이상의 정수여야 합니다: $APT_LOCK_TIMEOUT"
   fi
-  log "$label 패키지 다운로드/설치 시작: ${pkgs[*]}"
-  # fd 3은 사람이 보기 좋은 다운로드/설치 percentage를 제공한다.
-  # 일반 apt 출력은 기존 로그와 화면에 그대로 남기고, status fd만 진행률 바로 표시한다.
-  DEBIAN_FRONTEND=noninteractive apt-get \
-    -o APT::Status-Fd=3 \
-    -o Dpkg::Progress-Fancy=0 \
-    -o APT::Color=0 \
-    -o Acquire::Retries="${APT_RETRIES}" \
-    -o Acquire::http::Timeout="${APT_CONNECT_TIMEOUT}" \
-    -o Acquire::https::Timeout="${APT_CONNECT_TIMEOUT}" \
-    install -y "${pkgs[@]}" \
-    3> >(apt_status_parser "$label")
-  progress_done_line "설치" "$label 완료"
+  if [[ ! "$max_404" =~ ^[0-9]+$ ]] || (( max_404 > 5 )); then
+    die "APT_404_REFRESH_RETRIES는 0~5 사이 정수여야 합니다: $max_404"
+  fi
+  temp_log="$(mktemp /tmp/elk-apt-install.XXXXXXXX)"
+  while :; do
+    attempt=$((attempt + 1))
+    log "[APT] $label: ${pkgs[*]} (시도 $attempt/$((max_404 + 1)), dpkg 잠금 대기 최대 ${APT_LOCK_TIMEOUT}초)"
+    : > "$temp_log"
+    if istrue "$APT_PROGRESS_ENABLED"; then
+      if DEBIAN_FRONTEND=noninteractive apt-get \
+          -o DPkg::Lock::Timeout="${APT_LOCK_TIMEOUT}" \
+          -o APT::Status-Fd=3 \
+          -o Dpkg::Progress-Fancy=0 \
+          -o APT::Color=0 \
+          -o Acquire::Retries="${APT_RETRIES}" \
+          -o Acquire::http::Timeout="${APT_CONNECT_TIMEOUT}" \
+          -o Acquire::https::Timeout="${APT_CONNECT_TIMEOUT}" \
+          install -y "${pkgs[@]}" \
+          3> >(apt_status_parser "$label") 2>&1 | tee "$temp_log"; then
+        rm -f -- "$temp_log"
+        progress_done_line "설치" "$label 완료"
+        return 0
+      else
+        rc=$?
+      fi
+    else
+      if DEBIAN_FRONTEND=noninteractive apt-get \
+          -o DPkg::Lock::Timeout="${APT_LOCK_TIMEOUT}" \
+          -o Acquire::Retries="${APT_RETRIES}" \
+          -o Acquire::http::Timeout="${APT_CONNECT_TIMEOUT}" \
+          -o Acquire::https::Timeout="${APT_CONNECT_TIMEOUT}" \
+          install -y "${pkgs[@]}" 2>&1 | tee "$temp_log"; then
+        rm -f -- "$temp_log"
+        return 0
+      else
+        rc=$?
+      fi
+    fi
+    if grep -qiE '(404[[:space:]]+Not[[:space:]]+Found|Failed to fetch.*404)' "$temp_log" && (( attempt <= max_404 )); then
+      warn "[APT 404 자동 복구] 다운로드할 .deb 파일이 저장소에 없습니다. 패키지 목록을 새로고침하고 재시도합니다. ($attempt/$max_404)"
+      if ! apt_update_safe "APT 404 복구용 패키지 목록 새로고침"; then
+        rm -f -- "$temp_log"
+        return 100
+      fi
+      continue
+    fi
+    if grep -qiE '(Could not get lock|Unable to acquire the dpkg frontend lock|Could not open lock file|is another process using it)' "$temp_log"; then
+      echo "[ERROR] APT 잠금 대기 시간(${APT_LOCK_TIMEOUT}초)을 초과했거나 다른 APT 작업이 진행 중입니다." >&2
+      echo "  확인: sudo systemctl status apt-daily-upgrade.service --no-pager" >&2
+      echo "  확인: ps -eo pid,etime,cmd | grep -E 'apt|dpkg|unattended'" >&2
+      echo "  잠금 파일을 삭제하거나 unattended-upgrades를 강제 종료하지 마세요." >&2
+    elif grep -qi '404[[:space:]]*Not Found' "$temp_log"; then
+      echo "[ERROR] APT 404가 패키지 목록 재갱신 후에도 계속 발생합니다." >&2
+      echo "  확인: sudo apt-get update" >&2
+      echo "  확인: apt-cache policy ${pkgs[0]}" >&2
+      echo "  원인 후보: Ubuntu 미러 동기화 지연, 보안 저장소 주소/프록시 캐시 불일치" >&2
+    fi
+    rm -f -- "$temp_log"
+    return "$rc"
+  done
 }
 
 backup_file() {
@@ -1244,7 +1311,7 @@ fi
 
 overall_progress 5 "Ubuntu 기본환경 및 필수 패키지 준비"
 log "필수 패키지 설치"
-apt-get -o Acquire::Retries="${APT_RETRIES}" -o Acquire::http::Timeout="${APT_CONNECT_TIMEOUT}" -o Acquire::https::Timeout="${APT_CONNECT_TIMEOUT}" update -y
+apt_update_safe "Ubuntu/Elastic 저장소 패키지 목록 갱신"
 apt_install_progress "필수 패키지" ca-certificates curl wget gnupg apt-transport-https jq openssl rsync netcat-openbsd lsof unzip xz-utils zstd bzip2 coreutils util-linux logrotate cron python3
 
 # ----------------------------- Elastic APT repo -----------------------------
@@ -1254,7 +1321,7 @@ wget -qO - "$APT_GPG_KEY_URL" | gpg --dearmor --yes -o /usr/share/keyrings/elast
 cat >/etc/apt/sources.list.d/elastic-${ELASTIC_MAJOR}.list <<REPO
 deb [signed-by=/usr/share/keyrings/elasticsearch-keyring.gpg] ${APT_REPOSITORY_URL}/${ELASTIC_MAJOR}/apt stable main
 REPO
-apt-get -o Acquire::Retries="${APT_RETRIES}" -o Acquire::http::Timeout="${APT_CONNECT_TIMEOUT}" -o Acquire::https::Timeout="${APT_CONNECT_TIMEOUT}" update -y
+apt_update_safe "Ubuntu/Elastic 저장소 패키지 목록 갱신"
 
 normalize_elastic_pkg_version() {
   # Debian package versions may include an epoch/revision.
